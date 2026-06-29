@@ -1,0 +1,70 @@
+@font-face {
+  font-family: "Pretendard";
+  src: url("../assets/font/Pretendard-Light.subset.woff2") format("woff2");
+  font-weight: 300;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Pretendard";
+  src: url("../assets/font/Pretendard-Regular.subset.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Pretendard";
+  src: url("../assets/font/Pretendard-Medium.subset.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Pretendard";
+  src: url("../assets/font/Pretendard-SemiBold.subset.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Pretendard";
+  src: url("../assets/font/Pretendard-Bold.subset.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Paperlogy";
+  src: url("../assets/font/Paperlogy-6SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Paperlogy";
+  src: url("../assets/font/Paperlogy-7Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+  --bg: #070711;
+  --bg-soft: #0c0b16;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-strong: rgba(255, 255, 255, 0.08);
+  --surface-solid: #14131e;
+  --text: #fcfcfc;
+  --text-soft: #e4e0f0;
+  --muted: #b7bdc8;
+  --dim: #858390;
+  --line: rgba(255, 255, 255, 0.12);
+  --line-purple: rgba(187, 182, 255, 0.3);
+  --purple: #bbb6ff;
+  --purple-bright: #c9bfff;
+  --purple-deep: #7b6dff;
+  --pink: #ffade3;
+  --ink: #201e28;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
+  --radius-xl: 34px;
+  --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --glow: 0 14px 42px rgba(123, 109, 255, 0.3);
+  --max: 1440px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}

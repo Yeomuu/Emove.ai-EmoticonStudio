@@ -1,0 +1,56 @@
+# EMOVE
+
+목소리와 몸짓의 감정을 움직이는 이모티콘으로 편집하는 반응형 웹 프로토타입입니다. Figma `0621 3차평가` 화면과 2026-06-23에 갱신한 Notion 기획·디자인·기술 기준을 구현 기준으로 사용합니다.
+
+## 실행
+
+```bash
+pnpm install
+pnpm dev
+```
+
+기본 주소는 `http://127.0.0.1:5173/home`입니다. 모든 화면은 해시 없이 `/character`, `/input`, `/edit`, `/library`처럼 이동합니다.
+
+## 검증
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+## 기술 구조
+
+- Preact + TypeScript + Signals + Vite
+- CSS Custom Properties와 `@layer` 기반 반응형 스타일, PC 본문 최대 1440px
+- MediaRecorder, Web Audio, getUserMedia
+- Web Worker에서 실행되는 MediaPipe Pose Landmarker
+- Canvas 4단 합성, 프레임별 위치 저장, 5프레임 GIF89a 인코딩
+- IndexedDB 로컬 저장, 선택적 Firebase 동기화
+- OpenAI 의존부는 Mock/Server Provider 인터페이스로 분리
+
+## OpenAI 연결 전 상태
+
+현재 `MockOpenAIProvider`가 전사와 이미지 생성 결과를 대체합니다. 실제 키는 `.env.example`을 참고해 프로젝트 루트의 `.env.local` 안 `OPENAI_API_KEY`에 입력하고 `VITE_AI_MODE=openai`로 바꿉니다. 키는 `VITE_` 접두사를 쓰지 않으며 브라우저 번들에 포함되지 않습니다. 로컬 Vite 서버가 `/api/openai/transcribe`, `/api/openai/character`, `/api/openai/frames`, `/api/openai/effect`를 처리합니다. `gpt-image-2` 사용 시 캐릭터/이펙트 이미지는 크로마키 녹색 배경으로 생성한 뒤 브라우저에서 투명 PNG로 변환합니다.
+
+비용 제어를 위해 입력 완료 시에는 5개 캐릭터 프레임만 자동 생성합니다. 코어 이펙트 이미지는 편집 화면의 `코어 이펙트 생성` 버튼을 눌렀을 때만 `gpt-image-2`를 호출하며, 버튼을 누르지 않아도 로컬 Canvas 이펙트가 루프 미리보기와 내보내기에 반영됩니다.
+
+프롬프트 생성/정제는 서버의 `OPENAI_PROMPT_MODEL`이 담당합니다. 기본값은 OpenAI 데이터 공유 무료 토큰 대상 텍스트 모델 중 품질 우선으로 `gpt-5.5-2026-04-23`을 사용하며, 이미지 생성은 계속 `gpt-image-2`를 사용합니다. 상세 규칙과 예시는 `docs/prompting-rules.md`에 정리했습니다.
+
+## Firebase 연결
+
+첨부 Firebase 수업 자료의 Web App + Firestore 흐름을 기준으로 루트에 `firebase.json`, `firebase.firestore.rules`, `firebase.storage.rules`를 추가했습니다. `.env.local`의 `VITE_FIREBASE_CONFIG`에 Firebase Web App 설정 JSON을 넣으면 익명 로그인 후 `characters`, `captures`, `projects`, `stickers` 컬렉션과 `emoticons/{ownerId}/{projectId}.gif` Storage 경로에 동기화합니다. 원본 카메라/오디오 Blob은 Firestore에 올리지 않고 분석 메타데이터와 GIF만 저장합니다.
+
+Firebase JS SDK는 이미 `firebase@^12.15.0`로 설치되어 있습니다. 이 프로젝트는 `pnpm-lock.yaml`을 기준으로 관리하므로 새 패키지를 추가할 때는 `pnpm add firebase` 흐름이 안전합니다. Firebase 콘솔의 npm 예시를 따라 `npm install firebase`를 실행할 경우를 위해 `.npmrc`는 상대 cache와 `package-lock=false`로 정리해 두었습니다.
+
+수동으로 해야 하는 일은 Firebase Console에서 프로젝트와 Web App 생성, Authentication Anonymous provider 활성화, Firestore Database와 Storage 생성, 그리고 위 규칙 배포입니다.
+
+## 폴더
+
+- `src/`: 페이지·컴포넌트·서비스·워커 TypeScript와 스타일·에셋
+- `src/assets/images/`: Figma에서 추출한 실제 화면 이미지
+- `src/assets/icons/`: coolicons 단일 아이콘 세트
+- `src/assets/font/`: Pretendard, Paperlogy 로컬 폰트
+- `public/models/`: MediaPipe WASM과 공식 Pose Landmarker 모델
+- `tests/`: 핵심 계약과 GIF 인코더 테스트
+- `qa/`: 구현 화면 캡처
