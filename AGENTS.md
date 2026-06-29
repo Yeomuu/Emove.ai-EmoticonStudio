@@ -53,3 +53,4 @@ When implementing from a selected generated mock, treat that image as the source
 - Character tokens must store an explicit 2D/3D `styleMode`; later character frames must keep that mode instead of blending styles.
 - Input-to-edit generation automatically creates only the five character frames. Generated core-effect image layers are on-demand from the Edit screen to avoid adding image-generation cost by default.
 - Edit must include a live loop preview that renders the same five frame states at the selected frame delay before exporting.
+- Future UI updates may replace the current screen source. When the user provides a Figma frame position link, frame SVG export, and Figma Dev Mode code for the same screen, treat that three-part bundle as the exact visual source of truth and implement the app to match the supplied Figma screen screenshot pixel-for-pixel, including layout, spacing, typography, color, glass material, and interaction states.
