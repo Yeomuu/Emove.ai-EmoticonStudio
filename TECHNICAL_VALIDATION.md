@@ -18,10 +18,10 @@
 - 4단 레이어 순서와 Canvas 합성 순서: 동일 배열을 역순으로 합성
 - 캔버스 드래그·크기·회전과 숫자 속성: 동일 signal 상태로 양방향 동기화
 - 음성 파형: FFT 주파수 bin과 time-domain RMS/peak를 매 프레임 계산
-- 카메라: canplay 이후 촬영 활성화, 5초 미입력 시 해제, 촬영 시 5초 MediaRecorder 기록
+- 카메라: 촬영 버튼을 누르면 프리뷰 대기 없이 카메라를 열고 5초 MediaRecorder 기록을 완료한 뒤 마지막 프레임을 분석
 - 저장: IndexedDB에 project/sticker/character/capture를 분리 보관하고 프로젝트에는 GIF·토큰·행동·프레임·레이어·프레임별 transform·brief를 함께 저장
 - 이모티콘 프레임: 총 5프레임 고정, 프레임당 delay는 사용자가 조정하며 GIF export는 5개의 프레임별 캔버스 상태를 그대로 렌더링
-- Firebase 연동 경로는 로그인 사용자 UID를 ownerId로 저장할 수 있도록 분리되어 있으나, 현재 v1에서는 로컬/Mock 저장을 기본값으로 유지
+- Firebase 연동 경로는 익명 인증 UID를 ownerId로 저장할 수 있도록 분리되어 있고, IndexedDB 로컬 저장 후 설정이 있을 때 원격 동기화를 추가 수행
 - 페이지 단위 dynamic import로 Character/Input/Edit/Library를 분리해 초기 JavaScript에 무거운 편집·분석 코드를 포함하지 않음
 - 원본 PNG와 동일한 알파·구도를 유지한 WebP 파생 에셋을 사용해 주요 화면 이미지 전송량을 약 10.55MB에서 약 0.69MB로 축소(93.5%)
 - 큰 유리 패널의 blur 값은 정적으로 유지하고, 카드·버튼·탭에만 transform/opacity 기반 마이크로 인터랙션을 적용

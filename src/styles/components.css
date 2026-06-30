@@ -363,7 +363,6 @@
   .selection-background { width: 90%; height: 90%; }
   .selection-character { width: 58%; height: 62%; }
   .selection-accent { width: 76%; height: 72%; }
-  .selection-text { width: 54%; height: 14%; margin-top: 29%; }
   .selection-resize, .selection-rotate { position: absolute; z-index: 4; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; background: #25a6ff; }
   .selection-resize { right: -7px; bottom: -7px; cursor: nwse-resize; }
   .selection-rotate { left: calc(50% - 6px); top: -28px; cursor: grab; }

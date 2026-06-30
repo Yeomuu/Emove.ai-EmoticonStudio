@@ -82,8 +82,14 @@ export function CharacterPage() {
     characterStyle.value = style;
     selectCharacter(saved.id);
     await saveCharacter(saved);
-    const sync = await syncCharacterToFirebase(saved);
-    notify(sync.enabled ? "새 캐릭터 토큰을 보관함과 Firebase에 저장했어요." : "새 캐릭터 토큰을 보관함에 저장했어요.");
+    let firebaseError: string | null = null;
+    let synced = false;
+    try {
+      synced = (await syncCharacterToFirebase(saved)).enabled;
+    } catch (error) {
+      firebaseError = error instanceof Error ? error.message : "Firebase 동기화에 실패했습니다.";
+    }
+    notify(firebaseError ? `새 캐릭터 토큰을 보관함에 저장했어요. Firebase 동기화 실패: ${firebaseError}` : synced ? "새 캐릭터 토큰을 보관함과 Firebase에 저장했어요." : "새 캐릭터 토큰을 보관함에 저장했어요.");
     navigate("/library");
   };
 

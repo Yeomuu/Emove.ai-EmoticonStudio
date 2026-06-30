@@ -9,7 +9,7 @@ import { getAIProvider } from "../services/ai-provider";
 import { syncProjectToFirebase } from "../services/firebase";
 import { downloadBlob, exportGif, renderFrame, renderFrameDataUrl } from "../services/renderer";
 import { saveProject } from "../services/repository";
-import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, effectColor, emotion, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
+import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, editingProject, effectColor, emotion, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
 import type { EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
 
 const layerIcons: Record<LayerKind, "image" | "star" | "layers" | "edit"> = { "background-effects": "image", character: "layers", "accent-effects": "star", text: "edit" };
@@ -67,24 +67,60 @@ export function EditPage() {
   };
 
   const buildAndSave = async (): Promise<EmoticonProject> => {
+    const original = editingProject.value;
     const renderOptions = { characterUrl: selectedCharacter.value.sourceAsset, characterFrames: frameImages.value, coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, frameTransforms: frameLayerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: EXPORT_SIZE, height: EXPORT_SIZE };
     const [gifBlob, thumbnail] = await Promise.all([exportGif(renderOptions), renderFrameDataUrl(renderOptions, 0)]);
-    const now = new Date().toISOString(); const id = `emove-${Date.now()}`;
+    const now = new Date().toISOString(); const id = original?.id ?? `emove-${Date.now()}`;
+    const originalSticker = original?.sticker;
     const localGifUrl = URL.createObjectURL(gifBlob);
-    const sticker: StickerItem = { id, title: transcript.value.slice(0, 12) || "새 이모티콘", phrase: transcript.value, emotion: emotion.value, image: thumbnail, animatedImage: localGifUrl, thumbnail, projectId: id, frameDelayMs: frameDelayMs.value, color: effectColor.value, favorite: false, ownerId: "local-user", isDefault: false, isPublished: false, characterTokenId: selectedCharacter.value.id, createdAt: now, updatedAt: now };
+    const sticker: StickerItem = {
+      id: originalSticker?.id ?? id,
+      title: transcript.value.slice(0, 12) || originalSticker?.title || "새 이모티콘",
+      phrase: transcript.value,
+      emotion: emotion.value,
+      image: thumbnail,
+      animatedImage: localGifUrl,
+      thumbnail,
+      projectId: id,
+      gifStoragePath: originalSticker?.gifStoragePath,
+      group: originalSticker?.group,
+      frameDelayMs: frameDelayMs.value,
+      color: effectColor.value,
+      favorite: originalSticker?.favorite ?? false,
+      ownerId: original?.ownerId ?? originalSticker?.ownerId ?? "local-user",
+      isDefault: false,
+      isPublished: originalSticker?.isPublished ?? false,
+      characterTokenId: selectedCharacter.value.id,
+      createdAt: originalSticker?.createdAt ?? original?.createdAt ?? now,
+      updatedAt: now,
+    };
     const { videoBlob: _video, audioBlob: _audio, ...captureMeta } = behaviorCapture.value;
-    let project: EmoticonProject = { id, ownerId: "local-user", sticker, gifBlob, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, coreEffectImage: coreEffectImage.value, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: now, updatedAt: now };
+    let project: EmoticonProject = { id, ownerId: original?.ownerId ?? sticker.ownerId, sticker, gifBlob, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, coreEffectImage: coreEffectImage.value, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: original?.createdAt ?? now, updatedAt: now };
     await saveProject(project);
-    const sync = await syncProjectToFirebase(project);
+    let sync: Awaited<ReturnType<typeof syncProjectToFirebase>> = { enabled: false };
+    let firebaseError: string | null = null;
+    try {
+      sync = await syncProjectToFirebase(project);
+    } catch (error) {
+      firebaseError = error instanceof Error ? error.message : "Firebase 동기화에 실패했습니다.";
+    }
     if (sync.downloadUrl || sync.storagePath || sync.ownerId) {
       const syncedSticker = { ...sticker, ownerId: sync.ownerId ?? sticker.ownerId, animatedImage: sync.downloadUrl ?? sticker.animatedImage, gifStoragePath: sync.storagePath ?? sticker.gifStoragePath, updatedAt: new Date().toISOString() };
       project = { ...project, ownerId: sync.ownerId ?? project.ownerId, sticker: syncedSticker };
       await saveProject(project);
     }
-    stickers.value = [project.sticker, ...stickers.value.filter((item) => item.id !== id)];
+    const currentIndex = stickers.value.findIndex((item) => item.id === project.sticker.id);
+    stickers.value = currentIndex >= 0
+      ? stickers.value.map((item, index) => (index === currentIndex ? project.sticker : item))
+      : [project.sticker, ...stickers.value];
+    editingProject.value = project;
     lastSaved.value = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
     exportGifBlob.value = gifBlob; exportShareUrl.value = sync.downloadUrl ?? null;
-    notify(sync.enabled ? "프로젝트와 1024 GIF를 Firebase에 저장했어요." : "Firebase 연결이 없어 QR 직접 다운로드 링크 없이 기기에 저장했어요."); return project;
+    notify(firebaseError
+      ? `${original ? "원본 이모티콘을 현재 위치에 덮어 저장했어요." : "이모티콘을 기기에 저장했어요."} Firebase 동기화 실패: ${firebaseError}`
+      : original
+        ? sync.enabled ? "원본 이모티콘을 현재 위치에 덮어 저장하고 Firebase도 갱신했어요." : "원본 이모티콘을 현재 위치에 덮어 저장했어요."
+        : sync.enabled ? "프로젝트와 1024 GIF를 Firebase에 저장했어요." : "Firebase 연결이 없어 QR 직접 다운로드 링크 없이 기기에 저장했어요."); return project;
   };
 
   const save = async () => { setExporting(true); try { await buildAndSave(); } catch (error) { notify(error instanceof Error ? error.message : "저장에 실패했습니다."); } finally { setExporting(false); } };

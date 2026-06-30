@@ -1,17 +1,15 @@
 # EMOVE Design QA
 
 검증일: 2026-06-25  
-대상: Figma `0621 3차평가`, 제공된 6개 SVG/추출 코드, 현재 v1 구현
+대상: 제공된 화면 기준 자료와 현재 v1 구현
 
 ## 사용한 시각·구조 근거
 
-- Figma 노드 `1666:1386` 캡처: `qa/figma-0621-3rd-eval-3600.png`
-- 기존 Figma/브라우저 비교 캡처:
-  - `qa/figma-0621-3rd-eval.png`
+- 기준 화면 캡처:
   - `qa/current-home-glass-pass.png`
   - `qa/current-edit-glass-pass.png`
   - `qa/current-library-glass-pass.png`
-- SVG 렌더 기준:
+- 화면 렌더 기준:
   - `qa/references/home-reference.png`
   - `qa/references/character-reference.png`
   - `qa/references/input-reference.png`
@@ -34,7 +32,7 @@
    - 생성 전 저장 버튼 disabled
 5. Input 음성 파형은 대기 중 dot baseline, 녹음 중 FFT frequency bar로 보이도록 조정했다.
 6. Input은 5프레임 고정으로 두고, 프레임당 delay range 값이 우측 요약 숫자와 즉시 동기화되도록 했다.
-7. Edit canvas에는 `EXPORT 360×360` 경계를 명확히 표시하고, stage overflow를 visible로 바꿔 작업 영역이 답답하게 잘리지 않도록 했다.
+7. Edit canvas에는 `EXPORT 1024×1024` 경계를 명확히 표시하고, stage overflow를 visible로 바꿔 작업 영역이 답답하게 잘리지 않도록 했다.
 8. Edit text layer는 문구, bubble shape, font를 변경할 수 있으며 renderer/export 옵션에 연결했다.
 9. Timeline layer drag preview/drop indicator를 유지하고, 위쪽 layer가 canvas에서도 최상단임을 DOM 순서로 확인했다.
 10. Library는 이모티콘/캐릭터 보기로 분리하고, masonry column이 아니라 가로 우선 3-column grid로 정렬했다.
@@ -55,7 +53,7 @@
   - summary includes `프레임 5`, `120ms/frame`: 통과
 - Edit `/edit`
   - stage overflow: `visible`
-  - export boundary label: `EXPORT 360×360`
+  - export boundary label: `EXPORT 1024×1024`
   - text layer 선택 시 text control grid 표시: 통과
   - layer order: 텍스트 → 부가 이펙트 → 캐릭터 → 배경 이펙트
 - Library `/library`

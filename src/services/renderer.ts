@@ -100,18 +100,19 @@ function drawTextBubble(context: CanvasRenderingContext2D, options: RenderOption
   context.font = `700 ${Math.max(25, width * (fontFamily === "Paperlogy" ? .048 : .05))}px ${fontFamily}, Pretendard, sans-serif`;
   context.textAlign = "center"; context.textBaseline = "middle";
   const text = options.brief.shortText; const bubbleWidth = bounds.width; const bubbleHeight = bounds.bubbleHeight; const x = bounds.x; const y = bounds.y;
+  const bubbleCenterX = x + bubbleWidth / 2;
   context.beginPath();
   if (shape === "caption") {
     context.roundRect(x, y, bubbleWidth, bubbleHeight, 14 * unit);
-    context.moveTo(width / 2 - 12 * unit, y + bubbleHeight - 1);
-    context.lineTo(width / 2, y + bubbleHeight + 14 * unit);
-    context.lineTo(width / 2 + 12 * unit, y + bubbleHeight - 1);
+    context.moveTo(bubbleCenterX - 12 * unit, y + bubbleHeight - 1);
+    context.lineTo(bubbleCenterX, y + bubbleHeight + 14 * unit);
+    context.lineTo(bubbleCenterX + 12 * unit, y + bubbleHeight - 1);
     context.closePath();
   } else {
     context.roundRect(x, y, bubbleWidth, bubbleHeight, shape === "pill" ? bubbleHeight / 2 : 16 * unit);
   }
   context.fillStyle = "rgba(252,252,252,.96)"; context.fill();
-  context.fillStyle = "#201E28"; context.fillText(text, width / 2, y + bubbleHeight / 2 + 1, bubbleWidth - 36 * unit);
+  context.fillStyle = "#201E28"; context.fillText(text, bubbleCenterX, y + bubbleHeight / 2 + 1, bubbleWidth - 36 * unit);
 }
 
 export function measureTextBubble(brief: MotionBrief, shape: TextBoxShape = "pill", textFont: TextFont = "Pretendard", width = DESIGN_SIZE, height = DESIGN_SIZE): TextBubbleBounds {

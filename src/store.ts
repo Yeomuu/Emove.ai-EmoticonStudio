@@ -1,6 +1,6 @@
 import { computed, signal } from "@preact/signals";
 import { createMotionBrief, defaultCharacterTokens, emotionMeta, initialLayers, starterStickers } from "./data";
-import type { BehaviorCapture, CharacterToken, EditorLayer, Emotion, LayerKind, LayerTransform, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
+import type { BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, LayerKind, LayerTransform, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
 
 export const characterName = signal("남극의 펭귄");
 export const characterPrompt = signal("둥글고 말랑한 인상의 밝은 아기 펭귄. 친근하고 표정 변화가 큰 캐릭터.");
@@ -45,6 +45,7 @@ export const behaviorCapture = signal<BehaviorCapture>({
   createdAt: new Date().toISOString(),
 });
 export const stickers = signal<StickerItem[]>(starterStickers.map((item) => ({ ...item })));
+export const editingProject = signal<EmoticonProject | null>(null);
 export const lastSaved = signal<string | null>(null);
 export const toast = signal<string | null>(null);
 export const exportModalOpen = signal(false);
@@ -83,6 +84,45 @@ export function selectCharacter(id: string): void {
   frameImages.value = Array.from({ length: 5 }, () => token.sourceAsset);
   frameLayerTransforms.value = createFrameTransforms();
   selectedFrame.value = 0;
+}
+
+export function startNewEmoticonProject(): void {
+  editingProject.value = null;
+  exportGifBlob.value = null;
+  exportShareUrl.value = null;
+  exportModalOpen.value = false;
+}
+
+export function loadProjectForEditing(project: EmoticonProject): void {
+  if (!characters.value.some((item) => item.id === project.characterToken.id)) {
+    characters.value = [project.characterToken, ...characters.value];
+  }
+  editingProject.value = project;
+  selectedCharacterId.value = project.characterToken.id;
+  characterName.value = project.characterToken.name;
+  characterPrompt.value = project.characterToken.prompt;
+  characterTone.value = project.characterToken.colors.body ?? project.characterToken.colors.outfit ?? "#BBB6FF";
+  characterStyle.value = project.characterToken.styleMode;
+  emotion.value = project.motionBrief.emotion;
+  expressionEmotion.value = project.motionBrief.expressionEmotion;
+  effectColor.value = project.motionBrief.effectColor;
+  coreEffect.value = project.motionBrief.coreEffect;
+  coreEffectImage.value = project.coreEffectImage ?? null;
+  sourceTranscript.value = project.motionBrief.sourceText;
+  transcript.value = project.motionBrief.shortText;
+  frameDelayMs.value = project.motionBrief.frameDelayMs;
+  behaviorCapture.value = { ...behaviorCapture.value, ...project.behaviorCapture };
+  layers.value = project.layers.map((layer) => ({ ...layer }));
+  textBoxShape.value = project.textStyle.shape;
+  textFont.value = project.textStyle.font;
+  frameImages.value = project.frameImages.length ? [...project.frameImages] : Array.from({ length: 5 }, () => project.characterToken.sourceAsset);
+  frameLayerTransforms.value = cloneFrameTransforms(project.frameLayerTransforms);
+  selectedFrame.value = 0;
+  activeLayer.value = "text";
+  exportGifBlob.value = null;
+  exportShareUrl.value = project.sticker.animatedImage?.startsWith("http") ? project.sticker.animatedImage : null;
+  exportModalOpen.value = false;
+  lastSaved.value = new Date(project.updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 }
 
 export function updateLayerTransform(id: LayerKind, update: Partial<LayerTransform>): void {
@@ -134,4 +174,18 @@ export function createFrameTransforms(): Array<Record<LayerKind, LayerTransform>
     "accent-effects": { ...defaultLayerTransforms["accent-effects"] },
     text: { ...defaultLayerTransforms.text },
   }));
+}
+
+function cloneFrameTransforms(source: Array<Record<LayerKind, LayerTransform>>): Array<Record<LayerKind, LayerTransform>> {
+  const fallback = createFrameTransforms();
+  return fallback.map((frame, index) => {
+    const sourceFrame = source[index];
+    if (!sourceFrame) return frame;
+    return {
+      "background-effects": { ...frame["background-effects"], ...sourceFrame["background-effects"] },
+      character: { ...frame.character, ...sourceFrame.character },
+      "accent-effects": { ...frame["accent-effects"], ...sourceFrame["accent-effects"] },
+      text: { ...frame.text, ...sourceFrame.text },
+    };
+  });
 }

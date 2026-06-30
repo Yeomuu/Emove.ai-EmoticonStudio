@@ -10,7 +10,7 @@ import { inferEmotionFromText } from "../services/prompt-builder";
 import { syncCaptureToFirebase } from "../services/firebase";
 import { saveCapture } from "../services/repository";
 import { analyzeVisionFrame } from "../services/vision";
-import { applyAnalyzedEmotion, audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, emotion, expressionEmotion, frameDelayMs, frameImages, motionBrief, motionIntensity, notify, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, transcript, visionMetrics } from "../store";
+import { applyAnalyzedEmotion, audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, emotion, expressionEmotion, frameDelayMs, frameImages, motionBrief, motionIntensity, notify, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
 import type { Emotion, VisionMetrics } from "../types";
 
 const ai = getAIProvider();
@@ -23,21 +23,17 @@ export function InputPage() {
   useEffect(() => () => { window.clearTimeout(idleTimer.current); camera.current.release(); audio.current.release(); }, []);
 
   const returnToPreview = (message?: string) => { window.clearTimeout(idleTimer.current); camera.current.release(); setCameraReady(false); setCapturing(false); setCaptureProgress(0); if (message) notify(message); };
-  const turnCameraOn = async () => {
-    if (cameraReady) return returnToPreview();
+  const turnCameraOn = async () => { if (!capturing) await capturePose(true); };
+  const capturePose = async (autoStartCamera = false) => {
+    if (!videoRef.current || capturing || (!cameraReady && !autoStartCamera)) return;
+    window.clearTimeout(idleTimer.current); setSnapshot(undefined); setCapturing(true); setAnalyzing(true); setCaptureProgress(0);
     try {
-      if (!videoRef.current) return; await camera.current.attach(videoRef.current); setSnapshot(undefined); setCameraReady(true);
-      idleTimer.current = window.setTimeout(() => returnToPreview("5초 동안 촬영하지 않아 프리뷰로 돌아왔어요."), 5000);
-    } catch (error) { returnToPreview(); notify(error instanceof Error ? error.message : "카메라를 시작할 수 없습니다."); }
-  };
-  const capturePose = async () => {
-    if (!videoRef.current || !cameraReady) return; window.clearTimeout(idleTimer.current); setCapturing(true); setAnalyzing(true);
-    try {
+      if (autoStartCamera) { await camera.current.attach(videoRef.current); setCameraReady(true); }
       const result = await camera.current.record(videoRef.current, 5000, setCaptureProgress); setSnapshot(result.dataUrl); camera.current.release(); setCameraReady(false);
       try { visionMetrics.value = await analyzeVisionFrame(result.frame); } catch { try { result.frame.close(); } catch { /* detached */ } visionMetrics.value = { source: "mock", pose: { shoulderTilt: .08, armSpread: .72 }, gesture: "Open_Palm" }; }
       behaviorCapture.value = { ...behaviorCapture.value, id: `capture-${Date.now()}`, videoBlob: result.blob, poseSummary: describePose(visionMetrics.value), gesture: visionMetrics.value.gesture ?? "Open_Palm", createdAt: new Date().toISOString() };
       await saveCapture(behaviorCapture.value); void syncCaptureToFirebase(behaviorCapture.value).catch(() => undefined); notify(`${describePose(visionMetrics.value)}로 분석했어요.`);
-    } catch (error) { notify(error instanceof Error ? error.message : "자세 촬영에 실패했습니다."); } finally { setCapturing(false); setAnalyzing(false); setCaptureProgress(0); }
+    } catch (error) { returnToPreview(); notify(error instanceof Error ? error.message : "자세 촬영에 실패했습니다."); } finally { setCapturing(false); setAnalyzing(false); setCaptureProgress(0); }
   };
 
   const toggleRecording = async () => {
@@ -62,6 +58,7 @@ export function InputPage() {
       behaviorCapture.value = { ...behaviorCapture.value, emotionScores: Object.fromEntries(emotionOrder.map((item) => [item, item === expressionEmotion.value ? .88 : .015])) as Record<Emotion, number> };
       await saveCapture(behaviorCapture.value);
       setGenerationStep("캐릭터 행동 프레임 5장 생성 중");
+      startNewEmoticonProject();
       const frames = await ai.generateCharacterFrames(motionBrief.value, selectedCharacter.value);
       setGenerationStep("편집 캔버스 준비 중");
       frameImages.value = frames.slice(0, FRAME_COUNT);
@@ -83,9 +80,9 @@ export function InputPage() {
           <Panel title="✦ 포즈" class="pose-capture-panel">
             <div class="pose-media-frame">{snapshot ? <img src={snapshot} alt="촬영한 자세" /> : null}<video ref={videoRef} muted playsInline class={cameraReady && !snapshot ? "visible" : ""} />{!cameraReady && !snapshot ? <img src={imageAssets.pose} alt="팔을 펼친 자세 입력 예시" /> : null}<span class="camera-status"><i class={cameraReady ? "on" : ""} />{capturing ? `${Math.ceil((1 - captureProgress) * 5)}초 촬영 중` : cameraReady ? "CAMERA READY" : "PREVIEW"}</span></div>
             <div class="pose-meta"><span>1920×1080</span><span>{snapshot ? "Captured now" : "Preview"}</span></div>
-            <div class="pose-playback"><button class="round-tool" type="button" onClick={cameraReady ? capturePose : turnCameraOn} disabled={capturing} aria-label={cameraReady ? "5초 자세 촬영" : "카메라 켜기"}><Icon name={capturing ? "pause" : cameraReady ? "camera" : "play"} /></button><div class="compact-wave"><Waveform levels={capturing && levels.length ? levels : undefined} active={capturing} /></div><span>00:04　/　00:08</span></div>
+            <div class="pose-playback"><button class="round-tool" type="button" onClick={cameraReady ? () => capturePose() : turnCameraOn} disabled={capturing} aria-label="5초 자세 촬영"><Icon name={capturing ? "pause" : "camera"} /></button><div class="compact-wave"><Waveform levels={capturing && levels.length ? levels : undefined} active={capturing} /></div><span>00:04　/　00:08</span></div>
             <div class="pose-intensity"><span>행동 강도 · 음성 크기 기반</span><div>{["낮음", "중간", "높음"].map((item) => <button type="button" class={item === intensityTier ? "active" : ""} disabled>{item}</button>)}</div></div>
-            <div class="pose-capture-actions"><button type="button" onClick={turnCameraOn} disabled={capturing}><Icon name="camera" />{cameraReady ? "카메라 끄기" : "다시 촬영하기"}</button>{cameraReady ? <button type="button" onClick={capturePose} disabled={capturing}><Icon name="check" />5초 촬영</button> : null}</div>
+            <div class="pose-capture-actions"><button type="button" onClick={turnCameraOn} disabled={capturing}><Icon name="camera" />{capturing ? "촬영 중" : snapshot ? "다시 촬영하기" : "5초 촬영하기"}</button></div>
           </Panel>
 
           <div class="input-right-column">

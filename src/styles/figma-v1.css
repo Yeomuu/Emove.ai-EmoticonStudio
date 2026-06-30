@@ -1032,6 +1032,7 @@ body {
 .canvas-selection {
   z-index: 6;
   box-sizing: border-box;
+  margin: 0;
   transform-origin: center;
 }
 

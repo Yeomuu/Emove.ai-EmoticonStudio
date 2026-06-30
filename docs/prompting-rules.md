@@ -1,6 +1,6 @@
 # EMOVE Prompting Rules
 
-EMOVE uses prompt planning before `gpt-image-2` image generation. The text planning model default is `OPENAI_PROMPT_MODEL=gpt-5.5-2026-04-23`, which is selected for quality among OpenAI data-sharing token eligible text models. Image generation remains `gpt-image-2`.
+EMOVE uses prompt planning before `gpt-image-2` image generation. The text planning model is configured by `OPENAI_PROMPT_MODEL`, while image generation remains `gpt-image-2`.
 
 ## Prompt Contract
 

@@ -8,7 +8,7 @@ When implementing from a selected generated mock, treat that image as the source
 
 ## Durable EMOVE decisions
 
-- The Figma page `0621 3차평가` is the visual source of truth.
+- The latest user-provided screen reference set is the visual source of truth.
 - Use clean History API paths such as `/home`, `/character`, `/input`, `/edit`, and `/library`.
 - Keep desktop content at a maximum width of 1440px and make every screen responsive.
 - Use 760px as the global minimum screen height; if the viewport is shorter, the page must scroll instead of clipping.
@@ -17,8 +17,8 @@ When implementing from a selected generated mock, treat that image as the source
 - For `gpt-image-2`, generate character/effect assets on flat chroma-key green and remove the green background in-browser so stored/displayed assets become transparent PNG data URLs.
 - Copy every used font, icon, and image into this project. Use coolicons only; never mix icon libraries.
 - Work on v1 only; there is no active v2 implementation.
-- The six Figma-exported SVG screens supplied on 2026-06-24 are the page-level layout references for Home, Character, Input, Edit, Library, and Library Detail.
-- The 2026-06-30 `참고` reference PNG set confirms the same 0621 third-evaluation screen family: Home, Character, Input, Edit, Library, and Library Detail should keep the dark 1440px liquid-glass layout language from those references.
+- The six supplied screen references for Home, Character, Input, Edit, Library, and Library Detail are the page-level layout references.
+- The 2026-06-30 `참고` reference PNG set confirms the same screen family: Home, Character, Input, Edit, Library, and Library Detail should keep the dark 1440px liquid-glass layout language from those references.
 - All primary page regions, including the Edit toolbar, editor grid, properties, and timeline, share one 1440px desktop frame and common left/right edges.
 - Use a restrained dark liquid-glass treatment: near-black translucent surfaces, thin lavender borders, and small highlight/refraction cues. Avoid opaque blue panel fills.
 - Treat liquid glass as the first visual priority: black glass depth, thin lavender rim light, top glint, subtle internal refraction, and press/hover micro-interactions should be consistent across nav, panels, cards, buttons, and editor controls.
@@ -44,8 +44,10 @@ When implementing from a selected generated mock, treat that image as the source
 - Library hover effects must end when the pointer leaves a card, even after clicking internal card action buttons.
 - Transparent preview grids must be smaller and lighter; grid/pattern backgrounds should appear only on intended preview surfaces, especially Library detail's `detail-stage`.
 - Edit text layer selection bounds must match the rendered text bubble exactly, including resize behavior.
+- Edit canvas selection boxes must be driven only by measured renderer bounds and layer transforms; do not apply legacy CSS offsets such as margins to `.canvas-selection` variants.
 - When editing a frame, later frames should inherit the same layer transform unless the user explicitly changes them, so animation remains continuous.
 - Edit preview and export must share the same 1024×1024 GIF-safe color/alpha constraints so the looped GIF does not visually diverge from the frame editor.
+- Edit save overwrites the active source project/sticker in place when editing from Library; it must preserve the original id, createdAt, favorite/group metadata, and Library ordering instead of creating a duplicate.
 - Source code, styles, fonts, icons, and used UI images should be referenced from `src/` and `src/assets/` in v1; old root-level source/asset folders are legacy copies only until explicitly removed.
 - Firebase sync uses optional `VITE_FIREBASE_CONFIG` plus anonymous auth. Firestore stores `characters`, `captures`, `projects`, and `stickers`; Storage stores generated GIFs under `emoticons/{ownerId}/{fileName}`.
 - Input analysis must visibly show the understood behavior, expression/emotion key, voice usage, and emotion background-effect guide instead of only showing a completion toast.
@@ -54,7 +56,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Character tokens must store an explicit 2D/3D `styleMode`; later character frames must keep that mode instead of blending styles.
 - Input-to-edit generation automatically creates only the five character frames. Generated core-effect image layers are on-demand from the Edit screen to avoid adding image-generation cost by default.
 - Edit must include a live loop preview that renders the same five frame states at the selected frame delay before exporting.
-- Future UI updates may replace the current screen source. When the user provides a Figma frame position link, frame SVG export, and Figma Dev Mode code for the same screen, treat that three-part set as the canonical reference and implement the app to match the supplied Figma screen screenshot pixel-for-pixel.
+- Future UI updates may replace the current screen source. When the user provides a new canonical screen reference set, implement the app to match that supplied screen screenshot pixel-for-pixel.
 - The current final emoticon output target is a simple 1024×1024 looping emoticon generated from `gpt-image-2`-sized assets, not a Kakao 360×360 submission package.
 - GitHub Pages deployment must use the repository base path `/Emove.ai-EmoticonStudio/` plus an SPA `404.html` fallback so clean History API routes work after refresh.
 
