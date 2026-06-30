@@ -5,6 +5,7 @@ declare const Netlify: {
     get(name: string): string | undefined;
   };
 };
+declare const process: { env: ServerEnv };
 
 const ENV_KEYS = [
   "OPENAI_API_KEY",
@@ -33,7 +34,16 @@ export const config = {
 function netlifyEnv(): ServerEnv {
   const env: ServerEnv = {};
   ENV_KEYS.forEach((key) => {
-    env[key] = Netlify.env.get(key);
+    env[key] = readNetlifyEnv(key) ?? process.env[key];
   });
   return env;
+}
+
+function readNetlifyEnv(name: string): string | undefined {
+  try {
+    if (typeof Netlify === "undefined") return undefined;
+    return Netlify.env.get(name);
+  } catch {
+    return undefined;
+  }
 }
