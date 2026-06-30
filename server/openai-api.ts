@@ -53,7 +53,8 @@ async function transcribe(request: Request, key: string, env: ServerEnv) {
 
 async function generateCharacter(request: Request, key: string, env: ServerEnv) {
   const body = await request.json() as { prompt: string; token: unknown; variationCount?: number };
-  const count = Math.max(1, Math.min(4, Math.floor(Number(body.variationCount || env.OPENAI_CHARACTER_VARIATIONS || 4))));
+  const requestedCount = Number(env.OPENAI_CHARACTER_VARIATIONS || body.variationCount || 1);
+const count = Math.max(1, Math.min(2, Math.floor(requestedCount)));
   const drafts = Array.from({ length: count }, (_, index) => [
     body.prompt,
     `[Variation ${index + 1}] Keep the same character identity, palette, style mode and neutral reusable full-body framing. Change only small design exploration details such as pose attitude, silhouette charm, accessory-free facial nuance, or body proportion emphasis.`,
