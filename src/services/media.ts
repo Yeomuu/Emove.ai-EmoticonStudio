@@ -1,7 +1,7 @@
 import type { AudioFeatures } from "../types";
 
 export interface AudioCaptureResult { blob: Blob; durationMs: number; features: AudioFeatures }
-export interface CameraCaptureResult { blob: Blob; durationMs: number; dataUrl: string; frame: ImageBitmap }
+export interface CameraCaptureResult { blob: Blob; durationMs: number; dataUrl: string }
 
 export class AudioCapture {
   private stream?: MediaStream;
@@ -87,12 +87,20 @@ export class CameraCapture {
     const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
     const recorder = new MediaRecorder(this.stream, { mimeType }); const chunks: Blob[] = []; const startedAt = performance.now();
     recorder.ondataavailable = (event) => event.data.size && chunks.push(event.data); recorder.start(100);
+    const canvas = document.createElement("canvas"); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
     await new Promise<void>((resolve) => {
-      const tick = () => { const elapsed = performance.now() - startedAt; onProgress?.(Math.min(1, elapsed / durationMs)); if (elapsed < durationMs) requestAnimationFrame(tick); else resolve(); }; tick();
+      const tick = () => {
+        const elapsed = performance.now() - startedAt;
+        onProgress?.(Math.min(1, elapsed / durationMs));
+        if (elapsed < durationMs) requestAnimationFrame(tick);
+        else resolve();
+      };
+      tick();
     });
     const stopped = new Promise<void>((resolve) => { recorder.onstop = () => resolve(); }); recorder.stop(); await stopped;
-    const canvas = document.createElement("canvas"); canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext("2d")?.drawImage(video, 0, 0);
-    return { blob: new Blob(chunks, { type: mimeType }), durationMs: performance.now() - startedAt, dataUrl: canvas.toDataURL("image/jpeg", .88), frame: await createImageBitmap(canvas) };
+    context?.drawImage(video, 0, 0);
+    return { blob: new Blob(chunks, { type: mimeType }), durationMs: performance.now() - startedAt, dataUrl: canvas.toDataURL("image/jpeg", .88) };
   }
 
   release(): void { this.stream?.getTracks().forEach((track) => track.stop()); this.stream = undefined; }

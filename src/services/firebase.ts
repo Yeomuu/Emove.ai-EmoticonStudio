@@ -41,6 +41,7 @@ function hasRequiredConfig(config: FirebaseConfig): boolean {
 }
 
 async function enableAnalytics(app: FirebaseApp, config: FirebaseConfig): Promise<void> {
+  if (import.meta.env.VITE_FIREBASE_ANALYTICS !== "enabled") return;
   if (analyticsStarted || typeof window === "undefined" || !config.measurementId) return;
   analyticsStarted = true;
   try {

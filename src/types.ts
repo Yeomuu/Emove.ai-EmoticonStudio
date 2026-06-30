@@ -153,6 +153,7 @@ export interface VisionMetrics {
   pose?: { shoulderTilt: number; armSpread: number };
   gesture?: string;
   source: "mediapipe" | "unavailable";
+  diagnostics?: string;
 }
 
 export interface TranscriptionResult {

@@ -9,7 +9,7 @@ import { AudioCapture, CameraCapture } from "../services/media";
 import { inferEmotionFromText } from "../services/prompt-builder";
 import { syncCaptureToFirebase } from "../services/firebase";
 import { saveCapture } from "../services/repository";
-import { analyzeVisionFrame } from "../services/vision";
+import { createLiveVisionAnalyzer } from "../services/vision";
 import { audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, effectColor, emotion, expressionEmotion, frameDelayMs, frameImages, motionBrief, motionIntensity, motionStyle, notify, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
 import type { AudioFeatures, BehaviorCapture, Emotion, MotionStyle, VisionMetrics } from "../types";
 
@@ -36,15 +36,37 @@ export function InputPage() {
     window.clearTimeout(idleTimer.current); setCapturing(true); setRecording(true); setAnalyzing(true); setCaptureProgress(0); setVoiceProgress(0); setLevels([]);
     try {
       if (autoStartCamera) { await camera.current.attach(videoRef.current); setCameraReady(true); }
+      setGenerationStep("영상 분석 모델 준비 중");
+      const liveVision = await createLiveVisionAnalyzer();
       await startAudioMeter();
+      setGenerationStep("카메라+음성 5초 입력 분석 중");
+      const visionTask = liveVision.analyze(videoRef.current, CAPTURE_DURATION_MS);
       const result = await camera.current.record(videoRef.current, CAPTURE_DURATION_MS, (progress) => { setCaptureProgress(progress); setVoiceProgress(progress); });
       const voice = await stopAudioCapture();
+      let metrics: VisionMetrics;
+      try { metrics = await visionTask; }
+      catch (error) { metrics = { source: "unavailable", gesture: "Analyzer_Error", diagnostics: error instanceof Error ? error.message : String(error) }; }
       setRecorded(voice.blob);
       camera.current.release(); setCameraReady(false); setLastCaptureLabel("5초 입력 분석 완료");
-      let metrics: VisionMetrics;
-      try { metrics = await analyzeVisionFrame(result.frame); }
-      catch { metrics = { source: "unavailable", gesture: "Not_Detected" }; }
       visionMetrics.value = metrics;
+      if (metrics.source !== "mediapipe") {
+        behaviorCapture.value = {
+          ...behaviorCapture.value,
+          id: `capture-${Date.now()}`,
+          videoBlob: result.blob,
+          audioBlob: voice.blob,
+          poseSummary: describePose(metrics),
+          gesture: metrics.gesture ?? "Not_Detected",
+          expression: metrics.face?.expression ?? "unknown",
+          emotionScores: Object.fromEntries(emotionOrder.map((item) => [item, item === "unknown" ? 1 : 0])) as Record<Emotion, number>,
+          sourceText: "",
+          shortText: "",
+          audio: voice.features,
+          createdAt: new Date().toISOString(),
+        };
+        notify(`${metrics.diagnostics ?? "카메라에서 사람의 자세 랜드마크를 찾지 못했습니다."} 상반신과 양손이 화면 안에 들어오도록 다시 촬영해 주세요. OpenAI 전사는 실행하지 않았습니다.`);
+        return;
+      }
       await applyVoiceAndVision(result.blob, voice.blob, voice.features, metrics);
     } catch (error) { returnToPreview(); notify(error instanceof Error ? error.message : "자세 촬영에 실패했습니다."); } finally { setCapturing(false); setRecording(false); setAnalyzing(false); setCaptureProgress(0); setVoiceProgress(0); }
   };
@@ -180,7 +202,6 @@ function describePose(metrics: VisionMetrics): string {
 }
 
 function describeFaceUse(current: Emotion, metrics: VisionMetrics): string {
-  if (metrics.source !== "mediapipe") return "카메라 표정 미분석";
   if (!metrics.face) return "표정 미분석";
   const meta = emotionMeta[metrics.face.expression ?? current];
   return `${meta.label} 표정 · ${Math.round(metrics.face.confidence * 100)}%`;
