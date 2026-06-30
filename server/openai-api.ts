@@ -18,8 +18,8 @@ export async function handleOpenAIRequest(request: Request, env: ServerEnv): Pro
   if (!route) return null;
   if (request.method === "OPTIONS") return json(204, {});
   if (request.method !== "POST") return json(405, { error: "POST 요청만 지원합니다." });
-  const key = env.OPENAI_API_KEY;
-  if (!key) return json(503, { error: "서버 환경변수 OPENAI_API_KEY가 설정되지 않았습니다." });
+  const key = openAIKey(env.OPENAI_API_KEY);
+  if (!key) return json(503, { error: "서버 환경변수 OPENAI_API_KEY가 설정되지 않았거나 OpenAI API 키 형식이 아닙니다." });
   try {
     if (route === "transcribe") return await transcribe(request, key, env);
     if (route === "character") return await generateCharacter(request, key, env);
@@ -29,6 +29,11 @@ export async function handleOpenAIRequest(request: Request, env: ServerEnv): Pro
   } catch (error) {
     return json(500, { error: error instanceof Error ? error.message : String(error) });
   }
+}
+
+function openAIKey(value: string | undefined): string | undefined {
+  const key = value?.trim();
+  return key?.startsWith("sk-") ? key : undefined;
 }
 
 async function transcribe(request: Request, key: string, env: ServerEnv) {
