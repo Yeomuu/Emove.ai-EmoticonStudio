@@ -16,6 +16,10 @@ function scaleRect(rect: { x: number; y: number; width: number; height: number }
   return { x: rect.x * scale, y: rect.y * scale, width: rect.width * scale, height: rect.height * scale };
 }
 
+function selectionClassName(id: LayerKind): string {
+  return id === "text" ? "selection-text-layer" : `selection-${id}`;
+}
+
 export function Stage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -65,7 +69,7 @@ export function Stage() {
         return (
         <div
           key={layer.id}
-          class={`canvas-selection selection-${layer.id} ${activeLayer.value === layer.id ? "is-selected" : ""}`}
+          class={`canvas-selection ${selectionClassName(layer.id)} ${activeLayer.value === layer.id ? "is-selected" : ""}`}
           style={{
             zIndex: reverseIndex + 2,
             left: `${((rect.x + rect.width / 2 + transform.x * unit) / EXPORT_SIZE) * 100}%`,
