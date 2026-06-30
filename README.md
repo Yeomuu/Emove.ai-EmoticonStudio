@@ -1,64 +1,154 @@
 # EMOVE
 
-목소리와 몸짓의 감정을 움직이는 이모티콘으로 편집하는 반응형 웹 프로토타입입니다.
+EMOVE is a responsive web prototype for turning a user's voice, expression, and body gesture into a short looping emoticon. It combines camera and microphone input, AI-assisted character generation, frame editing, and a personal library into one browser-based studio.
 
-## 실행
+The current prototype focuses on a simple 1024 x 1024 looping emoticon workflow rather than a platform-specific sticker submission package.
+
+## What It Does
+
+- Creates or selects a character that can become the base of an emoticon.
+- Captures a short camera and voice input, then summarizes expression, gesture, speech text, volume, and effect emotion separately.
+- Generates five character motion frames from the captured behavior.
+- Lets the user edit four ordered layers: background effect, character, accent effect, and text.
+- Previews the same five-frame loop before export.
+- Saves characters, captures, projects, and final stickers through Firebase first, with IndexedDB as a local fallback.
+
+## Product Flow
+
+1. Character: create a new 2D or 3D character, or use one of the bundled starter characters.
+2. Input: record a short multimodal input and review what the system understood.
+3. Edit: adjust frames, layer transforms, speech bubble text, effects, and loop delay.
+4. Library: browse saved characters and emoticons, with generated emoticons previewing as loops.
+
+## Tech Stack
+
+- Preact, TypeScript, Signals, Vite
+- CSS custom properties and layered responsive styles
+- MediaRecorder, Web Audio, getUserMedia
+- MediaPipe Pose Landmarker and Face Landmarker in a Web Worker
+- Canvas rendering, five-frame state storage, and GIF-style loop export
+- Firebase Authentication, Firestore, and Storage
+- OpenAI image and text calls through a server-side proxy only
+- Netlify Functions for production OpenAI API routes
+- GitHub Pages for static preview deployment
+
+## AI Architecture
+
+The OpenAI API key is never exposed to the browser. Browser code calls `/api/openai/*`, and the server proxy reads `OPENAI_API_KEY` from its own environment.
+
+Supported proxy routes:
+
+- `POST /api/openai/transcribe`
+- `POST /api/openai/character`
+- `POST /api/openai/frames`
+- `POST /api/openai/effect`
+
+Character and effect images are requested on a flat chroma-key green background. The browser removes that green background and stores the result as a transparent-ready PNG data URL. Speech bubble text is rendered locally in Canvas, not baked into generated images.
+
+## Firebase Data
+
+Firebase is optional for local exploration but required for real cross-device storage.
+
+Collections used by the app:
+
+- `characters`: generated or bundled character metadata
+- `captures`: analyzed gesture, expression, voice, and effect facts
+- `projects`: editable five-frame layer state
+- `stickers`: exported emoticon metadata and Storage path
+
+Storage path:
+
+- `emoticons/{ownerId}/{fileName}`
+
+Writes are scoped by anonymous Firebase Auth UID. If Firebase is missing or unavailable, the app keeps a local IndexedDB fallback so the editing flow can continue.
+
+## Local Development
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-기본 주소는 `http://127.0.0.1:5173/home`입니다. 모든 화면은 해시 없이 `/character`, `/input`, `/edit`, `/library`처럼 이동합니다.
+Default local URL:
 
-## 검증
+```text
+http://127.0.0.1:5173/home
+```
+
+Useful checks:
 
 ```bash
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm build:github
 ```
 
-## 기술 구조
+## Environment Variables
 
-- Preact + TypeScript + Signals + Vite
-- CSS Custom Properties와 `@layer` 기반 반응형 스타일, PC 본문 최대 1440px
-- MediaRecorder, Web Audio, getUserMedia
-- Web Worker에서 실행되는 MediaPipe Pose Landmarker + Face Landmarker
-- Canvas 4단 합성, 프레임별 위치 저장, 1024×1024 5프레임 GIF89a 인코딩
-- IndexedDB 로컬 저장, 선택적 Firebase 동기화
-- OpenAI 의존부는 서버 프록시 인터페이스로 분리
+Create `.env.local` from `.env.example`.
 
-## OpenAI 연결
+Server-only variables:
 
-실제 키는 `.env.example`을 참고해 프로젝트 루트의 `.env.local` 안 `OPENAI_API_KEY`에 입력합니다. 키는 `VITE_` 접두사를 쓰지 않으며 브라우저 번들에 포함되지 않습니다. 로컬 Vite 서버가 `/api/openai/transcribe`, `/api/openai/character`, `/api/openai/frames`, `/api/openai/effect`를 처리합니다. `gpt-image-2` 사용 시 캐릭터/이펙트 이미지는 크로마키 녹색 배경으로 생성한 뒤 브라우저에서 투명 PNG로 변환합니다.
+```bash
+OPENAI_API_KEY=
+OPENAI_PROMPT_MODEL=
+OPENAI_TRANSCRIBE_MODEL=
+OPENAI_IMAGE_MODEL=
+OPENAI_IMAGE_SIZE=1024x1024
+OPENAI_IMAGE_QUALITY=medium
+OPENAI_IMAGE_CONCURRENCY=2
+```
 
-기본 캐릭터 세트는 사용자가 바로 이모티콘을 만들 수 있도록 유지합니다. 다만 `캐릭터 생성하기`는 기본 캐릭터를 재사용하지 않고 반드시 서버 OpenAI 프록시를 호출하며, 실패하면 명확한 오류를 보여줍니다.
+Client-exposed variables:
 
-비용 제어를 위해 입력 완료 시에는 5개 캐릭터 프레임만 자동 생성합니다. 코어 이펙트 이미지는 편집 화면의 `코어 이펙트 생성` 버튼을 눌렀을 때만 `gpt-image-2`를 호출하며, 버튼을 누르지 않아도 로컬 Canvas 이펙트가 루프 미리보기와 내보내기에 반영됩니다.
+```bash
+VITE_FIREBASE_CONFIG=
+VITE_OPENAI_API_BASE=
+VITE_MEDIAPIPE_WASM_PATH=/models/wasm
+VITE_POSE_MODEL_PATH=/models/pose_landmarker_lite.task
+VITE_FACE_MODEL_PATH=
+```
 
-프롬프트 생성/정제는 서버의 `OPENAI_PROMPT_MODEL`이 담당하며, 이미지 생성은 계속 `gpt-image-2`를 사용합니다. 상세 규칙과 예시는 `docs/prompting-rules.md`에 정리했습니다.
+Do not create a `VITE_OPENAI_API_KEY`. Any `VITE_` variable is visible in the browser bundle.
 
-## Firebase 연결
+## Deployment
 
-루트에 `firebase.json`, `firebase.firestore.rules`, `firebase.storage.rules`가 있습니다. `.env.local`의 `VITE_FIREBASE_CONFIG`에 Firebase Web App 설정 JSON을 넣거나, `VITE_FIREBASE_API_KEY` 등 개별 환경변수를 채우면 익명 로그인 후 `characters`, `captures`, `projects`, `stickers` 컬렉션과 `emoticons/{ownerId}/{fileName}.gif` Storage 경로에 동기화합니다. 원본 카메라/오디오 Blob과 data URL 이미지는 Firestore에 올리지 않고 분석 메타데이터, 편집 상태, 작은 참조값, 최종 GIF URL 중심으로 저장합니다. 저장 흐름은 Firebase를 먼저 시도하고, 설정 누락이나 권한 오류가 있을 때만 IndexedDB에 임시 캐시합니다.
+Netlify can run the OpenAI proxy. `netlify.toml` rewrites `/api/openai/*` to `netlify/functions/openai.ts`, so set `OPENAI_API_KEY` in Netlify environment variables before using generation features there.
 
-Firebase JS SDK는 이미 `firebase@^12.15.0`로 설치되어 있습니다. 이 프로젝트는 `pnpm-lock.yaml`을 기준으로 관리하므로 새 패키지를 추가할 때는 `pnpm add firebase` 흐름이 안전합니다. `.npmrc`는 로컬 cache, fund, audit 설정만 둡니다.
+GitHub Pages is static hosting. It cannot execute `/api/openai/*` by itself. To use AI generation from the GitHub Pages build, deploy the Netlify proxy first and set this GitHub Actions variable:
 
-수동으로 해야 하는 일은 Firebase Console에서 Web App 설정 확인, Authentication Anonymous provider 활성화, Firestore Database와 Storage 생성, 그리고 위 규칙 배포입니다.
+```bash
+VITE_OPENAI_API_BASE=https://your-netlify-site.netlify.app/api/openai
+```
 
-## 배포
+Without that variable, the app intentionally avoids calling `/api/openai/*` on `github.io` and shows a clear configuration error instead of producing repeated `405 Method Not Allowed` console errors.
 
-Netlify는 일반 `pnpm build` 결과를 배포하면 됩니다. GitHub Pages는 저장소 하위 경로와 History API fallback이 필요하므로 `pnpm build:github`를 사용합니다. `main`에 push하면 `.github/workflows/pages.yml`이 `dist`를 GitHub Pages로 배포하며, 저장소 설정의 Pages Source는 `GitHub Actions`로 지정해야 합니다.
+For GitHub Pages, repository settings should use:
 
-## 폴더
+- Source: GitHub Actions
+- Workflow: `.github/workflows/pages.yml`
 
-- `src/`: 페이지·컴포넌트·서비스·워커 TypeScript와 스타일·에셋
-- `src/assets/images/`: 앱에서 사용하는 화면·캐릭터 이미지
-- `src/assets/icons/`: coolicons 단일 아이콘 세트
-- `src/assets/font/`: Pretendard, Paperlogy 로컬 폰트
-- `public/models/`: MediaPipe WASM과 공식 Pose Landmarker 모델. Face Landmarker는 기본적으로 공식 원격 모델 URL을 쓰며, 필요하면 로컬 모델로 교체할 수 있습니다.
-- `tests/`: 핵심 계약과 GIF 인코더 테스트
-- `qa/`: 구현 화면 캡처
+## Repository Layout
 
-GitHub 웹에서 로컬보다 폴더 수가 적게 보이는 것은 정상입니다. `node_modules/`, `dist/`, `.env.local`, 로컬 캐시, QA 산출물 등은 `.gitignore`로 제외되어 저장소에는 실행에 필요한 소스와 설정만 올라갑니다.
+```text
+src/
+  components/      Shared UI
+  pages/           Character, Input, Edit, Library screens
+  services/        AI, Firebase, storage, rendering, export logic
+  workers/         MediaPipe analysis worker
+  assets/          Fonts, icons, and images used by the app
+server/            Vite dev/preview OpenAI proxy
+netlify/functions/ Netlify OpenAI proxy entry point
+public/models/     MediaPipe model files served statically
+tests/             Unit and contract tests
+```
+
+Generated folders such as `dist`, `node_modules`, local caches, and private `.env.local` files are intentionally excluded from Git.
+
+## Current Limitations
+
+- AI generation needs a working server proxy and a valid OpenAI API key.
+- Browser camera and microphone analysis depends on user permission and device support.
+- GitHub Pages can host the static app, but OpenAI generation requires an external proxy URL.
+- GIF-style export has palette and alpha limitations; the editor preview and export share the same renderer to keep the loop as consistent as possible.
