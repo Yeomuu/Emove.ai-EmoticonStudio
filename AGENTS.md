@@ -64,6 +64,8 @@ When implementing from a selected generated mock, treat that image as the source
 - Future UI updates may replace the current screen source. When the user provides a new canonical screen reference set, implement the app to match that supplied screen screenshot pixel-for-pixel.
 - The current final emoticon output target is a simple 1024×1024 looping emoticon generated from `gpt-image-2`-sized assets, not a Kakao 360×360 submission package.
 - Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
+- OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to Netlify timeout or response-size limits.
+- Use compressed `webp` image API responses by default before browser chroma-key removal; if this changes, the returned data URL MIME type must match the requested image output format.
 
 ## Firebase Firestore Data Model
 

@@ -40,10 +40,13 @@ Supported proxy routes:
 
 - `POST /api/openai/transcribe`
 - `POST /api/openai/character`
+- `POST /api/openai/frame`
 - `POST /api/openai/frames`
 - `POST /api/openai/effect`
 
 Character and effect images are requested on a flat chroma-key green background. The browser removes that green background and stores the result as a transparent-ready PNG data URL. Speech bubble text is rendered locally in Canvas, not baked into generated images.
+
+Image routes return one generated image per serverless response. The client requests character variations and the five motion frames step by step so a paid OpenAI image result is less likely to be lost to a serverless timeout or oversized response payload.
 
 ## Firebase Data
 
@@ -97,7 +100,10 @@ OPENAI_TRANSCRIBE_MODEL=
 OPENAI_IMAGE_MODEL=
 OPENAI_IMAGE_SIZE=1024x1024
 OPENAI_IMAGE_QUALITY=medium
-OPENAI_IMAGE_CONCURRENCY=2
+OPENAI_IMAGE_OUTPUT_FORMAT=webp
+OPENAI_IMAGE_OUTPUT_COMPRESSION=82
+OPENAI_IMAGE_CONCURRENCY=1
+OPENAI_CHARACTER_VARIATIONS=1
 ```
 
 Client-exposed variables:

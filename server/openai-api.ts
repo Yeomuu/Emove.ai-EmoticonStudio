@@ -9,9 +9,11 @@ type ImageOutputOptions = {
   size: string;
   quality: string;
   background: string;
-  output_format: string;
+  output_format: ImageOutputFormat;
+  output_compression?: number;
 };
 type PromptKind = "character" | "frames" | "effect";
+type ImageOutputFormat = "png" | "jpeg" | "webp";
 
 export async function handleOpenAIRequest(request: Request, env: ServerEnv): Promise<Response | null> {
   const route = openAIRoute(request.url);
@@ -23,6 +25,7 @@ export async function handleOpenAIRequest(request: Request, env: ServerEnv): Pro
   try {
     if (route === "transcribe") return await transcribe(request, key, env);
     if (route === "character") return await generateCharacter(request, key, env);
+    if (route === "frame") return await generateFrame(request, key, env);
     if (route === "frames") return await generateFrames(request, key, env);
     if (route === "effect") return await generateEffect(request, key, env);
     return json(404, { error: "지원하지 않는 OpenAI 경로입니다." });
@@ -52,23 +55,32 @@ async function transcribe(request: Request, key: string, env: ServerEnv) {
 }
 
 async function generateCharacter(request: Request, key: string, env: ServerEnv) {
-  const body = await request.json() as { prompt: string; token: unknown; variationCount?: number };
-  const requestedCount = Number(env.OPENAI_CHARACTER_VARIATIONS || body.variationCount || 1);
-const count = Math.max(1, Math.min(2, Math.floor(requestedCount)));
+  const body = await request.json() as { prompt: string; token: unknown; variationCount?: number; variationIndex?: number };
+  const count = 1;
+  const offset = Math.max(0, Math.floor(Number(body.variationIndex || 0)));
   const drafts = Array.from({ length: count }, (_, index) => [
     body.prompt,
-    `[Variation ${index + 1}] Keep the same character identity, palette, style mode and neutral reusable full-body framing. Change only small design exploration details such as pose attitude, silhouette charm, accessory-free facial nuance, or body proportion emphasis.`,
+    `[Variation ${offset + index + 1}] Keep the same character identity, palette, style mode and neutral reusable full-body framing. Change only small design exploration details such as pose attitude, silhouette charm, accessory-free facial nuance, or body proportion emphasis.`,
   ].join("\n"));
   const prompts = await refineImagePrompts("character", drafts, body, key, env);
   const imageUrls = await mapWithConcurrency(prompts, Number(env.OPENAI_IMAGE_CONCURRENCY || 2), (prompt) => generateImage(prompt, key, env));
   return json(200, { imageUrl: imageUrls[0], imageUrls, token: body.token, revisedPrompt: prompts[0], revisedPrompts: prompts });
 }
 
+async function generateFrame(request: Request, key: string, env: ServerEnv) {
+  const body = await request.json() as { prompt: string; referenceImages?: string[]; frameIndex?: number };
+  if (!body.prompt) return json(400, { error: "프레임 생성 프롬프트가 없습니다." });
+  const [prompt] = await refineImagePrompts("frames", [body.prompt], body, key, env);
+  const reference = body.referenceImages?.[0];
+  const imageUrl = reference ? await editImage(prompt, reference, key, env) : await generateImage(prompt, key, env);
+  return json(200, { imageUrl, frameIndex: body.frameIndex ?? 0, revisedPrompt: prompt });
+}
+
 async function generateFrames(request: Request, key: string, env: ServerEnv) {
   const body = await request.json() as { prompts: string[]; referenceImages: string[] };
   const reference = body.referenceImages?.[0];
-  const prompts = await refineImagePrompts("frames", body.prompts.slice(0, 5), body, key, env);
-  const frameImages = await mapWithConcurrency(prompts, Number(env.OPENAI_IMAGE_CONCURRENCY || 2), (prompt) => (
+  const prompts = await refineImagePrompts("frames", body.prompts.slice(0, 1), body, key, env);
+  const frameImages = await mapWithConcurrency(prompts, 1, (prompt) => (
     reference ? editImage(prompt, reference, key, env) : generateImage(prompt, key, env)
   ));
   return json(200, { frameImages });
@@ -84,7 +96,7 @@ async function generateEffect(request: Request, key: string, env: ServerEnv) {
 async function generateImage(prompt: string, key: string, env: ServerEnv): Promise<string> {
   const options = imageOutputOptions(env);
   const openai = await fetch("https://api.openai.com/v1/images/generations", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ ...options, prompt }) });
-  return imagePayload(openai);
+  return imagePayload(openai, options.output_format);
 }
 
 async function editImage(prompt: string, referenceUrl: string, key: string, env: ServerEnv): Promise<string> {
@@ -92,20 +104,26 @@ async function editImage(prompt: string, referenceUrl: string, key: string, env:
   if (!source.ok) throw new Error("캐릭터 참조 이미지를 불러오지 못했습니다.");
   const form = new FormData();
   const options = imageOutputOptions(env);
-  Object.entries(options).forEach(([name, value]) => form.append(name, value));
+  Object.entries(options).forEach(([name, value]) => {
+    if (value !== undefined) form.append(name, String(value));
+  });
   form.append("prompt", prompt);
   form.append("image", new File([await source.blob()], "character.png", { type: "image/png" }));
   const openai = await fetch("https://api.openai.com/v1/images/edits", { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form });
-  return imagePayload(openai);
+  return imagePayload(openai, options.output_format);
 }
 
-async function imagePayload(response: Response): Promise<string> {
+async function imagePayload(response: Response, outputFormat: ImageOutputFormat): Promise<string> {
   const payload = await response.json().catch(() => ({})) as { data?: Array<{ b64_json?: string; url?: string }>; error?: { message?: string } };
   if (!response.ok) throw new Error(payload.error?.message || `OpenAI 이미지 생성에 실패했습니다. (${response.status})`);
   const image = payload.data?.[0];
-  if (image?.b64_json) return `data:image/png;base64,${image.b64_json}`;
+  if (image?.b64_json) return `data:${mimeTypeForOutput(outputFormat)};base64,${image.b64_json}`;
   if (image?.url) return await fetchImageAsDataUrl(image.url);
   throw new Error("OpenAI 이미지 결과가 비어 있습니다.");
+}
+
+function mimeTypeForOutput(outputFormat: ImageOutputFormat): string {
+  return outputFormat === "jpeg" ? "image/jpeg" : `image/${outputFormat}`;
 }
 
 async function fetchImageAsDataUrl(url: string): Promise<string> {
@@ -120,7 +138,19 @@ function imageOutputOptions(env: ServerEnv): ImageOutputOptions {
   const model = env.OPENAI_IMAGE_MODEL || "gpt-image-2";
   const requestedBackground = env.OPENAI_IMAGE_BACKGROUND || "auto";
   const background = requestedBackground === "transparent" ? "auto" : requestedBackground;
-  return { model, size: env.OPENAI_IMAGE_SIZE || "1024x1024", quality: env.OPENAI_IMAGE_QUALITY || "medium", background, output_format: "png" };
+  const output_format = imageOutputFormat(env.OPENAI_IMAGE_OUTPUT_FORMAT || env.OPENAI_IMAGE_FORMAT || "webp");
+  const output_compression = output_format === "webp" || output_format === "jpeg" ? imageCompression(env.OPENAI_IMAGE_OUTPUT_COMPRESSION || env.OPENAI_IMAGE_COMPRESSION || "82") : undefined;
+  return { model, size: env.OPENAI_IMAGE_SIZE || "1024x1024", quality: env.OPENAI_IMAGE_QUALITY || "medium", background, output_format, output_compression };
+}
+
+function imageOutputFormat(value: string): ImageOutputFormat {
+  return value === "png" || value === "jpeg" || value === "webp" ? value : "webp";
+}
+
+function imageCompression(value: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 82;
+  return Math.max(0, Math.min(100, Math.round(parsed)));
 }
 
 async function refineImagePrompts(kind: PromptKind, drafts: string[], context: unknown, key: string, env: ServerEnv): Promise<string[]> {
