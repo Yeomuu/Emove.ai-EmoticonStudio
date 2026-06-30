@@ -9,7 +9,7 @@ import { getAIProvider } from "../services/ai-provider";
 import { syncProjectToFirebase } from "../services/firebase";
 import { downloadBlob, exportGif, renderFrame, renderFrameDataUrl } from "../services/renderer";
 import { saveProject } from "../services/repository";
-import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, editingProject, effectColor, emotion, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
+import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, editingProject, effectColor, emotion, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, notifyError, previewLayerOrder, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
 import type { EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
 
 const layerIcons: Record<LayerKind, "image" | "star" | "layers" | "edit"> = { "background-effects": "image", character: "layers", "accent-effects": "star", text: "edit" };
@@ -32,7 +32,7 @@ export function EditPage() {
       coreEffectImage.value = await ai.generateCoreEffect(motionBrief.value);
       notify(coreEffectImage.value ? "코어 이펙트 레이어를 새로 생성했어요." : "생성형 코어 이펙트를 만들지 못해 로컬 이펙트로 미리봅니다.");
     } catch (error) {
-      notify(error instanceof Error ? error.message : "코어 이펙트 생성에 실패했습니다.");
+      notifyError(error instanceof Error ? error.message : "코어 이펙트 생성에 실패했습니다.");
     } finally {
       setGeneratingEffect(false);
     }
@@ -122,8 +122,8 @@ export function EditPage() {
         : sync.enabled ? "프로젝트와 1024 GIF를 Firebase에 저장했어요." : "Firebase 연결이 없어 QR 직접 다운로드 링크 없이 기기에 저장했어요."); return project;
   };
 
-  const save = async () => { setExporting(true); try { await buildAndSave(); } catch (error) { notify(error instanceof Error ? error.message : "저장에 실패했습니다."); } finally { setExporting(false); } };
-  const openExport = async () => { setExporting(true); try { await buildAndSave(); if (exportShareUrl.value) { const { default: QRCode } = await import("qrcode"); setQr(await QRCode.toDataURL(exportShareUrl.value, { width: 260, margin: 1, color: { dark: "#201E28", light: "#FCFCFC" } })); } else setQr(undefined); exportModalOpen.value = true; } catch (error) { notify(error instanceof Error ? error.message : "내보내기에 실패했습니다."); } finally { setExporting(false); } };
+  const save = async () => { setExporting(true); try { await buildAndSave(); } catch (error) { notifyError(error instanceof Error ? error.message : "저장에 실패했습니다."); } finally { setExporting(false); } };
+  const openExport = async () => { setExporting(true); try { await buildAndSave(); if (exportShareUrl.value) { const { default: QRCode } = await import("qrcode"); setQr(await QRCode.toDataURL(exportShareUrl.value, { width: 260, margin: 1, color: { dark: "#201E28", light: "#FCFCFC" } })); } else setQr(undefined); exportModalOpen.value = true; } catch (error) { notifyError(error instanceof Error ? error.message : "내보내기에 실패했습니다."); } finally { setExporting(false); } };
   const share = async () => {
     if (!exportGifBlob.value) return; const file = new File([exportGifBlob.value], `emove-${emotion.value}.gif`, { type: "image/gif" });
     if (navigator.share && navigator.canShare?.({ files: [file] })) { await navigator.share({ title: "EMOVE 이모티콘", text: transcript.value, files: [file] }); }

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { imageAssets } from "../data";
 import { navigate, route } from "../router";
-import { toast } from "../store";
+import { dismissToast, toast } from "../store";
 import type { RoutePath } from "../types";
 
 const navItems: Array<{ label: string; path: RoutePath }> = [
@@ -22,7 +22,12 @@ export function Shell({ children, immersive = false }: { children: ComponentChil
         <button class="profile-button" type="button" onClick={() => navigate("/library")} aria-label="마이페이지"><img src={imageAssets.detailProfile} alt="" /></button>
       </header>
       <main>{children}</main>
-      {toast.value ? <div class="toast" role="status">{toast.value}</div> : null}
+      {toast.value ? (
+        <div class={`toast ${toast.value.tone === "error" ? "is-error" : ""}`} role={toast.value.tone === "error" ? "alert" : "status"}>
+          <span class="toast-message">{toast.value.message}</span>
+          {toast.value.tone === "error" ? <button type="button" class="toast-close" onClick={dismissToast} aria-label="알림 닫기">×</button> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

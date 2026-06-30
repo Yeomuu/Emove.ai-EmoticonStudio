@@ -4,7 +4,7 @@ import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
 import { syncCharacterToFirebase } from "../services/firebase";
 import { saveCharacter } from "../services/repository";
-import { characterName, characterPrompt, characters, characterStyle, characterTone, notify, selectCharacter } from "../store";
+import { characterName, characterPrompt, characters, characterStyle, characterTone, notify, notifyError, selectCharacter } from "../store";
 import type { CharacterToken, GeneratedCharacterResult } from "../types";
 
 const ai = getAIProvider();
@@ -80,7 +80,7 @@ export function CharacterPage() {
       setSelectedVariationIndex(0);
       notify("새 캐릭터 초안이 생성됐어요. 원하는 베리에이션을 고른 뒤 저장하세요.");
     } catch (error) {
-      notify(error instanceof Error ? error.message : "캐릭터 생성에 실패했습니다.");
+      notifyError(error instanceof Error ? error.message : "캐릭터 생성에 실패했습니다.");
     } finally {
       setGenerating(false);
     }

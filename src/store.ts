@@ -70,7 +70,8 @@ export const behaviorCapture = signal<BehaviorCapture>({
 export const stickers = signal<StickerItem[]>(starterStickers.map((item) => ({ ...item })));
 export const editingProject = signal<EmoticonProject | null>(null);
 export const lastSaved = signal<string | null>(null);
-export const toast = signal<string | null>(null);
+export type ToastTone = "info" | "error";
+export const toast = signal<{ message: string; tone: ToastTone } | null>(null);
 export const exportModalOpen = signal(false);
 export const exportShareUrl = signal<string | null>(null);
 export const exportGifBlob = signal<Blob | null>(null);
@@ -79,10 +80,25 @@ export const motionBrief = computed(() => createMotionBrief(emotion.value, effec
 
 let toastTimer: number | undefined;
 export function notify(message: string): void {
-  toast.value = message;
+  toast.value = { message, tone: "info" };
   if (typeof window === "undefined") return;
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => (toast.value = null), 2600);
+}
+
+/**
+ * 실패 안내는 사용자가 직접 닫을 때까지 남겨, 긴 생성 대기 끝에 떠도
+ * 2.6초 만에 사라져 놓치는 일을 막습니다. (예: OpenAI 프록시 504 타임아웃)
+ */
+export function notifyError(message: string): void {
+  toast.value = { message, tone: "error" };
+  if (typeof window === "undefined") return;
+  window.clearTimeout(toastTimer);
+}
+
+export function dismissToast(): void {
+  if (typeof window !== "undefined") window.clearTimeout(toastTimer);
+  toast.value = null;
 }
 
 export function setEmotion(next: Emotion): void {
