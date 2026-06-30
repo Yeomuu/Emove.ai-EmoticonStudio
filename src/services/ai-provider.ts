@@ -16,7 +16,7 @@ export class ServerOpenAIProvider implements OpenAIProvider {
   }
 
   async generateCharacter(token: CharacterToken): Promise<GeneratedCharacterResult> {
-    const result = await requestJson<GeneratedCharacterResult>(openAIEndpoint("character"), { token, prompt: buildCharacterPrompt(token), referenceImages: token.referenceImages, variationCount: 4 });
+    const result = await requestJson<GeneratedCharacterResult>(openAIEndpoint("character"), { token, prompt: buildCharacterPrompt(token), referenceImages: token.referenceImages, variationCount: 1 });
     const rawImages = result.imageUrls?.length ? result.imageUrls : [result.imageUrl];
     const imageUrls = await Promise.all(rawImages.map((image) => removeChromaKeyBackground(image)));
     const imageUrl = imageUrls[0];
