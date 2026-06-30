@@ -30,7 +30,7 @@ export function EditPage() {
     setGeneratingEffect(true);
     try {
       coreEffectImage.value = await ai.generateCoreEffect(motionBrief.value);
-      notify(coreEffectImage.value ? "코어 이펙트 레이어를 새로 생성했어요." : "Mock 모드에서는 로컬 이펙트로 미리봅니다.");
+      notify(coreEffectImage.value ? "코어 이펙트 레이어를 새로 생성했어요." : "생성형 코어 이펙트를 만들지 못해 로컬 이펙트로 미리봅니다.");
     } catch (error) {
       notify(error instanceof Error ? error.message : "코어 이펙트 생성에 실패했습니다.");
     } finally {
@@ -96,7 +96,6 @@ export function EditPage() {
     };
     const { videoBlob: _video, audioBlob: _audio, ...captureMeta } = behaviorCapture.value;
     let project: EmoticonProject = { id, ownerId: original?.ownerId ?? sticker.ownerId, sticker, gifBlob, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, coreEffectImage: coreEffectImage.value, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: original?.createdAt ?? now, updatedAt: now };
-    await saveProject(project);
     let sync: Awaited<ReturnType<typeof syncProjectToFirebase>> = { enabled: false };
     let firebaseError: string | null = null;
     try {
@@ -107,8 +106,8 @@ export function EditPage() {
     if (sync.downloadUrl || sync.storagePath || sync.ownerId) {
       const syncedSticker = { ...sticker, ownerId: sync.ownerId ?? sticker.ownerId, animatedImage: sync.downloadUrl ?? sticker.animatedImage, gifStoragePath: sync.storagePath ?? sticker.gifStoragePath, updatedAt: new Date().toISOString() };
       project = { ...project, ownerId: sync.ownerId ?? project.ownerId, sticker: syncedSticker };
-      await saveProject(project);
     }
+    await saveProject(project);
     const currentIndex = stickers.value.findIndex((item) => item.id === project.sticker.id);
     stickers.value = currentIndex >= 0
       ? stickers.value.map((item, index) => (index === currentIndex ? project.sticker : item))

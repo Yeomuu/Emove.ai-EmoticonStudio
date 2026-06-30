@@ -1,7 +1,14 @@
 import { emotionEffectGuides } from "../data";
 import type { AudioFeatures, CharacterToken, Emotion, MotionBrief } from "../types";
 
-export function compactEmoticonText(source: string, fallback = "좋아!"): string {
+const motionStyleCopy: Record<MotionBrief["motionStyle"], string> = {
+  smooth: "smooth easing, gentle in-between motion, stable silhouette transitions",
+  dynamic: "dynamic exaggerated motion, stronger pose changes, quick readable action",
+  bouncy: "bouncy elastic timing, squash-and-stretch feeling while preserving identity",
+  subtle: "subtle restrained motion, small body shifts, calm loop continuity",
+};
+
+export function compactEmoticonText(source: string, fallback = ""): string {
   const cleaned = source
     .replace(/(어|음|그|저기|진짜|정말|너무|약간|뭔가)(?=\s|$)/g, " ")
     .replace(/[^가-힣a-zA-Z0-9!?~\s]/g, " ")
@@ -48,6 +55,7 @@ export function buildFramePrompts(brief: MotionBrief, token: CharacterToken): st
     `Reference the supplied character image and preserve the exact same ${token.stylePreset} identity.`,
     `[Style contract] The character token is ${styleMode}; keep every frame ${styleMode}.`,
     `Frame ${index + 1}/5 (${beat}) of one continuous motion, designed for ${brief.frameDelayMs}ms per frame.`,
+    `Motion style: ${motionStyleCopy[brief.motionStyle]}.`,
     "[Input facts]",
     `Captured expression key: ${brief.expressionEmotion}.`,
     `Captured gesture/action: ${brief.pose}; motion amplitude: ${Math.round(brief.motionIntensity * 100)}/100.`,

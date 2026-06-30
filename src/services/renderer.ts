@@ -65,7 +65,9 @@ async function drawLayer(context: CanvasRenderingContext2D, id: LayerKind, optio
     }
   } else if (id === "character") {
     const frameIndex = Math.min((options.characterFrames?.length ?? 1) - 1, Math.max(0, Math.round(progress * ((options.characterFrames?.length ?? 1) - 1))));
-    const image = await loadImage(options.characterFrames?.[frameIndex] ?? options.characterUrl);
+    const source = options.characterFrames?.[frameIndex] ?? options.characterUrl;
+    if (!source) return;
+    const image = await loadImage(source);
     const targetWidth = Math.min(width * .62, 560); const targetHeight = targetWidth * image.height / image.width;
     context.drawImage(image, (width - targetWidth) / 2, height * .49 - targetHeight / 2, targetWidth, targetHeight);
   } else if (id === "accent-effects") {

@@ -13,7 +13,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Keep desktop content at a maximum width of 1440px and make every screen responsive.
 - Use 760px as the global minimum screen height; if the viewport is shorter, the page must scroll instead of clipping.
 - The Edit timeline has exactly four ordered layers: background effects, character, accent effects, and text.
-- OpenAI-dependent features must run through a mock provider until the user supplies an API key.
+- OpenAI-dependent features must not fabricate mock user assets; if the API key or server proxy is unavailable, show a clear failure instead of substituting default characters, voice text, poses, or frames.
 - For `gpt-image-2`, generate character/effect assets on flat chroma-key green and remove the green background in-browser so stored/displayed assets become transparent PNG data URLs.
 - Copy every used font, icon, and image into this project. Use coolicons only; never mix icon libraries.
 - Work on v1 only; there is no active v2 implementation.
@@ -27,6 +27,7 @@ When implementing from a selected generated mock, treat that image as the source
 - In Library, the decorated first card in the source represents hover/focus state; all cards use the same default style.
 - Use short spring-like micro-interactions only where they communicate selection, press, reveal, drag, or navigation. Respect reduced-motion and avoid continuously animating blur or filters.
 - Character creation starts empty: do not show an existing character until the user generates a new draft, then save the resulting token explicitly.
+- Keep the bundled default character set available for users who want to skip character creation, but never use those defaults as fallback output when the user explicitly runs new character generation.
 - Character color palette is a dropdown preset; point color remains swatches plus one custom color picker swatch that shows the selected custom color.
 - Library separates emoticon and character views, and item cards flow horizontally first with a 3-column desktop grid rather than masonry columns.
 - Library category filters are horizontally scrollable/draggable and should show an edge fade when overflow is possible.
@@ -49,8 +50,9 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit preview and export must share the same 1024×1024 GIF-safe color/alpha constraints so the looped GIF does not visually diverge from the frame editor.
 - Edit save overwrites the active source project/sticker in place when editing from Library; it must preserve the original id, createdAt, favorite/group metadata, and Library ordering instead of creating a duplicate.
 - Source code, styles, fonts, icons, and used UI images should be referenced from `src/` and `src/assets/` in v1; old root-level source/asset folders are legacy copies only until explicitly removed.
-- Firebase sync uses optional `VITE_FIREBASE_CONFIG` plus anonymous auth. Firestore stores `characters`, `captures`, `projects`, and `stickers`; Storage stores generated GIFs under `emoticons/{ownerId}/{fileName}`.
+- Firebase sync uses optional `VITE_FIREBASE_CONFIG` plus anonymous auth. Firestore stores `characters`, `captures`, `projects`, and `stickers`; Storage stores generated GIFs under `emoticons/{ownerId}/{fileName}`. Firebase is the primary save path when configured, and IndexedDB is only a local cache/fallback.
 - Input analysis must visibly show the understood behavior, expression/emotion key, voice usage, and emotion background-effect guide instead of only showing a completion toast.
+- Input camera analysis uses MediaPipe Pose Landmarker and Face Landmarker for the closest single person; if real landmarks are unavailable, the app must say the analysis failed instead of substituting preset behavior or expression data.
 - Library category UI must keep display category state separate from emotion filtering so same-emotion categories such as celebration and gratitude do not appear selected at the same time.
 - Manual emotion changes after analysis affect only background/core effects, not captured expression, action, voice, or speech-bubble text facts.
 - Character tokens must store an explicit 2D/3D `styleMode`; later character frames must keep that mode instead of blending styles.

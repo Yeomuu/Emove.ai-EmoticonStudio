@@ -30,9 +30,9 @@
     position: fixed;
     inset: 0;
     pointer-events: none;
-    opacity: 0.2;
-    background-image: linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
-    background-size: 64px 64px;
+    opacity: 0.12;
+    background-image: linear-gradient(rgba(255,255,255,.011) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.011) 1px, transparent 1px);
+    background-size: 36px 36px;
     mask-image: linear-gradient(to bottom, black, transparent 82%);
   }
   ::selection { background: var(--purple-deep); color: #fff; }

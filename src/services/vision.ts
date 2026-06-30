@@ -20,10 +20,17 @@ export function analyzeVisionFrame(frame: ImageBitmap): Promise<VisionMetrics> {
         id,
         type: "analyze",
         frame,
-        wasmPath: import.meta.env.VITE_MEDIAPIPE_WASM_PATH || "/models/wasm",
-        modelPath: import.meta.env.VITE_POSE_MODEL_PATH || "/models/pose_landmarker_lite.task",
+        wasmPath: import.meta.env.VITE_MEDIAPIPE_WASM_PATH || publicAssetPath("models/wasm"),
+        poseModelPath: import.meta.env.VITE_POSE_MODEL_PATH || publicAssetPath("models/pose_landmarker_lite.task"),
+        faceModelPath: import.meta.env.VITE_FACE_MODEL_PATH || "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
       },
       [frame],
     );
   });
+}
+
+function publicAssetPath(path: string): string {
+  const base = import.meta.env.BASE_URL || "/";
+  const cleanBase = base.endsWith("/") ? base : `${base}/`;
+  return `${cleanBase}${path.replace(/^\/+/, "")}`;
 }

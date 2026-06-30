@@ -77,7 +77,7 @@
   .settings-panel { display: flex; flex-direction: column; }
   .settings-panel > .button { margin-top: auto; }
   .character-stage { position: relative; min-height: 620px; border-radius: var(--radius-xl); overflow: hidden; display: grid; place-items: center; isolation: isolate; }
-  .stage-grid { position: absolute; inset: 0; z-index: -2; opacity: .28; background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px); background-size: 54px 54px; mask-image: radial-gradient(circle, black, transparent 70%); }
+  .stage-grid { position: absolute; inset: 0; z-index: -2; opacity: .17; background-image: linear-gradient(rgba(255,255,255,.036) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.036) 1px, transparent 1px); background-size: 28px 28px; mask-image: radial-gradient(circle, black, transparent 70%); }
   .stage-label { position: absolute; left: 24px; top: 22px; color: var(--dim); font-size: 9px; letter-spacing: .15em; text-transform: uppercase; }
   .character-aura { position: absolute; z-index: -1; width: 360px; height: 360px; border-radius: 50%; opacity: .28; filter: blur(80px); }
   .character-stage > img { width: min(76%, 530px); max-height: 490px; object-fit: contain; transition: filter .4s; }
@@ -166,7 +166,7 @@
   .effect-note { margin-top: 18px; padding: 10px; display: flex; gap: 8px; border-radius: 10px; color: var(--dim); background: rgba(255,255,255,.025); font-size: 9px; }
   .editor-stage-wrap { min-width: 0; display: grid; grid-template-rows: 1fr auto; gap: 12px; }
   .editor-stage { position: relative; min-height: 484px; display: grid; place-items: center; border-radius: var(--radius-xl); overflow: hidden; background: radial-gradient(circle at center, rgba(187,182,255,.07), transparent 58%), rgba(255,255,255,.018); }
-  .editor-stage::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px); background-size: 42px 42px; mask-image: radial-gradient(circle, black, transparent 72%); }
+  .editor-stage::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.021) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.021) 1px, transparent 1px); background-size: 24px 24px; mask-image: radial-gradient(circle, black, transparent 72%); }
   .stage-canvas { position: relative; width: min(82%, 500px); aspect-ratio: 1; }
   .stage-rulers span { position: absolute; color: var(--dim); font-size: 8px; letter-spacing: .1em; }
   .stage-rulers span:first-child { left: 50%; bottom: 10px; }

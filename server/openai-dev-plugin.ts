@@ -42,14 +42,21 @@ async function transcribe(request: IncomingMessage, response: ServerResponse, ke
   const form = new FormData(); form.append("file", file, file.name || "emotion.webm"); form.append("model", env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-transcribe");
   const openai = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form });
   const payload = await openai.json() as { text?: string; error?: { message?: string } }; if (!openai.ok) throw new Error(payload.error?.message || "OpenAI 음성 전사에 실패했습니다.");
-  return send(response, 200, { text: payload.text ?? "" });
+  const text = payload.text?.trim() ?? "";
+  const shortText = text ? await summarizeTranscript(text, key, env) : "";
+  return send(response, 200, { text, shortText });
 }
 
 async function generateCharacter(request: IncomingMessage, response: ServerResponse, key: string, env: ServerEnv) {
-  const body = await readJson<{ prompt: string; token: unknown }>(request);
-  const [prompt] = await refineImagePrompts("character", [body.prompt], body, key, env);
-  const imageUrl = await generateImage(prompt, key, env);
-  return send(response, 200, { imageUrl, token: body.token, revisedPrompt: prompt });
+  const body = await readJson<{ prompt: string; token: unknown; variationCount?: number }>(request);
+  const count = Math.max(1, Math.min(4, Math.floor(Number(body.variationCount || env.OPENAI_CHARACTER_VARIATIONS || 4))));
+  const drafts = Array.from({ length: count }, (_, index) => [
+    body.prompt,
+    `[Variation ${index + 1}] Keep the same character identity, palette, style mode and neutral reusable full-body framing. Change only small design exploration details such as pose attitude, silhouette charm, accessory-free facial nuance, or body proportion emphasis.`,
+  ].join("\n"));
+  const prompts = await refineImagePrompts("character", drafts, body, key, env);
+  const imageUrls = await mapWithConcurrency(prompts, Number(env.OPENAI_IMAGE_CONCURRENCY || 2), (prompt) => generateImage(prompt, key, env));
+  return send(response, 200, { imageUrl: imageUrls[0], imageUrls, token: body.token, revisedPrompt: prompts[0], revisedPrompts: prompts });
 }
 
 async function generateFrames(request: IncomingMessage, response: ServerResponse, key: string, env: ServerEnv) {
@@ -134,6 +141,37 @@ async function refineImagePrompts(kind: PromptKind, drafts: string[], context: u
   } catch {
     return drafts;
   }
+}
+
+async function summarizeTranscript(text: string, key: string, env: ServerEnv): Promise<string> {
+  try {
+    const openai = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: env.OPENAI_PROMPT_MODEL || "gpt-4.1-mini",
+        messages: [
+          { role: "system", content: "You summarize Korean speech for a short emoticon speech bubble. Return JSON only as {\"shortText\":\"...\"}. Preserve the user's intent; do not invent emotion or new facts. Keep it 2-10 Korean characters when possible." },
+          { role: "user", content: text },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    const payload = await openai.json().catch(() => ({})) as { choices?: Array<{ message?: { content?: string } }> };
+    if (!openai.ok) return compactFallback(text);
+    const parsed = JSON.parse(payload.choices?.[0]?.message?.content ?? "{}") as { shortText?: string };
+    return parsed.shortText?.trim() || compactFallback(text);
+  } catch {
+    return compactFallback(text);
+  }
+}
+
+function compactFallback(text: string): string {
+  const cleaned = text.replace(/(어|음|그|저기|진짜|정말|너무|약간|뭔가)(?=\s|$)/g, " ").replace(/[^가-힣a-zA-Z0-9!?~\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  const clauses = cleaned.split(/[,.;]|\s+(?:그래서|근데|그리고|하지만)\s+/).filter(Boolean);
+  const core = clauses.sort((a, b) => b.length - a.length)[0] ?? cleaned;
+  return core.length <= 10 ? core : `${core.slice(0, 9).trim()}!`;
 }
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {

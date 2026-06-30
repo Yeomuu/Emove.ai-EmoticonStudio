@@ -1,4 +1,4 @@
-import type { CharacterToken, EditorLayer, Emotion, StickerItem } from "./types";
+import type { CharacterToken, EditorLayer, Emotion, MotionStyle, StickerItem } from "./types";
 
 export const imageAssets = {
   hero: new URL("./assets/images/home-ecosystem.webp", import.meta.url).href,
@@ -17,7 +17,6 @@ export const imageAssets = {
     new URL("./assets/images/library-04.webp", import.meta.url).href,
     new URL("./assets/images/library-05.webp", import.meta.url).href,
   ],
-  pattern: new URL("./assets/images/pattern.png", import.meta.url).href,
 } as const;
 
 export const emotionMeta: Record<Emotion, { label: string; effect: string; color: string; message: string; autoApply: boolean }> = {
@@ -102,20 +101,21 @@ export const starterStickers: StickerItem[] = [];
 
 export const effectPresets = ["팝 스타", "플레임 버스트", "스모그 웨이브", "쉐이크 링", "소프트 웨이브", "레인 드롭", "스파클 링"] as const;
 
-export function createMotionBrief(emotion: Emotion, color: string, sourceText: string, shortText: string, intensity: number, tokenId: string, frameDelayMs = 120, coreEffect?: string, expressionEmotion: Emotion = emotion): import("./types").MotionBrief {
+export function createMotionBrief(emotion: Emotion, color: string, sourceText: string, shortText: string, intensity: number, tokenId: string, frameDelayMs = 120, coreEffect?: string, expressionEmotion: Emotion = emotion, pose = "입력된 행동 없음", motionStyle: MotionStyle = "smooth"): import("./types").MotionBrief {
   const meta = emotionMeta[emotion];
   return {
-    sourceText: sourceText.trim() || meta.message,
-    shortText: shortText.trim() || meta.message,
+    sourceText: sourceText.trim(),
+    shortText: shortText.trim(),
     expressionEmotion,
     emotion,
     confidence: emotion === "other" || emotion === "unknown" ? 0.42 : 0.88,
-    motionIntensity: Math.max(0.15, Math.min(1, intensity)),
-    pose: emotion === "happy" ? "양팔을 활짝 펼친 자세" : "상체 중심의 자연스러운 제스처",
+    motionIntensity: Math.max(0, Math.min(1, intensity)),
+    pose,
     coreEffect: coreEffect ?? meta.effect,
     effectColor: color,
     duration: Math.max(0.35, Math.min(1.4, frameDelayMs * 5 / 1000)),
     frameDelayMs,
+    motionStyle,
     characterTokenId: tokenId,
   };
 }

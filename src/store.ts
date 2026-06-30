@@ -1,26 +1,48 @@
 import { computed, signal } from "@preact/signals";
 import { createMotionBrief, defaultCharacterTokens, emotionMeta, initialLayers, starterStickers } from "./data";
-import type { BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, LayerKind, LayerTransform, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
+import type { BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, LayerKind, LayerTransform, MotionStyle, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
 
-export const characterName = signal("남극의 펭귄");
-export const characterPrompt = signal("둥글고 말랑한 인상의 밝은 아기 펭귄. 친근하고 표정 변화가 큰 캐릭터.");
+const emptyCharacter: CharacterToken = {
+  id: "character-empty",
+  version: 1,
+  name: "캐릭터 없음",
+  ownerId: null,
+  isDefault: false,
+  sourceAsset: "",
+  referenceImages: [],
+  styleMode: "3D",
+  stylePreset: "Soft 3D",
+  styleDescription: "사용자가 새로 생성해야 하는 빈 캐릭터 슬롯",
+  prompt: "",
+  observableTraits: [],
+  personalityTags: [],
+  colors: {},
+  fixedTraits: [],
+  doNotChange: [],
+  createdAt: "",
+  updatedAt: "",
+};
+
+export const characterName = signal("");
+export const characterPrompt = signal("");
 export const characterTone = signal("#BBB6FF");
 export const characterStyle = signal<"2D" | "3D">("3D");
 export const characters = signal<CharacterToken[]>(defaultCharacterTokens.map((item) => ({ ...item })));
-export const selectedCharacterId = signal(defaultCharacterTokens[0].id);
-export const selectedCharacter = computed(() => characters.value.find((item) => item.id === selectedCharacterId.value) ?? characters.value[0]);
+export const selectedCharacterId = signal(defaultCharacterTokens[0]?.id ?? "");
+export const selectedCharacter = computed(() => characters.value.find((item) => item.id === selectedCharacterId.value) ?? emptyCharacter);
 
-export const emotion = signal<Emotion>("happy");
-export const expressionEmotion = signal<Emotion>("happy");
-export const effectColor = signal(emotionMeta.happy.color);
-export const coreEffect = signal(emotionMeta.happy.effect);
+export const emotion = signal<Emotion>("unknown");
+export const expressionEmotion = signal<Emotion>("unknown");
+export const effectColor = signal(emotionMeta.unknown.color);
+export const coreEffect = signal(emotionMeta.unknown.effect);
 export const coreEffectImage = signal<string | null>(null);
-export const sourceTranscript = signal("오늘 진짜 너무 좋아서 날아갈 것 같아!");
-export const transcript = signal("완전 좋아!");
-export const audioRms = signal(0.52);
-export const audioPeak = signal(0.74);
-export const motionIntensity = computed(() => Math.max(0.2, Math.min(1, audioRms.value * 1.7)));
+export const sourceTranscript = signal("");
+export const transcript = signal("");
+export const audioRms = signal(0);
+export const audioPeak = signal(0);
+export const motionIntensity = computed(() => Math.max(0, Math.min(1, audioRms.value * 1.7)));
 export const frameDelayMs = signal(120);
+export const motionStyle = signal<MotionStyle>("smooth");
 
 export const selectedFrame = signal(0);
 export const activeLayer = signal<LayerKind>("accent-effects");
@@ -35,13 +57,14 @@ export const defaultLayerTransforms: Record<LayerKind, LayerTransform> = {
 };
 export const frameLayerTransforms = signal<Array<Record<LayerKind, LayerTransform>>>(createFrameTransforms());
 export const layerTransforms = computed(() => frameLayerTransforms.value[selectedFrame.value] ?? defaultLayerTransforms);
-export const frameImages = signal<string[]>(Array.from({ length: 5 }, () => selectedCharacter.value.sourceAsset));
-export const visionMetrics = signal<VisionMetrics>({ source: "mock", pose: { shoulderTilt: 0.08, armSpread: 0.72 }, gesture: "Open_Palm" });
+export const frameImages = signal<string[]>([]);
+export const visionMetrics = signal<VisionMetrics>({ source: "unavailable", gesture: "Not_Captured" });
 export const behaviorCapture = signal<BehaviorCapture>({
-  id: "sample-capture", ownerId: null, poseSummary: "양팔을 펼친 상반신 자세", gesture: "Open_Palm",
-  emotionScores: { angry: 0.02, disgusted: 0.01, fearful: 0.01, happy: 0.88, neutral: 0.04, other: 0.01, sad: 0.01, surprised: 0.02, unknown: 0 },
+  id: "capture-empty", ownerId: null, poseSummary: "입력된 행동 없음", gesture: "Not_Captured",
+  expression: "unknown",
+  emotionScores: { angry: 0, disgusted: 0, fearful: 0, happy: 0, neutral: 0, other: 0, sad: 0, surprised: 0, unknown: 1 },
   sourceText: sourceTranscript.value, shortText: transcript.value,
-  audio: { rms: audioRms.value, peak: audioPeak.value, energy: 0.63, capturedAt: new Date().toISOString() },
+  audio: { rms: audioRms.value, peak: audioPeak.value, energy: 0, capturedAt: new Date().toISOString() },
   createdAt: new Date().toISOString(),
 });
 export const stickers = signal<StickerItem[]>(starterStickers.map((item) => ({ ...item })));
@@ -52,7 +75,7 @@ export const exportModalOpen = signal(false);
 export const exportShareUrl = signal<string | null>(null);
 export const exportGifBlob = signal<Blob | null>(null);
 
-export const motionBrief = computed(() => createMotionBrief(emotion.value, effectColor.value, sourceTranscript.value, transcript.value, motionIntensity.value, selectedCharacterId.value, frameDelayMs.value, coreEffect.value, expressionEmotion.value));
+export const motionBrief = computed(() => createMotionBrief(emotion.value, effectColor.value, sourceTranscript.value, transcript.value, motionIntensity.value, selectedCharacterId.value, frameDelayMs.value, coreEffect.value, expressionEmotion.value, behaviorCapture.value.poseSummary, motionStyle.value));
 
 let toastTimer: number | undefined;
 export function notify(message: string): void {
@@ -67,11 +90,6 @@ export function setEmotion(next: Emotion): void {
   effectColor.value = emotionMeta[next].color;
   coreEffect.value = emotionMeta[next].effect;
   coreEffectImage.value = null;
-}
-
-export function applyAnalyzedEmotion(next: Emotion): void {
-  expressionEmotion.value = next;
-  setEmotion(next);
 }
 
 export function selectCharacter(id: string): void {
@@ -111,6 +129,7 @@ export function loadProjectForEditing(project: EmoticonProject): void {
   sourceTranscript.value = project.motionBrief.sourceText;
   transcript.value = project.motionBrief.shortText;
   frameDelayMs.value = project.motionBrief.frameDelayMs;
+  motionStyle.value = project.motionBrief.motionStyle ?? "smooth";
   behaviorCapture.value = { ...behaviorCapture.value, ...project.behaviorCapture };
   layers.value = project.layers.map((layer) => ({ ...layer }));
   textBoxShape.value = project.textStyle.shape;

@@ -25,6 +25,7 @@ export type LayerKind = "background-effects" | "character" | "accent-effects" | 
 export type TextBoxShape = "pill" | "rounded" | "caption";
 export type TextFont = "Pretendard" | "Paperlogy";
 export type CharacterStyleMode = "2D" | "3D";
+export type MotionStyle = "smooth" | "dynamic" | "bouncy" | "subtle";
 
 export interface EditorLayer {
   id: LayerKind;
@@ -76,6 +77,7 @@ export interface BehaviorCapture {
   audioBlob?: Blob;
   poseSummary: string;
   gesture: string;
+  expression?: Emotion;
   emotionScores: Record<Emotion, number>;
   sourceText: string;
   shortText: string;
@@ -95,6 +97,7 @@ export interface MotionBrief {
   effectColor: string;
   duration: number;
   frameDelayMs: number;
+  motionStyle: MotionStyle;
   characterTokenId: string;
 }
 
@@ -139,10 +142,17 @@ export interface EmoticonProject {
 }
 
 export interface VisionMetrics {
-  face?: { smile: number; eyeOpenness: number };
+  face?: {
+    smile: number;
+    eyeOpenness: number;
+    mouthOpen: number;
+    browRaise: number;
+    expression: Emotion;
+    confidence: number;
+  };
   pose?: { shoulderTilt: number; armSpread: number };
   gesture?: string;
-  source: "mediapipe" | "mock";
+  source: "mediapipe" | "unavailable";
 }
 
 export interface TranscriptionResult {
@@ -152,12 +162,14 @@ export interface TranscriptionResult {
 
 export interface GeneratedCharacterResult {
   imageUrl: string;
+  imageUrls?: string[];
   token: CharacterToken;
   revisedPrompt?: string;
+  revisedPrompts?: string[];
 }
 
 export interface OpenAIProvider {
-  readonly mode: "mock" | "openai";
+  readonly mode: "openai";
   transcribe(audio: Blob): Promise<TranscriptionResult>;
   generateCharacter(token: CharacterToken): Promise<GeneratedCharacterResult>;
   generateCharacterFrames(brief: MotionBrief, token: CharacterToken): Promise<string[]>;

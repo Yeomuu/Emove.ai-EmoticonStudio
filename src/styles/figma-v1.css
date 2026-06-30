@@ -17,7 +17,7 @@ body {
     radial-gradient(48rem 34rem at 82% 74%, rgba(77, 62, 167, .07), transparent 68%),
     #070711;
 }
-body::before { opacity: .08; background-size: 72px 72px; }
+body::before { opacity: .05; background-size: 36px 36px; }
 
 button, a, input, select, textarea { transition: border-color .22s var(--swift), background-color .22s var(--swift), color .22s var(--swift), box-shadow .24s var(--swift), transform .28s var(--spring), opacity .2s ease; }
 button:not(:disabled):active { transform: scale(.965); transition-duration: .08s; }
@@ -242,6 +242,11 @@ button:not(:disabled):active { transform: scale(.965); transition-duration: .08s
 .motion-option-row { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 34px; }
 .motion-option-row button { min-height: 54px; padding: 0 22px; display: flex; align-items: center; justify-content: space-between; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.035); color: #aaa6b4; }
 .motion-option-row b { color: #bbb6ff; font-weight: 400; }
+.motion-style-select { min-height: 54px; padding: 8px 14px; display: grid; gap: 4px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.035); color: #aaa6b4; }
+.motion-style-select span, .loop-format-note span { color: #8f8a99; font-size: 9px; }
+.motion-style-select select { height: 24px; padding: 0; border: 0; background: transparent; color: #e4dfef; font-size: 12px; }
+.loop-format-note { min-height: 54px; padding: 8px 14px; display: grid; align-content: center; gap: 4px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.018); color: #aaa6b4; }
+.loop-format-note b { color: #bbb6ff; font-weight: 500; }
 .toggle { width: 42px; height: 23px; padding: 3px; display: flex; justify-content: flex-end; border-radius: 999px; background: #777198; }
 .toggle::after { content: ""; width: 17px; height: 17px; border-radius: 50%; background: #fff; }
 .emotion-setting-row { margin-top: 18px; display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 20px; color: #aaa6b4; font-size: 11px; }
@@ -250,11 +255,14 @@ button:not(:disabled):active { transform: scale(.965); transition-duration: .08s
 .emotion-selector button i { width: 6px; height: 6px; border-radius: 50%; }
 .emotion-selector button.active { border-color: rgba(187,182,255,.42); background: rgba(89,73,190,.28); color: #eeeaf8; transform: translateY(-1px); }
 .motion-background-row { margin-top: 15px; min-height: 48px; padding: 0 18px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.03); color: #aaa6b4; font-size: 11px; }
-.motion-background-row strong { color: #c4bfce; font-weight: 400; text-align: right; }
+.motion-background-row strong { display: grid; gap: 2px; color: #c4bfce; font-weight: 400; text-align: right; }
+.motion-background-row strong small { color: #7f7a89; font-size: 9px; font-weight: 400; }
 .motion-background-row > div { display: flex; align-items: center; gap: 7px; }
 .motion-background-row > div i, .motion-background-row > div button { width: 24px; height: 24px; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; background: #161522; }
 .motion-background-row > div i:nth-child(2) { background: #fcfcfc; }
 .motion-background-row > div button { display: grid; place-items: center; background: rgba(255,255,255,.045); }
+.effect-color-picker { position: relative; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; overflow: hidden; cursor: pointer; }
+.effect-color-picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .motion-analysis-summary { margin-top: 12px; display: flex; gap: 8px; }
 .motion-analysis-summary span { padding: 4px 8px; border-radius: 999px; background: rgba(187,182,255,.08); color: #9f9aaa; font-size: 8px; }
 .motion-settings-panel .privacy-note { margin: 12px 0 0; min-height: 38px; padding: 8px 10px; }
@@ -320,19 +328,20 @@ button:not(:disabled):active { transform: scale(.965); transition-duration: .08s
 .library-category-rail small { align-self: start; color: #858190; font-size: 9px; }
 .sticker-grid { display: block; column-count: 3; column-gap: 12px; }
 .sticker-card { position: relative; width: 100%; min-height: 0; margin: 0 0 12px; padding: 0; display: inline-block; break-inside: avoid; border-color: rgba(255,255,255,.15); border-radius: 30px; background: rgba(8,8,16,.28); overflow: hidden; content-visibility: auto; contain-intrinsic-size: 354px 430px; }
-.sticker-card::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; background-image: linear-gradient(rgba(187,182,255,.09) 1px, transparent 1px), linear-gradient(90deg, rgba(187,182,255,.09) 1px, transparent 1px); background-size: 20px 20px; transition: opacity .28s ease; }
-.sticker-card:hover, .sticker-card:focus-within { border-color: rgba(129,109,255,.85); box-shadow: 0 0 0 1px rgba(129,109,255,.14), 0 22px 60px rgba(0,0,0,.25); transform: translateY(-3px); }
-.sticker-card:hover::after, .sticker-card:focus-within::after { opacity: 0; }
+.sticker-card::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; background-image: linear-gradient(rgba(187,182,255,.054) 1px, transparent 1px), linear-gradient(90deg, rgba(187,182,255,.054) 1px, transparent 1px); background-size: 12px 12px; transition: opacity .28s ease; }
+.sticker-card:hover { border-color: rgba(129,109,255,.85); box-shadow: 0 0 0 1px rgba(129,109,255,.14), 0 22px 60px rgba(0,0,0,.25); transform: translateY(-3px); }
+.sticker-card:focus-within:not(:hover) { border-color: rgba(255,255,255,.15); box-shadow: none; transform: none; }
+.sticker-card:hover::after, .sticker-card:focus-within:not(:hover)::after { opacity: 0; }
 .sticker-card .sticker-preview { position: relative; z-index: 1; width: 100%; height: 100%; min-height: 354px; display: grid; place-items: center; background: transparent; }
 .sticker-card.masonry-0 .sticker-preview { height: 354px; }
 .sticker-card.masonry-1 .sticker-preview { height: 472px; }
 .sticker-card.masonry-2 .sticker-preview { height: 404px; }
 .sticker-card.masonry-3 .sticker-preview { height: 430px; }
 .sticker-card .sticker-preview img { position: relative; z-index: 2; width: 82%; height: 82%; object-fit: contain; transition: transform .38s var(--spring), filter .24s ease; }
-.sticker-card:hover .sticker-preview img, .sticker-card:focus-within .sticker-preview img { transform: translateY(-8px) scale(1.02); filter: drop-shadow(0 18px 25px rgba(0,0,0,.25)); }
+.sticker-card:hover .sticker-preview img { transform: translateY(-8px) scale(1.02); filter: drop-shadow(0 18px 25px rgba(0,0,0,.25)); }
 .sticker-glow { position: absolute; width: 62%; aspect-ratio: 1; border-radius: 50%; opacity: .08; filter: blur(55px); }
 .sticker-card footer { position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; min-height: 72px; padding: 17px 18px; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(transparent, rgba(7,7,17,.92) 45%); opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity .24s ease, transform .34s var(--spring); }
-.sticker-card:hover footer, .sticker-card:focus-within footer { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.sticker-card:hover footer { opacity: 1; transform: translateY(0); pointer-events: auto; }
 .sticker-card footer strong { font-size: 12px; }
 .sticker-card footer > div { display: flex; gap: 7px; }
 .sticker-card footer button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.16); border-radius: 50%; background: rgba(17,16,29,.75); }
@@ -342,7 +351,7 @@ button:not(:disabled):active { transform: scale(.965); transition-duration: .08s
 /* Library detail */
 .library-detail-page { min-height: 820px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; }
 .library-carousel-stage { position: relative; min-width: 0; min-height: 820px; display: grid; place-items: center; overflow: hidden; }
-.detail-stage { position: relative; z-index: 3; width: min(72%, 726px); aspect-ratio: 1; display: grid; place-items: center; border-radius: 32px; overflow: hidden; background-color: rgba(8,8,16,.44); background-image: linear-gradient(rgba(187,182,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(187,182,255,.07) 1px, transparent 1px); background-size: 28px 28px; animation: detail-in .5s var(--spring) both; }
+.detail-stage { position: relative; z-index: 3; width: min(72%, 726px); aspect-ratio: 1; display: grid; place-items: center; border-radius: 32px; overflow: hidden; background-color: rgba(8,8,16,.44); background-image: linear-gradient(rgba(187,182,255,.042) 1px, transparent 1px), linear-gradient(90deg, rgba(187,182,255,.042) 1px, transparent 1px); background-size: 18px 18px; animation: detail-in .5s var(--spring) both; }
 @keyframes detail-in { from { opacity: 0; transform: translateX(22px) scale(.985); } }
 @keyframes glass-progress { to { background-position: -220% 0; } }
 .detail-stage > img { width: 82%; height: 82%; object-fit: contain; filter: drop-shadow(0 25px 30px rgba(0,0,0,.24)); }
@@ -426,9 +435,9 @@ button:not(:disabled):active { transform: scale(.965); transition-duration: .08s
   pointer-events: none;
   background:
     linear-gradient(90deg, transparent, rgba(255,255,255,.052) 48%, transparent 56%),
-    linear-gradient(rgba(255,255,255,.024) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
-  background-size: 220% 100%, 42px 42px, 42px 42px;
+    linear-gradient(rgba(255,255,255,.014) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.011) 1px, transparent 1px);
+  background-size: 220% 100%, 24px 24px, 24px 24px;
   background-position: -68% 0, 0 0, 0 0;
   mix-blend-mode: screen;
   opacity: .22;
@@ -622,8 +631,7 @@ button:not(:disabled):active { transform: scale(.965); transition-duration: .08s
     0 20px 62px rgba(0,0,0,.22);
 }
 
-.sticker-card:hover,
-.sticker-card:focus-within {
+.sticker-card:hover {
   border-color: rgba(213,207,255,.62);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.18),
@@ -1290,9 +1298,9 @@ body {
 .detail-stage,
 .library-carousel-stage {
   background-image:
-    radial-gradient(70% 64% at 50% 44%, rgba(187,182,255,.09), transparent 68%),
+    radial-gradient(70% 64% at 50% 44%, rgba(187,182,255,.054), transparent 68%),
     var(--pattern-image);
-  background-size: auto, 180px 180px;
+  background-size: auto, 45px 45px;
   background-position: center, center;
   background-repeat: no-repeat, repeat;
 }
@@ -1301,12 +1309,11 @@ body {
   background-image: none;
 }
 
-.sticker-card:hover .sticker-preview,
-.sticker-card:focus-within .sticker-preview {
+.sticker-card:hover .sticker-preview {
   background-image:
-    radial-gradient(70% 64% at 50% 44%, rgba(187,182,255,.09), transparent 68%),
+    radial-gradient(70% 64% at 50% 44%, rgba(187,182,255,.054), transparent 68%),
     var(--pattern-image);
-  background-size: auto, 180px 180px;
+  background-size: auto, 45px 45px;
   background-position: center, center;
   background-repeat: no-repeat, repeat;
 }
@@ -1631,7 +1638,7 @@ select:focus-visible {
 .character-preview-figure,
 .canvas-artboard,
 .detail-stage {
-  background-size: auto, 45px 45px;
+  background-size: auto, 27px 27px;
 }
 
 .library-carousel-stage {
@@ -1702,10 +1709,10 @@ select:focus-visible {
   background:
     linear-gradient(90deg, transparent 0%, rgba(255,255,255,.08) 46%, transparent 58%),
     radial-gradient(38% 18% at 78% 12%, rgba(255,255,255,.16), transparent 72%),
-    linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.014) 1px, transparent 1px);
-  background-size: 260% 100%, 100% 100%, 36px 36px, 36px 36px;
-  opacity: .24;
+    linear-gradient(rgba(255,255,255,.011) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.008) 1px, transparent 1px);
+  background-size: 260% 100%, 100% 100%, 24px 24px, 24px 24px;
+  opacity: .14;
   mix-blend-mode: screen;
 }
 
@@ -1894,13 +1901,8 @@ select:focus-visible {
 
 .sticker-card:focus-within:not(:hover) {
   transform: none;
-  border-color: var(--liquid-glass-edge);
-  box-shadow:
-    inset 0 1px 1px rgba(255,255,255,.34),
-    inset 0 -1px 0 rgba(255,255,255,.08),
-    inset 0 -34px 62px rgba(132,114,255,.085),
-    0 28px 88px rgba(0,0,0,.38),
-    0 0 0 1px rgba(118,100,255,.08);
+  border-color: rgba(255,255,255,.15);
+  box-shadow: none;
 }
 
 .sticker-card:focus-within:not(:hover) footer {

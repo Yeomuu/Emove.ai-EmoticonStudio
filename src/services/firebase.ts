@@ -124,11 +124,12 @@ function createCharacterDoc(item: CharacterToken, ownerId: string, timestamp: un
 
 function createCaptureDoc(item: Omit<BehaviorCapture, "videoBlob" | "audioBlob">, ownerId: string, timestamp: unknown) {
   const emotionKey = getDominantEmotion(item);
+  const expression = item.expression ?? "unknown";
   return {
     id: item.id,
     ownerId,
     behavior: {
-      expression: emotionKey,
+      expression,
       gesture: item.gesture || item.poseSummary,
       emotionKey,
       poseData: { poseSummary: item.poseSummary },

@@ -27,14 +27,16 @@ export function CharacterPage() {
   const [customTone, setCustomTone] = useState("#BDB2FF");
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<GeneratedCharacterResult | null>(null);
+  const [selectedVariationIndex, setSelectedVariationIndex] = useState(0);
   const selectedPalette = palettes.find((item) => item.id === paletteId) ?? palettes[0];
+  const variationImages = generated?.imageUrls?.length ? generated.imageUrls : generated ? [generated.imageUrl] : [];
 
-  const buildToken = (imageUrl = ""): CharacterToken => {
+  const buildToken = (imageUrl = "", id?: string): CharacterToken => {
     const now = new Date().toISOString();
     const fallbackName = `${trait} ${type} 캐릭터`;
     const finalPrompt = `${prompt.trim() || `${trait} 인상의 ${type} 캐릭터`} ${selectedPalette.label} 팔레트, ${style === "3D" ? "귀여운 3D 소프트 피규어" : "부드러운 2D 이모티콘"} 스타일`.trim();
     return {
-      id: generated?.token.id ?? `character-${Date.now()}`,
+      id: id ?? generated?.token.id ?? `character-${Date.now()}`,
       version: 1,
       name: name.trim() || fallbackName,
       ownerId: "local-user",
@@ -57,14 +59,26 @@ export function CharacterPage() {
     };
   };
 
+  const selectVariation = (index: number) => {
+    if (!generated) return;
+    const imageUrl = variationImages[index];
+    if (!imageUrl) return;
+    const token = { ...buildToken(imageUrl, generated.token.id), sourceAsset: imageUrl, referenceImages: [imageUrl] };
+    setSelectedVariationIndex(index);
+    setGenerated({ ...generated, imageUrl, token });
+  };
+
   const createCharacter = async () => {
     setGenerating(true);
     try {
-      const result = await ai.generateCharacter(buildToken(""));
-      const token = buildToken(result.imageUrl);
-      const next = { ...result, imageUrl: result.imageUrl, token: { ...token, sourceAsset: result.imageUrl, referenceImages: [result.imageUrl] } };
+      const draft = buildToken("");
+      const result = await ai.generateCharacter(draft);
+      const images = result.imageUrls?.length ? result.imageUrls : [result.imageUrl];
+      const token = buildToken(images[0], draft.id);
+      const next = { ...result, imageUrl: images[0], imageUrls: images, token: { ...token, sourceAsset: images[0], referenceImages: [images[0]] } };
       setGenerated(next);
-      notify(ai.mode === "mock" ? "Mock 캐릭터 초안이 생성됐어요. 저장 전까지는 보관함에 들어가지 않아요." : "새 캐릭터 초안이 생성됐어요.");
+      setSelectedVariationIndex(0);
+      notify("새 캐릭터 초안이 생성됐어요. 원하는 베리에이션을 고른 뒤 저장하세요.");
     } catch (error) {
       notify(error instanceof Error ? error.message : "캐릭터 생성에 실패했습니다.");
     } finally {
@@ -74,22 +88,24 @@ export function CharacterPage() {
 
   const saveAndContinue = async () => {
     if (!generated) return;
-    const saved = { ...generated.token, updatedAt: new Date().toISOString() };
+    const selectedImage = variationImages[selectedVariationIndex] ?? generated.imageUrl;
+    let saved = { ...buildToken(selectedImage, generated.token.id), sourceAsset: selectedImage, referenceImages: [selectedImage], updatedAt: new Date().toISOString() };
+    let firebaseMessage = "Firebase 설정이 없어 IndexedDB에만 임시 저장했습니다.";
+    try {
+      const sync = await syncCharacterToFirebase(saved);
+      if (sync.ownerId) saved = { ...saved, ownerId: sync.ownerId };
+      if (sync.enabled) firebaseMessage = "Firebase에 저장했습니다.";
+    } catch (error) {
+      firebaseMessage = `Firebase 저장 실패로 IndexedDB에만 임시 저장했습니다: ${error instanceof Error ? error.message : String(error)}`;
+    }
+    await saveCharacter(saved);
     characters.value = [saved, ...characters.value.filter((item) => item.id !== saved.id)];
     characterName.value = saved.name;
     characterPrompt.value = saved.prompt;
     characterTone.value = tone;
     characterStyle.value = style;
     selectCharacter(saved.id);
-    await saveCharacter(saved);
-    let firebaseError: string | null = null;
-    let synced = false;
-    try {
-      synced = (await syncCharacterToFirebase(saved)).enabled;
-    } catch (error) {
-      firebaseError = error instanceof Error ? error.message : "Firebase 동기화에 실패했습니다.";
-    }
-    notify(firebaseError ? `새 캐릭터 토큰을 보관함에 저장했어요. Firebase 동기화 실패: ${firebaseError}` : synced ? "새 캐릭터 토큰을 보관함과 Firebase에 저장했어요." : "새 캐릭터 토큰을 보관함에 저장했어요.");
+    notify(`새 캐릭터 토큰을 보관함에 저장했어요. ${firebaseMessage}`);
     navigate("/library");
   };
 
@@ -97,6 +113,15 @@ export function CharacterPage() {
     setCustomTone(value);
     setTone(value);
   };
+
+  const characterSummary = generated
+    ? [
+        `${trait} 인상의 ${type} 캐릭터`,
+        prompt.trim() ? `사용자 설명: ${prompt.trim()}` : "사용자 설명: 기본 설정 기반",
+        `포인트 컬러 ${tone.toUpperCase()} · ${selectedPalette.label}`,
+        style === "3D" ? "귀여운 3D 피규어형 스타일" : "부드러운 2D 이모티콘형 스타일",
+      ]
+    : [];
 
   return (
     <div class="workspace-page character-page">
@@ -142,8 +167,8 @@ export function CharacterPage() {
           <aside class="character-results-panel glass-panel" aria-labelledby="character-result-title">
             <header class="figma-panel-heading"><h2 id="character-result-title">생성 결과</h2><Icon name="settings" /></header>
             <h3 class="result-subtitle"><i />생성 Variations</h3>
-            <div class={`character-variation-grid ${generated ? "" : "is-empty"}`}>{Array.from({ length: 4 }, (_, index) => generated ? <button type="button" class={index === 0 ? "active" : ""} onClick={() => setGenerated({ ...generated })} aria-label={`${generated.token.name} ${index + 1}번 변형`}><img src={generated.imageUrl} alt="" /></button> : <button type="button" disabled aria-label={`비어있는 변형 ${index + 1}`}><span class="variation-placeholder"><Icon name="image" /></span></button>)}</div>
-            <div class="character-summary"><strong>✦ 캐릭터 요약</strong>{generated ? <p>{trait} 인상의 {type} 캐릭터<br />포인트 컬러 {tone.toUpperCase()} · {selectedPalette.label}<br />{style === "3D" ? "귀여운 3D 피규어형" : "부드러운 2D 이모티콘형"} 스타일</p> : <p>생성 전에는 기존 캐릭터를 보여주지 않습니다.<br />프롬프트와 팔레트 선택 후 새 토큰이 만들어집니다.</p>}</div>
+            <div class={`character-variation-grid ${generated ? "" : "is-empty"}`}>{generated ? variationImages.map((image, index) => <button type="button" class={index === selectedVariationIndex ? "active" : ""} onClick={() => selectVariation(index)} aria-label={`${generated.token.name} ${index + 1}번 변형`}><img src={image} alt="" /></button>) : Array.from({ length: 4 }, (_, index) => <button type="button" disabled aria-label={`비어있는 변형 ${index + 1}`}><span class="variation-placeholder"><Icon name="image" /></span></button>)}</div>
+            <div class="character-summary"><strong>✦ 캐릭터 요약</strong>{generated ? <p>{characterSummary.map((line) => <><span>{line}</span><br /></>)}</p> : <p>생성 전에는 기존 캐릭터를 보여주지 않습니다.<br />프롬프트와 팔레트 선택 후 새 토큰이 만들어집니다.</p>}</div>
           </aside>
         </div>
     </div>
