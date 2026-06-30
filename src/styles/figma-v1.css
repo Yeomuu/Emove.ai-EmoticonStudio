@@ -184,7 +184,7 @@ button:not(:disabled):active { transform: scale(.965); transition-duration: .08s
 .pose-media-frame > img, .pose-media-frame > video { width: 100%; height: 100%; object-fit: cover; }
 .pose-media-frame > video { display: none; }
 .pose-media-frame > video.visible { display: block; }
-.camera-status { position: absolute; left: 12px; bottom: 12px; padding: 5px 9px; display: flex; align-items: center; gap: 6px; border-radius: 999px; background: rgba(8,8,16,.68); color: #c9c5d2; font-size: 8px; backdrop-filter: blur(10px); }
+.camera-status { height: 24px; position: absolute; left: 12px; bottom: 12px; padding: 5px 9px; display: flex; align-items: center; gap: 6px; border-radius: 999px; background: rgba(8,8,16,.68); color: #c9c5d2; font-size: 8px; backdrop-filter: blur(10px); }
 .camera-status i { width: 6px; height: 6px; border-radius: 50%; background: #777; }
 .camera-status i.on { background: #78d6c6; box-shadow: 0 0 8px #78d6c6; }
 .pose-meta { margin-top: 30px; display: flex; gap: 9px; }
