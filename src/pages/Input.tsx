@@ -10,7 +10,7 @@ import { inferEmotionFromText } from "../services/prompt-builder";
 import { syncCaptureToFirebase } from "../services/firebase";
 import { saveCapture } from "../services/repository";
 import { analyzeVisionFrame } from "../services/vision";
-import { audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, effectColor, emotion, expressionEmotion, frameDelayMs, frameImages, motionBrief, motionIntensity, motionStyle, notify, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
+import { audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, effectColor, emotion, expressionEmotion, frameDelayMs, frameImages, motionBrief, motionIntensity, motionStyle, notify, notifyError, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
 import type { AudioFeatures, BehaviorCapture, Emotion, MotionStyle, VisionMetrics } from "../types";
 
 const ai = getAIProvider();
@@ -46,7 +46,7 @@ export function InputPage() {
       catch { metrics = { source: "unavailable", gesture: "Not_Detected" }; }
       visionMetrics.value = metrics;
       await applyVoiceAndVision(result.blob, voice.blob, voice.features, metrics);
-    } catch (error) { returnToPreview(); notify(error instanceof Error ? error.message : "자세 촬영에 실패했습니다."); } finally { setCapturing(false); setRecording(false); setAnalyzing(false); setCaptureProgress(0); setVoiceProgress(0); }
+    } catch (error) { returnToPreview(); notifyError(error instanceof Error ? error.message : "자세 촬영에 실패했습니다."); } finally { setCapturing(false); setRecording(false); setAnalyzing(false); setCaptureProgress(0); setVoiceProgress(0); }
   };
 
   const recordVoiceOnly = async () => {
@@ -58,7 +58,7 @@ export function InputPage() {
       const result = await stopAudioCapture();
       setRecorded(result.blob);
       await applyVoiceAndVision(behaviorCapture.value.videoBlob, result.blob, result.features, visionMetrics.value);
-    } catch (error) { audio.current.release(); notify(error instanceof Error ? error.message : "5초 음성 입력에 실패했습니다."); } finally { setRecording(false); setAnalyzing(false); setVoiceProgress(0); }
+    } catch (error) { audio.current.release(); notifyError(error instanceof Error ? error.message : "5초 음성 입력에 실패했습니다."); } finally { setRecording(false); setAnalyzing(false); setVoiceProgress(0); }
   };
 
   const proceed = async () => {
@@ -79,7 +79,7 @@ export function InputPage() {
       coreEffectImage.value = null;
       navigate("/edit");
     }
-    catch (error) { notify(error instanceof Error ? error.message : "이모티콘 생성에 실패했습니다."); }
+    catch (error) { notifyError(error instanceof Error ? error.message : "이모티콘 생성에 실패했습니다."); }
     finally { setAnalyzing(false); setGenerationStep("Ready for Generation"); }
   };
 
