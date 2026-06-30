@@ -2,6 +2,7 @@ node_modules/
 dist/
 .vite/
 .vite-temp/
+.netlify/
 .npm-cache/
 .pnpm-store/
 .agents/
@@ -12,6 +13,7 @@ dist/
 
 qa/
 *.log
+deploy-*.zip
 
 coverage/
 .DS_Store

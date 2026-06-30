@@ -2,11 +2,9 @@
   command = "pnpm build"
   publish = "dist"
 
-[[redirects]]
-  from = "/api/openai/*"
-  to = "/.netlify/functions/openai/:splat"
-  status = 200
-  force = true
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
 
 [[redirects]]
   from = "/*"
