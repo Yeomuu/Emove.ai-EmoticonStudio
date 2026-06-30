@@ -1,6 +1,6 @@
 import { computed, signal } from "@preact/signals";
 import { createMotionBrief, defaultCharacterTokens, emotionMeta, initialLayers, starterStickers } from "./data";
-import type { BehaviorCapture, CharacterToken, EditorLayer, Emotion, LayerKind, LayerTransform, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
+import type { BehaviorCapture, CharacterToken, EditorLayer, EmoticonProject, Emotion, LayerKind, LayerTransform, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
 
 export const characterName = signal("남극의 펭귄");
 export const characterPrompt = signal("둥글고 말랑한 인상의 밝은 아기 펭귄. 친근하고 표정 변화가 큰 캐릭터.");
@@ -50,6 +50,8 @@ export const toast = signal<string | null>(null);
 export const exportModalOpen = signal(false);
 export const exportShareUrl = signal<string | null>(null);
 export const exportGifBlob = signal<Blob | null>(null);
+export const editingProjectId = signal<string | null>(null);
+export const editingProjectCreatedAt = signal<string | null>(null);
 
 export const motionBrief = computed(() => createMotionBrief(emotion.value, effectColor.value, sourceTranscript.value, transcript.value, motionIntensity.value, selectedCharacterId.value, frameDelayMs.value, coreEffect.value, expressionEmotion.value));
 
@@ -83,6 +85,51 @@ export function selectCharacter(id: string): void {
   frameImages.value = Array.from({ length: 5 }, () => token.sourceAsset);
   frameLayerTransforms.value = createFrameTransforms();
   selectedFrame.value = 0;
+}
+
+export function resetEditorProject(): void {
+  editingProjectId.value = null;
+  editingProjectCreatedAt.value = null;
+  exportGifBlob.value = null;
+  exportShareUrl.value = null;
+  exportModalOpen.value = false;
+  lastSaved.value = null;
+}
+
+export function loadProjectIntoEditor(project: EmoticonProject): void {
+  characters.value = [project.characterToken, ...characters.value.filter((item) => item.id !== project.characterToken.id)];
+  selectedCharacterId.value = project.characterToken.id;
+  characterName.value = project.characterToken.name;
+  characterPrompt.value = project.characterToken.prompt;
+  characterTone.value = project.characterToken.colors.body ?? project.characterToken.colors.outfit ?? "#BBB6FF";
+  characterStyle.value = project.characterToken.styleMode;
+
+  emotion.value = project.motionBrief.emotion;
+  expressionEmotion.value = project.motionBrief.expressionEmotion;
+  effectColor.value = project.motionBrief.effectColor;
+  coreEffect.value = project.motionBrief.coreEffect;
+  coreEffectImage.value = project.coreEffectImage ?? null;
+  sourceTranscript.value = project.motionBrief.sourceText;
+  transcript.value = project.motionBrief.shortText;
+  frameDelayMs.value = project.motionBrief.frameDelayMs;
+  audioRms.value = Math.max(0.2, Math.min(1, project.motionBrief.motionIntensity / 1.7));
+
+  const fallbackFrames = Array.from({ length: 5 }, () => project.characterToken.sourceAsset);
+  frameImages.value = project.frameImages.length ? project.frameImages : fallbackFrames;
+  layers.value = project.layers.map((layer) => ({ ...layer }));
+  frameLayerTransforms.value = normalizeFrameTransforms(project.frameLayerTransforms, project.layerTransforms);
+  textBoxShape.value = project.textStyle.shape;
+  textFont.value = project.textStyle.font;
+  selectedFrame.value = 0;
+  activeLayer.value = "text";
+
+  behaviorCapture.value = { ...project.behaviorCapture };
+  editingProjectId.value = project.id;
+  editingProjectCreatedAt.value = project.createdAt;
+  exportGifBlob.value = project.gifBlob ?? null;
+  exportShareUrl.value = project.sticker.animatedImage?.startsWith("http") ? project.sticker.animatedImage : null;
+  exportModalOpen.value = false;
+  lastSaved.value = project.updatedAt ? new Date(project.updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }) : null;
 }
 
 export function updateLayerTransform(id: LayerKind, update: Partial<LayerTransform>): void {
@@ -134,4 +181,18 @@ export function createFrameTransforms(): Array<Record<LayerKind, LayerTransform>
     "accent-effects": { ...defaultLayerTransforms["accent-effects"] },
     text: { ...defaultLayerTransforms.text },
   }));
+}
+
+function normalizeFrameTransforms(frames: Array<Record<LayerKind, LayerTransform>>, fallback: Record<LayerKind, LayerTransform>): Array<Record<LayerKind, LayerTransform>> {
+  const normalized = frames.length ? frames : Array.from({ length: 5 }, () => fallback);
+  return Array.from({ length: 5 }, (_, index) => cloneTransforms(normalized[index] ?? fallback ?? defaultLayerTransforms));
+}
+
+function cloneTransforms(source: Record<LayerKind, LayerTransform>): Record<LayerKind, LayerTransform> {
+  return {
+    "background-effects": { ...(source["background-effects"] ?? defaultLayerTransforms["background-effects"]) },
+    character: { ...(source.character ?? defaultLayerTransforms.character) },
+    "accent-effects": { ...(source["accent-effects"] ?? defaultLayerTransforms["accent-effects"]) },
+    text: { ...(source.text ?? defaultLayerTransforms.text) },
+  };
 }
