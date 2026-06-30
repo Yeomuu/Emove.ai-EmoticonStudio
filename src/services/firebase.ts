@@ -4,14 +4,36 @@ import { EXPORT_SIZE, FRAME_COUNT } from "../constants";
 
 export interface FirebaseSyncResult { enabled: boolean; syncedAt?: string; downloadUrl?: string; storagePath?: string; ownerId?: string }
 
+type FirebaseConfig = {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+  measurementId?: string;
+};
+
 let analyticsStarted = false;
 
-function getConfig(): Record<string, string> | null {
-  const text = import.meta.env.VITE_FIREBASE_CONFIG; if (!text) return null;
-  try { return JSON.parse(text) as Record<string, string>; } catch { throw new Error("VITE_FIREBASE_CONFIG JSON 형식이 올바르지 않습니다."); }
+function getConfig(): FirebaseConfig | null {
+  const text = import.meta.env.VITE_FIREBASE_CONFIG;
+  if (text) {
+    try { return JSON.parse(text) as FirebaseConfig; } catch { throw new Error("VITE_FIREBASE_CONFIG JSON 형식이 올바르지 않습니다."); }
+  }
+  const config = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  } as FirebaseConfig;
+  return config.apiKey && config.authDomain && config.projectId && config.storageBucket && config.messagingSenderId && config.appId ? config : null;
 }
 
-async function enableAnalytics(app: FirebaseApp, config: Record<string, string>): Promise<void> {
+async function enableAnalytics(app: FirebaseApp, config: FirebaseConfig): Promise<void> {
   if (analyticsStarted || typeof window === "undefined" || !config.measurementId) return;
   analyticsStarted = true;
   try {
