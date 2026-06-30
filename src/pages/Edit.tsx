@@ -9,7 +9,7 @@ import { getAIProvider } from "../services/ai-provider";
 import { syncProjectToFirebase } from "../services/firebase";
 import { downloadBlob, exportGif, renderFrame, renderFrameDataUrl } from "../services/renderer";
 import { saveProject } from "../services/repository";
-import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, effectColor, emotion, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
+import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, editingProjectCreatedAt, editingProjectId, effectColor, emotion, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
 import type { EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
 
 const layerIcons: Record<LayerKind, "image" | "star" | "layers" | "edit"> = { "background-effects": "image", character: "layers", "accent-effects": "star", text: "edit" };
@@ -22,20 +22,12 @@ export function EditPage() {
   const [dropTarget, setDropTarget] = useState<{ id: LayerKind; position: "before" | "after" } | null>(null); const [dragPoint, setDragPoint] = useState<{ x: number; y: number } | null>(null);
   const transform = layerTransforms.value[activeLayer.value]; const active = layers.value.find((layer) => layer.id === activeLayer.value);
   const displayedLayers = dragPreview ?? layers.value;
-  const chooseCoreEffect = (preset: string) => {
-    coreEffect.value = preset;
-    coreEffectImage.value = null;
-  };
+  const chooseCoreEffect = (preset: string) => { coreEffect.value = preset; coreEffectImage.value = null; };
   const generateCoreEffect = async () => {
     setGeneratingEffect(true);
-    try {
-      coreEffectImage.value = await ai.generateCoreEffect(motionBrief.value);
-      notify(coreEffectImage.value ? "코어 이펙트 레이어를 새로 생성했어요." : "Mock 모드에서는 로컬 이펙트로 미리봅니다.");
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "코어 이펙트 생성에 실패했습니다.");
-    } finally {
-      setGeneratingEffect(false);
-    }
+    try { coreEffectImage.value = await ai.generateCoreEffect(motionBrief.value); notify(coreEffectImage.value ? "코어 이펙트 레이어를 새로 생성했어요." : "Mock 모드에서는 로컬 이펙트로 미리봅니다."); }
+    catch (error) { notify(error instanceof Error ? error.message : "코어 이펙트 생성에 실패했습니다."); }
+    finally { setGeneratingEffect(false); }
   };
 
   const beginLayerDrag = (event: PointerEvent, sourceId: LayerKind) => {
@@ -56,10 +48,8 @@ export function EditPage() {
     };
     const finish = (cancelled = false) => {
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", cancel);
-      if (!cancelled && moved && currentPreview) {
-        layers.value = currentPreview; const index = currentPreview.findIndex((layer) => layer.id === sourceId); const label = currentPreview[index]?.label ?? "레이어";
-        notify(`${label} 레이어를 ${index + 1}번째 위치로 옮겼어요.`);
-      } else if (!cancelled && moved) notify("레이어 행의 위쪽이나 아래쪽에 놓아주세요.");
+      if (!cancelled && moved && currentPreview) { layers.value = currentPreview; const index = currentPreview.findIndex((layer) => layer.id === sourceId); const label = currentPreview[index]?.label ?? "레이어"; notify(`${label} 레이어를 ${index + 1}번째 위치로 옮겼어요.`); }
+      else if (!cancelled && moved) notify("레이어 행의 위쪽이나 아래쪽에 놓아주세요.");
       setDragId(undefined); setDragPreview(null); setDropTarget(null); setDragPoint(null);
     };
     const up = () => finish(false); const cancel = () => finish(true);
@@ -69,11 +59,12 @@ export function EditPage() {
   const buildAndSave = async (): Promise<EmoticonProject> => {
     const renderOptions = { characterUrl: selectedCharacter.value.sourceAsset, characterFrames: frameImages.value, coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, frameTransforms: frameLayerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: EXPORT_SIZE, height: EXPORT_SIZE };
     const [gifBlob, thumbnail] = await Promise.all([exportGif(renderOptions), renderFrameDataUrl(renderOptions, 0)]);
-    const now = new Date().toISOString(); const id = `emove-${Date.now()}`;
+    const now = new Date().toISOString(); const id = editingProjectId.value ?? `emove-${Date.now()}`; const createdAt = editingProjectCreatedAt.value ?? now;
     const localGifUrl = URL.createObjectURL(gifBlob);
-    const sticker: StickerItem = { id, title: transcript.value.slice(0, 12) || "새 이모티콘", phrase: transcript.value, emotion: emotion.value, image: thumbnail, animatedImage: localGifUrl, thumbnail, projectId: id, frameDelayMs: frameDelayMs.value, color: effectColor.value, favorite: false, ownerId: "local-user", isDefault: false, isPublished: false, characterTokenId: selectedCharacter.value.id, createdAt: now, updatedAt: now };
+    const sticker: StickerItem = { id, title: transcript.value.slice(0, 12) || "새 이모티콘", phrase: transcript.value, emotion: emotion.value, image: thumbnail, animatedImage: localGifUrl, thumbnail, projectId: id, frameDelayMs: frameDelayMs.value, color: effectColor.value, favorite: stickers.value.find((item) => item.id === id)?.favorite ?? false, ownerId: "local-user", isDefault: false, isPublished: false, characterTokenId: selectedCharacter.value.id, createdAt, updatedAt: now };
     const { videoBlob: _video, audioBlob: _audio, ...captureMeta } = behaviorCapture.value;
-    let project: EmoticonProject = { id, ownerId: "local-user", sticker, gifBlob, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, coreEffectImage: coreEffectImage.value, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: now, updatedAt: now };
+    let project: EmoticonProject = { id, ownerId: "local-user", sticker, gifBlob, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, coreEffectImage: coreEffectImage.value, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt, updatedAt: now };
+    editingProjectId.value = id; editingProjectCreatedAt.value = createdAt;
     await saveProject(project);
     const sync = await syncProjectToFirebase(project);
     if (sync.downloadUrl || sync.storagePath || sync.ownerId) {
@@ -81,7 +72,7 @@ export function EditPage() {
       project = { ...project, ownerId: sync.ownerId ?? project.ownerId, sticker: syncedSticker };
       await saveProject(project);
     }
-    stickers.value = [project.sticker, ...stickers.value.filter((item) => item.id !== id)];
+    stickers.value = [project.sticker, ...stickers.value.filter((item) => item.id !== id && item.projectId !== id)];
     lastSaved.value = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
     exportGifBlob.value = gifBlob; exportShareUrl.value = sync.downloadUrl ?? null;
     notify(sync.enabled ? "프로젝트와 1024 GIF를 Firebase에 저장했어요." : "Firebase 연결이 없어 QR 직접 다운로드 링크 없이 기기에 저장했어요."); return project;
@@ -89,11 +80,7 @@ export function EditPage() {
 
   const save = async () => { setExporting(true); try { await buildAndSave(); } catch (error) { notify(error instanceof Error ? error.message : "저장에 실패했습니다."); } finally { setExporting(false); } };
   const openExport = async () => { setExporting(true); try { await buildAndSave(); if (exportShareUrl.value) { const { default: QRCode } = await import("qrcode"); setQr(await QRCode.toDataURL(exportShareUrl.value, { width: 260, margin: 1, color: { dark: "#201E28", light: "#FCFCFC" } })); } else setQr(undefined); exportModalOpen.value = true; } catch (error) { notify(error instanceof Error ? error.message : "내보내기에 실패했습니다."); } finally { setExporting(false); } };
-  const share = async () => {
-    if (!exportGifBlob.value) return; const file = new File([exportGifBlob.value], `emove-${emotion.value}.gif`, { type: "image/gif" });
-    if (navigator.share && navigator.canShare?.({ files: [file] })) { await navigator.share({ title: "EMOVE 이모티콘", text: transcript.value, files: [file] }); }
-    else { window.location.href = `mailto:?subject=${encodeURIComponent("EMOVE 이모티콘")}&body=${encodeURIComponent(`GIF 다운로드: ${exportShareUrl.value ?? window.location.href}`)}`; }
-  };
+  const share = async () => { if (!exportGifBlob.value) return; downloadBlob(exportGifBlob.value, `emove-${emotion.value}.gif`); };
 
   return (
     <>
@@ -141,7 +128,7 @@ export function EditPage() {
         </section>
         {dragId && dragPoint ? <div class="layer-drag-preview" style={{ left: dragPoint.x + 14, top: dragPoint.y + 14 }}><Icon name={layerIcons[dragId]} /><span><strong>{layers.value.find((layer) => layer.id === dragId)?.label}</strong><small>놓을 위치 미리보기</small></span></div> : null}
       </div>
-      {exportModalOpen.value && exportGifBlob.value ? <div class="modal-backdrop" onClick={(event) => event.target === event.currentTarget && (exportModalOpen.value = false)}><section class="export-modal glass-panel" role="dialog" aria-modal="true" aria-label="투명 GIF 내보내기"><header><div><span class="eyebrow">EXPORT COMPLETE</span><h2>투명 GIF가 준비됐어요.</h2></div><button class="icon-button" type="button" onClick={() => (exportModalOpen.value = false)}><Icon name="close" /></button></header><div class="export-preview"><img src={URL.createObjectURL(exportGifBlob.value)} alt="완성된 투명 GIF" />{qr ? <div class="qr-card"><img src={qr} alt="GIF 다운로드 QR 코드" /><span>모바일에서 바로 보기</span></div> : null}</div><p>{EXPORT_SIZE}×{EXPORT_SIZE} · {FRAME_COUNT} frames · {frameDelayMs.value}ms/frame · 투명 GIF{exportShareUrl.value ? " · QR 직접 링크" : " · Firebase 연결 시 QR 생성"}</p><div class="export-actions"><button class="button secondary" type="button" onClick={() => downloadBlob(exportGifBlob.value!, `emove-${emotion.value}.gif`)}><Icon name="download" />기기에 저장</button><button class="button primary" type="button" onClick={share}><Icon name="next" />메일·앱으로 보내기</button></div></section></div> : null}
+      {exportModalOpen.value && exportGifBlob.value ? <div class="modal-backdrop" onClick={(event) => event.target === event.currentTarget && (exportModalOpen.value = false)}><section class="export-modal glass-panel" role="dialog" aria-modal="true" aria-label="투명 GIF 내보내기"><header><div><span class="eyebrow">EXPORT COMPLETE</span><h2>투명 GIF가 준비됐어요.</h2></div><button class="icon-button" type="button" onClick={() => (exportModalOpen.value = false)}><Icon name="close" /></button></header><div class="export-preview"><img src={URL.createObjectURL(exportGifBlob.value)} alt="완성된 투명 GIF" />{qr ? <div class="qr-card"><img src={qr} alt="GIF 다운로드 QR 코드" /><span>모바일에서 바로 보기</span></div> : null}</div><p>{EXPORT_SIZE}×{EXPORT_SIZE} · {FRAME_COUNT} frames · {frameDelayMs.value}ms/frame · 투명 GIF{exportShareUrl.value ? " · QR 직접 링크" : " · Firebase 연결 시 QR 생성"}</p><div class="export-actions"><button class="button secondary" type="button" onClick={() => downloadBlob(exportGifBlob.value!, `emove-${emotion.value}.gif`)}><Icon name="download" />기기에 저장</button><button class="button primary" type="button" onClick={share}><Icon name="next" />기기에 한 번 더 저장</button></div></section></div> : null}
     </>
   );
 }
