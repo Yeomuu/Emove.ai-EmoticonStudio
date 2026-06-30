@@ -18,6 +18,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Copy every used font, icon, and image into this project. Use coolicons only; never mix icon libraries.
 - Work on v1 only; there is no active v2 implementation.
 - The six Figma-exported SVG screens supplied on 2026-06-24 are the page-level layout references for Home, Character, Input, Edit, Library, and Library Detail.
+- The 2026-06-30 `참고` reference PNG set confirms the same 0621 third-evaluation screen family: Home, Character, Input, Edit, Library, and Library Detail should keep the dark 1440px liquid-glass layout language from those references.
 - All primary page regions, including the Edit toolbar, editor grid, properties, and timeline, share one 1440px desktop frame and common left/right edges.
 - Use a restrained dark liquid-glass treatment: near-black translucent surfaces, thin lavender borders, and small highlight/refraction cues. Avoid opaque blue panel fills.
 - Treat liquid glass as the first visual priority: black glass depth, thin lavender rim light, top glint, subtle internal refraction, and press/hover micro-interactions should be consistent across nav, panels, cards, buttons, and editor controls.

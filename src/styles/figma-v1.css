@@ -1839,3 +1839,76 @@ select:focus-visible {
       rgba(13, 12, 24, .92);
   }
 }
+
+/* 2026-06-30 reference QA: keep motion glints clipped to controls, not panels. */
+.glass-panel:hover::after,
+.glass-panel:focus-within::after,
+.loop-preview:hover::after {
+  background-position: 0 0, 0 0, 0 0, 0 0;
+  opacity: .24;
+}
+
+.hero-button {
+  overflow: hidden;
+}
+
+.hero-button .button-aura {
+  z-index: 0;
+  inset: 6px 22px;
+  filter: blur(14px);
+  opacity: .5;
+}
+
+.hero-button:hover .button-aura {
+  opacity: .7;
+  transform: scale(1.06);
+}
+
+.hero-button > span:not(.button-aura) {
+  position: relative;
+  z-index: 2;
+}
+
+:where(
+  .button,
+  .character-generate-button,
+  .save-character-button,
+  .select-character-button,
+  .input-ready-row > button,
+  .library-sidebar nav button,
+  .library-mode-tabs button,
+  .detail-actions button,
+  .pose-intensity button,
+  .voice-actions button,
+  .state-buttons button,
+  .preset-list button,
+  .style-preset-list button,
+  .character-variation-grid button,
+  .library-category-rail button,
+  .round-tool,
+  .icon-button
+) {
+  overflow: hidden;
+}
+
+.sticker-card:focus-within:not(:hover) {
+  transform: none;
+  border-color: var(--liquid-glass-edge);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.34),
+    inset 0 -1px 0 rgba(255,255,255,.08),
+    inset 0 -34px 62px rgba(132,114,255,.085),
+    0 28px 88px rgba(0,0,0,.38),
+    0 0 0 1px rgba(118,100,255,.08);
+}
+
+.sticker-card:focus-within:not(:hover) footer {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+
+.sticker-card:focus-within:not(:hover) .sticker-preview img {
+  transform: none;
+  filter: drop-shadow(0 12px 18px rgba(0,0,0,.2));
+}
