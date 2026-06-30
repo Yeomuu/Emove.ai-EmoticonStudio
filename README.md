@@ -30,7 +30,7 @@ The current prototype focuses on a simple 1024 x 1024 looping emoticon workflow 
 - Firebase Authentication, Firestore, and Storage
 - OpenAI image and text calls through a server-side proxy only
 - Netlify Functions for production OpenAI API routes
-- GitHub Pages for static preview deployment
+- GitHub as the source repository for Netlify continuous deployment
 
 ## AI Architecture
 
@@ -114,20 +114,19 @@ Do not create a `VITE_OPENAI_API_KEY`. Any `VITE_` variable is visible in the br
 
 ## Deployment
 
-Netlify can run the OpenAI proxy. `netlify.toml` rewrites `/api/openai/*` to `netlify/functions/openai.ts`, so set `OPENAI_API_KEY` in Netlify environment variables before using generation features there.
+Production deployment is handled by Netlify from the GitHub repository. GitHub Pages is intentionally not used because EMOVE needs serverless API routes for OpenAI generation and transcription.
 
-GitHub Pages is static hosting. It cannot execute `/api/openai/*` by itself. To use AI generation from the GitHub Pages build, deploy the Netlify proxy first and set this GitHub Actions variable:
+Netlify serves the Vite build from `dist` and exposes the OpenAI proxy function at:
 
 ```bash
-VITE_OPENAI_API_BASE=https://your-netlify-site.netlify.app/api/openai
+/api/openai/*
 ```
 
-Without that variable, the app intentionally avoids calling `/api/openai/*` on `github.io` and shows a clear configuration error instead of producing repeated `405 Method Not Allowed` console errors.
+Set `OPENAI_API_KEY` and Firebase variables in Netlify environment variables before using generation and remote save features. Do not set `VITE_OPENAI_API_BASE` for the Netlify production site; same-origin `/api/openai/*` calls are used there.
 
-For GitHub Pages, repository settings should use:
+Current production project:
 
-- Source: GitHub Actions
-- Workflow: `.github/workflows/pages.yml`
+- `https://emove-emoticonstudio.netlify.app`
 
 ## Repository Layout
 
@@ -150,5 +149,5 @@ Generated folders such as `dist`, `node_modules`, local caches, and private `.en
 
 - AI generation needs a working server proxy and a valid OpenAI API key.
 - Browser camera and microphone analysis depends on user permission and device support.
-- GitHub Pages can host the static app, but OpenAI generation requires an external proxy URL.
+- GitHub Pages is not the production host; Netlify is required for the bundled serverless OpenAI API route.
 - GIF-style export has palette and alpha limitations; the editor preview and export share the same renderer to keep the loop as consistent as possible.

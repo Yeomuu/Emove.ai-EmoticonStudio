@@ -14,8 +14,8 @@ When implementing from a selected generated mock, treat that image as the source
 - Use 760px as the global minimum screen height; if the viewport is shorter, the page must scroll instead of clipping.
 - The Edit timeline has exactly four ordered layers: background effects, character, accent effects, and text.
 - OpenAI-dependent features must not fabricate mock user assets; if the API key or server proxy is unavailable, show a clear failure instead of substituting default characters, voice text, poses, or frames.
-- OpenAI generation requires a server proxy. Vite dev/preview and Netlify Functions can serve `/api/openai/*`; GitHub Pages is static and must use `VITE_OPENAI_API_BASE` pointing to an external proxy if generation should work there.
-- On `github.io`, browser code must not call `/api/openai/*` unless `VITE_OPENAI_API_BASE` is set; show a clear configuration error instead of producing repeated 405 console errors.
+- OpenAI generation requires a server proxy. Vite dev/preview and Netlify Functions serve `/api/openai/*`; GitHub Pages is not an active deployment target for this project.
+- The production deployment target is Netlify project `emove-emoticonstudio` (`981ce471-efd5-4043-873d-3a00441626bc`) from GitHub `main`.
 - Keep `README.md` written for outside readers. Move implementation logs, QA notes, validation notes, and prompt-rule drafts into Notion when they are not required for the app to run.
 - For `gpt-image-2`, generate character/effect assets on flat chroma-key green and remove the green background in-browser so stored/displayed assets become transparent PNG data URLs.
 - Copy every used font, icon, and image into this project. Use coolicons only; never mix icon libraries.
@@ -63,7 +63,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit must include a live loop preview that renders the same five frame states at the selected frame delay before exporting.
 - Future UI updates may replace the current screen source. When the user provides a new canonical screen reference set, implement the app to match that supplied screen screenshot pixel-for-pixel.
 - The current final emoticon output target is a simple 1024×1024 looping emoticon generated from `gpt-image-2`-sized assets, not a Kakao 360×360 submission package.
-- GitHub Pages deployment must use the repository base path `/Emove.ai-EmoticonStudio/` plus an SPA `404.html` fallback so clean History API routes work after refresh.
+- Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
 
 ## Firebase Firestore Data Model
 
