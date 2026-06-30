@@ -66,6 +66,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
 - OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to Netlify timeout or response-size limits.
 - Use compressed `webp` image API responses by default before browser chroma-key removal; if this changes, the returned data URL MIME type must match the requested image output format.
+- On Netlify, image routes such as `character`, `frame`, `frames`, and `effect` must run through background jobs with Blob-backed status/result polling. Do not make synchronous browser-facing functions wait for OpenAI image generation, because a 504 can still incur OpenAI cost while losing the result.
 
 ## Firebase Firestore Data Model
 

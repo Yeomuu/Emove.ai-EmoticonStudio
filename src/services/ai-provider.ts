@@ -4,6 +4,19 @@ import { removeChromaKeyBackground } from "./image-processing";
 
 const CHARACTER_VARIATION_REQUESTS = 1;
 const FRAME_COUNT = 5;
+const JOB_POLL_INTERVAL_MS = 2500;
+const JOB_TIMEOUT_MS = 10 * 60 * 1000;
+
+type AsyncJobAccepted = {
+  jobId: string;
+  statusUrl?: string;
+};
+
+type AsyncJobResult<T> = {
+  status: "pending" | "running" | "complete" | "failed";
+  result?: T;
+  error?: string;
+};
 
 /** API 키는 브라우저로 보내지 않고 서버 환경변수 OPENAI_API_KEY에서만 읽습니다. */
 export class ServerOpenAIProvider implements OpenAIProvider {
@@ -71,10 +84,44 @@ export class ServerOpenAIProvider implements OpenAIProvider {
 async function requestJson<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const payload = (await response.json().catch(() => undefined)) as { error?: string } | T | undefined;
+  if (response.status === 202 && isAsyncJobAccepted(payload)) {
+    const statusUrl = payload.statusUrl?.startsWith("http") ? payload.statusUrl : openAIEndpoint(`jobs/${payload.jobId}`);
+    return await pollAsyncJob<T>(statusUrl);
+  }
   if (!response.ok) {
     throw new Error(errorMessageFromPayload(response.status, payload));
   }
   return payload as T;
+}
+
+async function pollAsyncJob<T>(statusUrl: string): Promise<T> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < JOB_TIMEOUT_MS) {
+    await delay(JOB_POLL_INTERVAL_MS);
+    const response = await fetch(statusUrl, { method: "GET" });
+    const payload = (await response.json().catch(() => undefined)) as AsyncJobResult<T> | { error?: string } | undefined;
+    if (!response.ok) throw new Error(errorMessageFromPayload(response.status, payload));
+    if (isAsyncJobResult<T>(payload)) {
+      if (payload.status === "complete") {
+        if (payload.result == null) throw new Error("OpenAI 작업 결과가 비어 있습니다.");
+        return payload.result;
+      }
+      if (payload.status === "failed") throw new Error(payload.error || "OpenAI 작업이 실패했습니다.");
+    }
+  }
+  throw new Error("OpenAI 작업 시간이 너무 오래 걸립니다. 잠시 후 다시 시도해 주세요.");
+}
+
+function isAsyncJobAccepted(payload: unknown): payload is AsyncJobAccepted {
+  return !!payload && typeof payload === "object" && "jobId" in payload && typeof payload.jobId === "string";
+}
+
+function isAsyncJobResult<T>(payload: unknown): payload is AsyncJobResult<T> {
+  return !!payload && typeof payload === "object" && "status" in payload && typeof payload.status === "string";
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
