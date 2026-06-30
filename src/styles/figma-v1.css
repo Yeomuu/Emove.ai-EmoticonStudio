@@ -994,7 +994,7 @@ body {
 }
 
 .canvas-artboard::before {
-  content: "EXPORT 360×360";
+  content: "EXPORT 1024×1024";
   position: absolute;
   z-index: 5;
   left: 0;
@@ -1603,6 +1603,22 @@ select:focus-visible {
   opacity: 0;
   transform: translateY(10px);
   pointer-events: none;
+}
+
+.sticker-card .sticker-preview img.sticker-animated {
+  position: absolute;
+  z-index: 3;
+  opacity: 0;
+}
+
+.sticker-card:hover .sticker-preview img.sticker-static {
+  opacity: 0;
+}
+
+.sticker-card:hover .sticker-preview img.sticker-animated {
+  opacity: 1;
+  transform: translateY(-8px) scale(1.02);
+  filter: drop-shadow(0 18px 25px rgba(0,0,0,.25));
 }
 
 .sticker-card:hover footer {

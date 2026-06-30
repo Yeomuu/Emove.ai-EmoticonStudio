@@ -16,7 +16,7 @@ service cloud.firestore {
     }
 
     match /characters/{characterId} {
-      allow read: if resource.data.isDefault == true || owns(resource.data);
+      allow read: if resource.data.isDefault == true || resource.data.isPublished == true || owns(resource.data);
       allow create: if owns(request.resource.data);
       allow update, delete: if owns(resource.data) && request.resource.data.ownerId == resource.data.ownerId;
     }

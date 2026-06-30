@@ -9,6 +9,7 @@ import type { CharacterToken, EmoticonProject, Emotion, StickerItem } from "../t
 
 type Filter = "all" | "favorite" | Emotion;
 type LibraryMode = "all" | "emoticons" | "characters";
+type MixedLibraryItem = { kind: "emoticon"; item: StickerItem; createdAt: string } | { kind: "character"; item: CharacterToken; createdAt: string };
 const categories: Array<{ id: string; title: string; copy: string; filter: Filter }> = [
   { id: "celebration", title: "축하", copy: "기쁨, 기쁜 순간", filter: "happy" },
   { id: "gratitude", title: "감사", copy: "고마움, 감사의 순간", filter: "happy" },
@@ -29,8 +30,15 @@ export function LibraryPage() {
 
   useEffect(() => {
     Promise.all([loadStickers(), loadProjects()]).then(([saved, savedProjects]) => {
+      const projectById = new Map(savedProjects.map((project) => [project.id, project]));
+      const hydrated = saved.filter((item) => !item.isDefault).map((item) => {
+        const project = projectById.get(item.projectId ?? item.id);
+        if (!project?.gifBlob) return item;
+        const animatedImage = item.animatedImage?.startsWith("http") ? item.animatedImage : URL.createObjectURL(project.gifBlob);
+        return { ...item, image: item.thumbnail ?? item.image, thumbnail: item.thumbnail ?? item.image, animatedImage };
+      });
       const known = new Set(stickers.value.map((item) => item.id));
-      stickers.value = [...saved.filter((item) => !known.has(item.id)), ...stickers.value];
+      stickers.value = [...hydrated.filter((item) => !known.has(item.id)), ...stickers.value];
       setProjects(savedProjects);
     }).catch(() => undefined);
   }, []);
@@ -42,6 +50,10 @@ export function LibraryPage() {
   const visibleCharacters = useMemo(() => characters.value.filter((item) =>
     !query.trim() || `${item.name} ${item.prompt} ${item.personalityTags.join(" ")}`.toLowerCase().includes(query.toLowerCase())
   ), [characters.value, query]);
+  const mixedItems = useMemo<MixedLibraryItem[]>(() => [
+    ...visible.map((item) => ({ kind: "emoticon" as const, item, createdAt: item.createdAt })),
+    ...visibleCharacters.map((item) => ({ kind: "character" as const, item, createdAt: item.createdAt })),
+  ].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)), [visible, visibleCharacters]);
   const selected = detailId ? stickers.value.find((item) => item.id === detailId) ?? stickers.value[0] : undefined;
   const createGroup = () => {
     const name = window.prompt("새 그룹 이름을 입력하세요.", "새 이모티콘 그룹")?.trim();
@@ -71,7 +83,7 @@ export function LibraryPage() {
 
   return (
     <>
-      {selected ? <LibraryDetail item={selected} project={projects.find((item) => item.id === selected.id)} /> : (
+      {selected ? <LibraryDetail item={selected} project={projects.find((item) => item.id === (selected.projectId ?? selected.id))} /> : (
         <div class="workspace-page library-page">
           <aside class="library-sidebar glass-panel">
             <h1>이모티콘 그룹</h1>
@@ -89,14 +101,10 @@ export function LibraryPage() {
           </aside>
 
           <section class="library-content">
-            <header class="library-content-header"><div><span>{mode === "characters" ? "CHARACTER LIBRARY" : mode === "emoticons" ? "EMOTICON LIBRARY" : "EMOVE LIBRARY"}</span><h2>{mode === "characters" ? "캐릭터 보관함" : mode === "emoticons" ? "이모티콘 보관함" : "전체 보관함"}</h2></div><div class="library-mode-tabs" role="tablist" aria-label="보관함 보기 전환"><button type="button" class={mode === "all" ? "active" : ""} onClick={() => setMode("all")}>전체</button><button type="button" class={mode === "emoticons" ? "active" : ""} onClick={() => setMode("emoticons")}>이모티콘</button><button type="button" class={mode === "characters" ? "active" : ""} onClick={() => setMode("characters")}>캐릭터</button></div></header>
+            <header class="library-content-header"><div><span>{mode === "characters" ? "CHARACTER LIBRARY" : mode === "emoticons" ? "EMOTICON LIBRARY" : "EMOVE LIBRARY"}</span><h2>{mode === "characters" ? "캐릭터 보관함" : mode === "emoticons" ? "이모티콘 보관함" : "전체 보관함"}</h2></div><div class="library-mode-tabs" role="tablist" aria-label="보관함 보기 전환"><button type="button" class={mode === "all" ? "active" : ""} onClick={() => { setMode("all"); setFilter("all"); setActiveCategoryId(null); }}>전체</button><button type="button" class={mode === "emoticons" ? "active" : ""} onClick={() => { setMode("emoticons"); setFilter("all"); setActiveCategoryId(null); }}>이모티콘</button><button type="button" class={mode === "characters" ? "active" : ""} onClick={() => { setMode("characters"); setFilter("all"); setActiveCategoryId(null); }}>캐릭터</button></div></header>
             {mode !== "characters" ? <div class="library-category-rail-wrap"><div ref={railRef} class="library-category-rail" aria-label="이모티콘 상황 분류" onPointerDown={beginRailDrag}>{categories.map((category) => <button type="button" class={activeCategoryId === category.id ? "active" : ""} onClick={() => { setMode("emoticons"); setFilter(category.filter); setActiveCategoryId(category.id); }}><span><Icon name="image" /></span><strong>{category.title}</strong><small>{category.title} · {category.copy}</small></button>)}</div></div> : null}
             {mode === "all" ? (
-              <div class="library-combined-stack">
-                {visibleCharacters.length ? <div class="sticker-grid character-card-grid">{visibleCharacters.map((item, index) => <CharacterCard item={item} index={index} />)}</div> : null}
-                {visible.length ? <div class="sticker-grid">{visible.map((item, index) => <StickerCard item={item} index={index} />)}</div> : null}
-                {!visible.length && !visibleCharacters.length ? <div class="empty-library glass-panel"><Icon name="folder" size={32} /><h2>조건에 맞는 항목이 없어요.</h2><p>검색어나 그룹 조건을 바꿔보세요.</p></div> : null}
-              </div>
+              mixedItems.length ? <div class="sticker-grid library-mixed-grid">{mixedItems.map((entry, index) => entry.kind === "emoticon" ? <StickerCard item={entry.item} index={index} /> : <CharacterCard item={entry.item} index={index} />)}</div> : <div class="empty-library glass-panel"><Icon name="folder" size={32} /><h2>조건에 맞는 항목이 없어요.</h2><p>검색어나 그룹 조건을 바꿔보세요.</p></div>
             ) : mode === "emoticons" ? (
               visible.length ? <div class="sticker-grid">{visible.map((item, index) => <StickerCard item={item} index={index} />)}</div> : <div class="empty-library glass-panel"><Icon name="folder" size={32} /><h2>조건에 맞는 움직임이 없어요.</h2><p>다른 감정을 선택하거나 검색어를 바꿔보세요.</p></div>
             ) : (
@@ -119,15 +127,19 @@ function CharacterCard({ item, index }: { item: CharacterToken; index: number })
 }
 
 function StickerCard({ item, index }: { item: StickerItem; index: number }) {
+  const stillImage = item.thumbnail ?? item.image;
+  const animatedImage = item.animatedImage && item.animatedImage !== stillImage ? item.animatedImage : null;
   return (
     <article class={`sticker-card glass-panel masonry-${index % 4}`}>
-      <button class="sticker-preview" type="button" onClick={() => navigate(`/library/${item.id}`)}><span class="sticker-glow" style={{ background: item.color }} /><img src={item.image} alt={`${item.phrase} 이모티콘`} loading={index > 2 ? "lazy" : "eager"} decoding="async" /></button>
+      <button class="sticker-preview" type="button" onClick={() => navigate(`/library/${item.id}`)}><span class="sticker-glow" style={{ background: item.color }} /><img class="sticker-static" src={stillImage} alt={`${item.phrase} 이모티콘`} loading={index > 2 ? "lazy" : "eager"} decoding="async" />{animatedImage ? <img class="sticker-animated" src={animatedImage} alt="" loading="lazy" decoding="async" aria-hidden="true" /> : null}</button>
       <footer><strong>{item.title}</strong><div><button type="button" onClick={() => navigate("/edit")} aria-label="수정"><Icon name="edit" /></button><button type="button" onClick={() => navigate(`/library/${item.id}`)} aria-label="상세 보기"><Icon name="download" /></button><button class={item.favorite ? "active" : ""} type="button" onClick={() => toggleFavorite(item.id)} aria-label="즐겨찾기"><Icon name="star" /></button></div></footer>
     </article>
   );
 }
 
 function LibraryDetail({ item, project }: { item: StickerItem; project?: EmoticonProject }) {
+  const stillImage = item.thumbnail ?? item.image;
+  const animatedImage = item.animatedImage ?? item.image;
   const selectedIndex = Math.max(0, stickers.value.findIndex((candidate) => candidate.id === item.id));
   const previous = stickers.value[(selectedIndex - 1 + stickers.value.length) % stickers.value.length];
   const next = stickers.value[(selectedIndex + 1) % stickers.value.length];
@@ -135,28 +147,28 @@ function LibraryDetail({ item, project }: { item: StickerItem; project?: Emotico
   const download = async () => {
     if (project?.gifBlob) downloadBlob(project.gifBlob, `${item.id}.gif`);
     else {
-      const response = await fetch(item.image);
-      downloadBlob(await response.blob(), `${item.id}.png`);
+      const response = await fetch(animatedImage);
+      downloadBlob(await response.blob(), `${item.id}.${item.animatedImage ? "gif" : "png"}`);
     }
-    notify(project ? "투명 GIF를 저장했어요." : "기본 에셋 이미지를 저장했어요.");
+    notify(project || item.animatedImage ? "투명 GIF를 저장했어요." : "기본 에셋 이미지를 저장했어요.");
   };
   const modified = new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(item.updatedAt));
 
   return (
     <div class="workspace-page library-detail-page">
       <div class="library-carousel-stage">
-        <button class="carousel-peek previous" type="button" onClick={() => go(previous)} aria-label="이전 이모티콘"><img src={previous?.image} alt="" /></button>
+        <button class="carousel-peek previous" type="button" onClick={() => go(previous)} aria-label="이전 이모티콘"><img src={previous?.thumbnail ?? previous?.image} alt="" /></button>
         <button class="carousel-arrow previous" type="button" onClick={() => go(previous)} aria-label="이전"><Icon name="previous" size={26} /></button>
-        <div class="detail-stage glass-panel"><img src={item.image} alt={item.phrase} /></div>
+        <div class="detail-stage glass-panel"><img src={animatedImage} alt={item.phrase} /></div>
         <button class="carousel-arrow next" type="button" onClick={() => go(next)} aria-label="다음"><Icon name="next" size={26} /></button>
-        <button class="carousel-peek next" type="button" onClick={() => go(next)} aria-label="다음 이모티콘"><img src={next?.image} alt="" /></button>
+        <button class="carousel-peek next" type="button" onClick={() => go(next)} aria-label="다음 이모티콘"><img src={next?.thumbnail ?? next?.image} alt="" /></button>
         <div class="carousel-dots" aria-label={`${selectedIndex + 1} / ${stickers.value.length}`}>{stickers.value.slice(0, 5).map((candidate) => <button type="button" class={candidate.id === item.id ? "active" : ""} onClick={() => go(candidate)} aria-label={candidate.title} />)}</div>
       </div>
 
       <aside class="detail-sidebar glass-panel">
         <button class="detail-close" type="button" onClick={() => navigate("/library")} aria-label="보관함으로 돌아가기"><Icon name="close" /></button>
         <div class="detail-copy"><h1>{item.title}</h1><p>최근 수정일　{modified}</p></div>
-        <div class="detail-token-row"><span><b>1:1</b><small>비율</small></span><span><img src={item.image} alt="" /><small>캐릭터</small></span></div>
+        <div class="detail-token-row"><span><b>1:1</b><small>비율</small></span><span><img src={stillImage} alt="" /><small>썸네일</small></span></div>
         <div class="detail-actions"><button type="button" onClick={download} aria-label="저장"><Icon name="download" /></button><button class={item.favorite ? "active" : ""} type="button" onClick={() => toggleFavorite(item.id)} aria-label="즐겨찾기"><Icon name="star" /></button><button type="button" onClick={() => navigate("/edit")}>수정하기</button></div>
         <div class="detail-tags"><span>#밝은</span><span>#인사하는</span><span>#{item.emotion === "happy" ? "행복한" : emotionMeta[item.emotion].label}</span><span>#여자</span><span>#사람</span><span>#귀여운</span></div>
         <dl class="detail-spec"><div><dt>파일</dt><dd>{project ? "투명 GIF" : "투명 PNG"}</dd></div><div><dt>레이어</dt><dd>{project ? "4 layers" : "기본 에셋"}</dd></div><div><dt>문구</dt><dd>{item.phrase}</dd></div></dl>

@@ -104,6 +104,12 @@ export interface StickerItem {
   phrase: string;
   emotion: Emotion;
   image: string;
+  animatedImage?: string;
+  thumbnail?: string;
+  gifStoragePath?: string;
+  projectId?: string;
+  group?: string;
+  frameDelayMs?: number;
   color: string;
   favorite: boolean;
   ownerId: string | null;

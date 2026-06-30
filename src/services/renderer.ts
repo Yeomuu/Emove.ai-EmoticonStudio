@@ -1,4 +1,5 @@
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
+import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import type { EditorLayer, LayerKind, LayerTransform, MotionBrief, TextBoxShape, TextFont } from "../types";
 
 export interface RenderOptions {
@@ -46,7 +47,11 @@ export async function renderFrame(context: CanvasRenderingContext2D, options: Re
 }
 
 async function drawLayer(context: CanvasRenderingContext2D, id: LayerKind, options: RenderOptions, width: number, height: number, progress: number): Promise<void> {
-  const transform = options.transforms[id]; const unit = width / 360;
+  const transform = options.transforms[id]; const unit = width / DESIGN_SIZE;
+  if (id === "text") {
+    drawTextLayer(context, options, width, height, transform);
+    return;
+  }
   context.save();
   context.translate(width / 2 + transform.x * unit, height / 2 + transform.y * unit);
   context.rotate(transform.rotation * Math.PI / 180); context.scale(transform.scale, transform.scale); context.translate(-width / 2, -height / 2);
@@ -70,31 +75,47 @@ async function drawLayer(context: CanvasRenderingContext2D, id: LayerKind, optio
       const size = (13 + index % 4 * 4) * unit; context.globalAlpha = .62 + (index % 3) * .12;
       context.drawImage(star, width / 2 + Math.cos(angle) * radius - size / 2, height / 2 + Math.sin(angle) * radius * .7 - size / 2, size, size);
     }
-  } else {
-    const fontFamily = options.textFont === "Paperlogy" ? "Paperlogy" : "Pretendard";
-    const shape = options.textShape ?? "pill";
-    context.font = `700 ${Math.max(25, width * (fontFamily === "Paperlogy" ? .048 : .05))}px ${fontFamily}, Pretendard, sans-serif`;
-    context.textAlign = "center"; context.textBaseline = "middle";
-    const text = options.brief.shortText; const bounds = measureTextBubble(options.brief, shape, options.textFont, width, height);
-    const bubbleWidth = bounds.width; const bubbleHeight = bounds.bubbleHeight; const x = bounds.x; const y = bounds.y;
-    context.beginPath();
-    if (shape === "caption") {
-      context.roundRect(x, y, bubbleWidth, bubbleHeight, 14 * unit);
-      context.moveTo(width / 2 - 12 * unit, y + bubbleHeight - 1);
-      context.lineTo(width / 2, y + bubbleHeight + 14 * unit);
-      context.lineTo(width / 2 + 12 * unit, y + bubbleHeight - 1);
-      context.closePath();
-    } else {
-      context.roundRect(x, y, bubbleWidth, bubbleHeight, shape === "pill" ? bubbleHeight / 2 : 16 * unit);
-    }
-    context.fillStyle = "rgba(252,252,252,.96)"; context.fill();
-    context.fillStyle = "#201E28"; context.fillText(text, width / 2, y + bubbleHeight / 2 + 1, bubbleWidth - 36 * unit);
   }
   context.restore();
 }
 
-export function measureTextBubble(brief: MotionBrief, shape: TextBoxShape = "pill", textFont: TextFont = "Pretendard", width = 360, height = 360): TextBubbleBounds {
-  const unit = width / 360;
+function drawTextLayer(context: CanvasRenderingContext2D, options: RenderOptions, width: number, height: number, transform: LayerTransform): void {
+  const bounds = measureTextBubble(options.brief, options.textShape, options.textFont, width, height);
+  const unit = width / DESIGN_SIZE;
+  const centerX = bounds.x + bounds.width / 2;
+  const centerY = bounds.y + bounds.height / 2;
+  context.save();
+  context.translate(centerX + transform.x * unit, centerY + transform.y * unit);
+  context.rotate(transform.rotation * Math.PI / 180);
+  context.scale(transform.scale, transform.scale);
+  context.translate(-centerX, -centerY);
+  drawTextBubble(context, options, width, height, bounds);
+  context.restore();
+}
+
+function drawTextBubble(context: CanvasRenderingContext2D, options: RenderOptions, width: number, _height: number, bounds: TextBubbleBounds): void {
+  const unit = width / DESIGN_SIZE;
+  const fontFamily = options.textFont === "Paperlogy" ? "Paperlogy" : "Pretendard";
+  const shape = options.textShape ?? "pill";
+  context.font = `700 ${Math.max(25, width * (fontFamily === "Paperlogy" ? .048 : .05))}px ${fontFamily}, Pretendard, sans-serif`;
+  context.textAlign = "center"; context.textBaseline = "middle";
+  const text = options.brief.shortText; const bubbleWidth = bounds.width; const bubbleHeight = bounds.bubbleHeight; const x = bounds.x; const y = bounds.y;
+  context.beginPath();
+  if (shape === "caption") {
+    context.roundRect(x, y, bubbleWidth, bubbleHeight, 14 * unit);
+    context.moveTo(width / 2 - 12 * unit, y + bubbleHeight - 1);
+    context.lineTo(width / 2, y + bubbleHeight + 14 * unit);
+    context.lineTo(width / 2 + 12 * unit, y + bubbleHeight - 1);
+    context.closePath();
+  } else {
+    context.roundRect(x, y, bubbleWidth, bubbleHeight, shape === "pill" ? bubbleHeight / 2 : 16 * unit);
+  }
+  context.fillStyle = "rgba(252,252,252,.96)"; context.fill();
+  context.fillStyle = "#201E28"; context.fillText(text, width / 2, y + bubbleHeight / 2 + 1, bubbleWidth - 36 * unit);
+}
+
+export function measureTextBubble(brief: MotionBrief, shape: TextBoxShape = "pill", textFont: TextFont = "Pretendard", width = DESIGN_SIZE, height = DESIGN_SIZE): TextBubbleBounds {
+  const unit = width / DESIGN_SIZE;
   const fontFamily = textFont === "Paperlogy" ? "Paperlogy" : "Pretendard";
   const fontSize = Math.max(25, width * (fontFamily === "Paperlogy" ? .048 : .05));
   const textWidth = measureTextWidth(brief.shortText, `700 ${fontSize}px ${fontFamily}, Pretendard, sans-serif`);
@@ -114,7 +135,7 @@ function measureTextWidth(text: string, font: string): number {
 }
 
 function drawEmotionBackground(context: CanvasRenderingContext2D, brief: MotionBrief, width: number, height: number, progress: number, opacity = 1): void {
-  const unit = width / 360;
+  const unit = width / DESIGN_SIZE;
   const pulse = .82 + Math.sin(progress * Math.PI * 2) * .18;
   const radius = width * (.3 + brief.motionIntensity * .13) * pulse;
   const gradient = context.createRadialGradient(width * .5, height * .5, 4, width * .5, height * .51, radius);
@@ -224,14 +245,21 @@ function drawSmogWaves(context: CanvasRenderingContext2D, color: string, width: 
 }
 
 export async function exportGif(options: RenderOptions): Promise<Blob> {
-  const width = options.width ?? 360; const height = options.height ?? 360; const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+  const width = options.width ?? EXPORT_SIZE; const height = options.height ?? EXPORT_SIZE; const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
   const context = canvas.getContext("2d", { willReadFrequently: true }); if (!context) throw new Error("Canvas 2D를 사용할 수 없습니다.");
-  const frameCount = 5; const frames: Uint8ClampedArray[] = [];
+  const frameCount = FRAME_COUNT; const frames: Uint8ClampedArray[] = [];
   for (let frame = 0; frame < frameCount; frame += 1) {
     await renderFrame(context, { ...options, transforms: options.frameTransforms?.[frame] ?? options.transforms, width, height }, frame / (frameCount - 1));
     frames.push(context.getImageData(0, 0, width, height).data.slice());
   }
   return encodeGifFrames(frames, width, height, options.brief.frameDelayMs);
+}
+
+export async function renderFrameDataUrl(options: RenderOptions, frame = 0): Promise<string> {
+  const width = options.width ?? EXPORT_SIZE; const height = options.height ?? EXPORT_SIZE; const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true }); if (!context) throw new Error("Canvas 2D를 사용할 수 없습니다.");
+  await renderFrame(context, { ...options, transforms: options.frameTransforms?.[frame] ?? options.transforms, width, height, gifSafe: options.gifSafe ?? true }, FRAME_COUNT > 1 ? frame / (FRAME_COUNT - 1) : 0);
+  return canvas.toDataURL("image/png");
 }
 
 export function encodeGifFrames(frames: Uint8ClampedArray[], width: number, height: number, delay = 100): Blob {

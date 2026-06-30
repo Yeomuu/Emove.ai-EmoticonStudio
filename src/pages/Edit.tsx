@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Shell";
 import { Stage } from "../components/Stage";
+import { EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import { effectPresets, emotionMeta } from "../data";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
 import { syncProjectToFirebase } from "../services/firebase";
-import { downloadBlob, exportGif, renderFrame } from "../services/renderer";
+import { downloadBlob, exportGif, renderFrame, renderFrameDataUrl } from "../services/renderer";
 import { saveProject } from "../services/repository";
 import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, effectColor, emotion, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
 import type { EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
@@ -66,19 +67,28 @@ export function EditPage() {
   };
 
   const buildAndSave = async (): Promise<EmoticonProject> => {
-    const gifBlob = await exportGif({ characterUrl: selectedCharacter.value.sourceAsset, characterFrames: frameImages.value, coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, frameTransforms: frameLayerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value });
+    const renderOptions = { characterUrl: selectedCharacter.value.sourceAsset, characterFrames: frameImages.value, coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, frameTransforms: frameLayerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: EXPORT_SIZE, height: EXPORT_SIZE };
+    const [gifBlob, thumbnail] = await Promise.all([exportGif(renderOptions), renderFrameDataUrl(renderOptions, 0)]);
     const now = new Date().toISOString(); const id = `emove-${Date.now()}`;
-    const sticker: StickerItem = { id, title: transcript.value.slice(0, 12) || "새 이모티콘", phrase: transcript.value, emotion: emotion.value, image: selectedCharacter.value.sourceAsset, color: effectColor.value, favorite: false, ownerId: "local-user", isDefault: false, isPublished: false, characterTokenId: selectedCharacter.value.id, createdAt: now, updatedAt: now };
+    const localGifUrl = URL.createObjectURL(gifBlob);
+    const sticker: StickerItem = { id, title: transcript.value.slice(0, 12) || "새 이모티콘", phrase: transcript.value, emotion: emotion.value, image: thumbnail, animatedImage: localGifUrl, thumbnail, projectId: id, frameDelayMs: frameDelayMs.value, color: effectColor.value, favorite: false, ownerId: "local-user", isDefault: false, isPublished: false, characterTokenId: selectedCharacter.value.id, createdAt: now, updatedAt: now };
     const { videoBlob: _video, audioBlob: _audio, ...captureMeta } = behaviorCapture.value;
-    const project: EmoticonProject = { id, ownerId: "local-user", sticker, gifBlob, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, coreEffectImage: coreEffectImage.value, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: now, updatedAt: now };
-    await saveProject(project); stickers.value = [sticker, ...stickers.value.filter((item) => item.id !== id)];
-    const sync = await syncProjectToFirebase(project); lastSaved.value = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
-    exportGifBlob.value = gifBlob; exportShareUrl.value = sync.downloadUrl ?? `${window.location.origin}/library/${id}`;
-    notify(sync.enabled ? "프로젝트와 투명 GIF를 Firebase에 저장했어요." : "프로젝트·캐릭터·이펙트·행동 데이터를 기기에 저장했어요."); return project;
+    let project: EmoticonProject = { id, ownerId: "local-user", sticker, gifBlob, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, coreEffectImage: coreEffectImage.value, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: now, updatedAt: now };
+    await saveProject(project);
+    const sync = await syncProjectToFirebase(project);
+    if (sync.downloadUrl || sync.storagePath || sync.ownerId) {
+      const syncedSticker = { ...sticker, ownerId: sync.ownerId ?? sticker.ownerId, animatedImage: sync.downloadUrl ?? sticker.animatedImage, gifStoragePath: sync.storagePath ?? sticker.gifStoragePath, updatedAt: new Date().toISOString() };
+      project = { ...project, ownerId: sync.ownerId ?? project.ownerId, sticker: syncedSticker };
+      await saveProject(project);
+    }
+    stickers.value = [project.sticker, ...stickers.value.filter((item) => item.id !== id)];
+    lastSaved.value = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+    exportGifBlob.value = gifBlob; exportShareUrl.value = sync.downloadUrl ?? null;
+    notify(sync.enabled ? "프로젝트와 1024 GIF를 Firebase에 저장했어요." : "Firebase 연결이 없어 QR 직접 다운로드 링크 없이 기기에 저장했어요."); return project;
   };
 
   const save = async () => { setExporting(true); try { await buildAndSave(); } catch (error) { notify(error instanceof Error ? error.message : "저장에 실패했습니다."); } finally { setExporting(false); } };
-  const openExport = async () => { setExporting(true); try { const project = await buildAndSave(); const shareUrl = exportShareUrl.value ?? `${window.location.origin}/library/${project.id}`; const { default: QRCode } = await import("qrcode"); setQr(await QRCode.toDataURL(shareUrl, { width: 260, margin: 1, color: { dark: "#201E28", light: "#FCFCFC" } })); exportModalOpen.value = true; } catch (error) { notify(error instanceof Error ? error.message : "내보내기에 실패했습니다."); } finally { setExporting(false); } };
+  const openExport = async () => { setExporting(true); try { await buildAndSave(); if (exportShareUrl.value) { const { default: QRCode } = await import("qrcode"); setQr(await QRCode.toDataURL(exportShareUrl.value, { width: 260, margin: 1, color: { dark: "#201E28", light: "#FCFCFC" } })); } else setQr(undefined); exportModalOpen.value = true; } catch (error) { notify(error instanceof Error ? error.message : "내보내기에 실패했습니다."); } finally { setExporting(false); } };
   const share = async () => {
     if (!exportGifBlob.value) return; const file = new File([exportGifBlob.value], `emove-${emotion.value}.gif`, { type: "image/gif" });
     if (navigator.share && navigator.canShare?.({ files: [file] })) { await navigator.share({ title: "EMOVE 이모티콘", text: transcript.value, files: [file] }); }
@@ -99,7 +109,7 @@ export function EditPage() {
             <div class="effect-note"><Icon name="check" /><span>코어 이펙트는 별도 레이어로 생성하고, 부가 이펙트만 고정 별 파츠로 유지합니다.</span></div>
           </Panel>
 
-          <section class="editor-stage-wrap"><div class="editor-stage glass-panel"><Stage /><div class="stage-rulers"><span>EXPORT</span><span>LOOP</span></div></div><p class="canvas-help">행동 프레임은 유지하면서 레이어 위치와 크기만 같은 좌표계로 조정합니다.</p><LoopPreview /></section>
+          <section class="editor-stage-wrap"><div class="editor-stage glass-panel"><Stage /><div class="stage-rulers"><span>EXPORT {EXPORT_SIZE}</span><span>LOOP</span></div></div><p class="canvas-help">행동 프레임은 유지하면서 레이어 위치와 크기만 같은 좌표계로 조정합니다.</p><LoopPreview /></section>
 
           <Panel title="Layer properties" meta="CANVAS SYNC" class="layer-properties">
             <div class="selected-layer"><Icon name={layerIcons[activeLayer.value]} /><div><small>SELECTED LAYER</small><strong>{active?.label}</strong></div></div>
@@ -131,7 +141,7 @@ export function EditPage() {
         </section>
         {dragId && dragPoint ? <div class="layer-drag-preview" style={{ left: dragPoint.x + 14, top: dragPoint.y + 14 }}><Icon name={layerIcons[dragId]} /><span><strong>{layers.value.find((layer) => layer.id === dragId)?.label}</strong><small>놓을 위치 미리보기</small></span></div> : null}
       </div>
-      {exportModalOpen.value && exportGifBlob.value ? <div class="modal-backdrop" onClick={(event) => event.target === event.currentTarget && (exportModalOpen.value = false)}><section class="export-modal glass-panel" role="dialog" aria-modal="true" aria-label="투명 GIF 내보내기"><header><div><span class="eyebrow">EXPORT COMPLETE</span><h2>투명 GIF가 준비됐어요.</h2></div><button class="icon-button" type="button" onClick={() => (exportModalOpen.value = false)}><Icon name="close" /></button></header><div class="export-preview"><img src={URL.createObjectURL(exportGifBlob.value)} alt="완성된 투명 GIF" />{qr ? <div class="qr-card"><img src={qr} alt="GIF 다운로드 QR 코드" /><span>모바일에서 다운로드</span></div> : null}</div><p>360×360 · 5 frames · {frameDelayMs.value}ms/frame · 투명 배경</p><div class="export-actions"><button class="button secondary" type="button" onClick={() => downloadBlob(exportGifBlob.value!, `emove-${emotion.value}.gif`)}><Icon name="download" />기기에 저장</button><button class="button primary" type="button" onClick={share}><Icon name="next" />메일·앱으로 보내기</button></div></section></div> : null}
+      {exportModalOpen.value && exportGifBlob.value ? <div class="modal-backdrop" onClick={(event) => event.target === event.currentTarget && (exportModalOpen.value = false)}><section class="export-modal glass-panel" role="dialog" aria-modal="true" aria-label="투명 GIF 내보내기"><header><div><span class="eyebrow">EXPORT COMPLETE</span><h2>투명 GIF가 준비됐어요.</h2></div><button class="icon-button" type="button" onClick={() => (exportModalOpen.value = false)}><Icon name="close" /></button></header><div class="export-preview"><img src={URL.createObjectURL(exportGifBlob.value)} alt="완성된 투명 GIF" />{qr ? <div class="qr-card"><img src={qr} alt="GIF 다운로드 QR 코드" /><span>모바일에서 바로 보기</span></div> : null}</div><p>{EXPORT_SIZE}×{EXPORT_SIZE} · {FRAME_COUNT} frames · {frameDelayMs.value}ms/frame · 투명 GIF{exportShareUrl.value ? " · QR 직접 링크" : " · Firebase 연결 시 QR 생성"}</p><div class="export-actions"><button class="button secondary" type="button" onClick={() => downloadBlob(exportGifBlob.value!, `emove-${emotion.value}.gif`)}><Icon name="download" />기기에 저장</button><button class="button primary" type="button" onClick={share}><Icon name="next" />메일·앱으로 보내기</button></div></section></div> : null}
     </>
   );
 }
@@ -157,8 +167,8 @@ function LoopPreview() {
         width: canvas.width,
         height: canvas.height,
         gifSafe: true,
-      }, frame / 4);
-      timeout = window.setTimeout(() => renderLoop((frame + 1) % 5), frameDelayMs.value);
+      }, frame / (FRAME_COUNT - 1));
+      timeout = window.setTimeout(() => renderLoop((frame + 1) % FRAME_COUNT), frameDelayMs.value);
     };
     void renderLoop(0);
     return () => { cancelled = true; window.clearTimeout(timeout); };
@@ -167,7 +177,7 @@ function LoopPreview() {
   return (
     <div class="loop-preview glass-panel" aria-label="루프 미리보기">
       <header><span>LOOP PREVIEW</span><strong>{frameDelayMs.value}ms / frame</strong></header>
-      <canvas ref={canvasRef} width={240} height={240} />
+      <canvas ref={canvasRef} width={EXPORT_SIZE} height={EXPORT_SIZE} />
     </div>
   );
 }

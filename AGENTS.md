@@ -29,7 +29,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Character color palette is a dropdown preset; point color remains swatches plus one custom color picker swatch that shows the selected custom color.
 - Library separates emoticon and character views, and item cards flow horizontally first with a 3-column desktop grid rather than masonry columns.
 - Library category filters are horizontally scrollable/draggable and should show an edge fade when overflow is possible.
-- Edit canvas must clearly show the square 360×360 export boundary while keeping the surrounding stage usable as the workspace.
+- Edit canvas must clearly show the square 1024×1024 export boundary while keeping the surrounding stage usable as the workspace.
 - Edit stores layer x/y/scale/rotation per each of the fixed five frames; GIF export renders those five frame states with a user-adjustable per-frame delay.
 - Voice waveform uses FFT frequency bins during recording and a quiet dot baseline before voice input.
 - Keep the top shell/header persistent across route changes so the nav selection can spring between pages without remounting.
@@ -44,7 +44,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Transparent preview grids must be smaller and lighter; grid/pattern backgrounds should appear only on intended preview surfaces, especially Library detail's `detail-stage`.
 - Edit text layer selection bounds must match the rendered text bubble exactly, including resize behavior.
 - When editing a frame, later frames should inherit the same layer transform unless the user explicitly changes them, so animation remains continuous.
-- Edit preview and export must share the same 360×360 GIF-safe color/alpha constraints so the looped GIF does not visually diverge from the frame editor.
+- Edit preview and export must share the same 1024×1024 GIF-safe color/alpha constraints so the looped GIF does not visually diverge from the frame editor.
 - Source code, styles, fonts, icons, and used UI images should be referenced from `src/` and `src/assets/` in v1; old root-level source/asset folders are legacy copies only until explicitly removed.
 - Firebase sync uses optional `VITE_FIREBASE_CONFIG` plus anonymous auth. Firestore stores `characters`, `captures`, `projects`, and `stickers`; Storage stores generated GIFs under `emoticons/{ownerId}/{fileName}`.
 - Input analysis must visibly show the understood behavior, expression/emotion key, voice usage, and emotion background-effect guide instead of only showing a completion toast.
@@ -53,7 +53,9 @@ When implementing from a selected generated mock, treat that image as the source
 - Character tokens must store an explicit 2D/3D `styleMode`; later character frames must keep that mode instead of blending styles.
 - Input-to-edit generation automatically creates only the five character frames. Generated core-effect image layers are on-demand from the Edit screen to avoid adding image-generation cost by default.
 - Edit must include a live loop preview that renders the same five frame states at the selected frame delay before exporting.
-- Future UI updates may replace the current screen source. When the user provides a Figma frame position link, frame SVG export, and Figma Dev Mode code for the same screen, treat that three-part set as the canonical reference.
+- Future UI updates may replace the current screen source. When the user provides a Figma frame position link, frame SVG export, and Figma Dev Mode code for the same screen, treat that three-part set as the canonical reference and implement the app to match the supplied Figma screen screenshot pixel-for-pixel.
+- The current final emoticon output target is a simple 1024×1024 looping emoticon generated from `gpt-image-2`-sized assets, not a Kakao 360×360 submission package.
+- GitHub Pages deployment must use the repository base path `/Emove.ai-EmoticonStudio/` plus an SPA `404.html` fallback so clean History API routes work after refresh.
 
 ## Firebase Firestore Data Model
 
@@ -163,8 +165,8 @@ When implementing from a selected generated mock, treat that image as the source
   metadata: {
     totalFrames: number;    // 5 (고정)
     averageDelay: number;   // 평균 프레임 지속 시간
-    width: 360;
-    height: 360;
+    width: 1024;
+    height: 1024;
     format: "GIF";
   };
   category?: {

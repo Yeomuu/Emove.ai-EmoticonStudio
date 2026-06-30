@@ -25,7 +25,7 @@ pnpm build
 - CSS Custom Properties와 `@layer` 기반 반응형 스타일, PC 본문 최대 1440px
 - MediaRecorder, Web Audio, getUserMedia
 - Web Worker에서 실행되는 MediaPipe Pose Landmarker
-- Canvas 4단 합성, 프레임별 위치 저장, 5프레임 GIF89a 인코딩
+- Canvas 4단 합성, 프레임별 위치 저장, 1024×1024 5프레임 GIF89a 인코딩
 - IndexedDB 로컬 저장, 선택적 Firebase 동기화
 - OpenAI 의존부는 Mock/Server Provider 인터페이스로 분리
 
@@ -39,11 +39,15 @@ pnpm build
 
 ## Firebase 연결
 
-첨부 Firebase 수업 자료의 Web App + Firestore 흐름을 기준으로 루트에 `firebase.json`, `firebase.firestore.rules`, `firebase.storage.rules`를 추가했습니다. `.env.local`의 `VITE_FIREBASE_CONFIG`에 Firebase Web App 설정 JSON을 넣으면 익명 로그인 후 `characters`, `captures`, `projects`, `stickers` 컬렉션과 `emoticons/{ownerId}/{projectId}.gif` Storage 경로에 동기화합니다. 원본 카메라/오디오 Blob은 Firestore에 올리지 않고 분석 메타데이터와 GIF만 저장합니다.
+첨부 Firebase 수업 자료의 Web App + Firestore 흐름을 기준으로 루트에 `firebase.json`, `firebase.firestore.rules`, `firebase.storage.rules`를 추가했습니다. `.env.local`의 `VITE_FIREBASE_CONFIG`에 Firebase Web App 설정 JSON을 넣으면 익명 로그인 후 `characters`, `captures`, `projects`, `stickers` 컬렉션과 `emoticons/{ownerId}/{fileName}.gif` Storage 경로에 동기화합니다. 원본 카메라/오디오 Blob과 data URL 이미지는 Firestore에 올리지 않고 분석 메타데이터, 편집 상태, 작은 참조값, 최종 GIF URL 중심으로 저장합니다.
 
 Firebase JS SDK는 이미 `firebase@^12.15.0`로 설치되어 있습니다. 이 프로젝트는 `pnpm-lock.yaml`을 기준으로 관리하므로 새 패키지를 추가할 때는 `pnpm add firebase` 흐름이 안전합니다. Firebase 콘솔의 npm 예시를 따라 `npm install firebase`를 실행할 경우를 위해 `.npmrc`는 상대 cache와 `package-lock=false`로 정리해 두었습니다.
 
 수동으로 해야 하는 일은 Firebase Console에서 프로젝트와 Web App 생성, Authentication Anonymous provider 활성화, Firestore Database와 Storage 생성, 그리고 위 규칙 배포입니다.
+
+## 배포
+
+Netlify는 일반 `pnpm build` 결과를 배포하면 됩니다. GitHub Pages는 저장소 하위 경로와 History API fallback이 필요하므로 `pnpm build:github`를 사용합니다. `main`에 push하면 `.github/workflows/pages.yml`이 `dist`를 GitHub Pages로 배포하며, 저장소 설정의 Pages Source는 `GitHub Actions`로 지정해야 합니다.
 
 ## 폴더
 
@@ -54,3 +58,5 @@ Firebase JS SDK는 이미 `firebase@^12.15.0`로 설치되어 있습니다. 이 
 - `public/models/`: MediaPipe WASM과 공식 Pose Landmarker 모델
 - `tests/`: 핵심 계약과 GIF 인코더 테스트
 - `qa/`: 구현 화면 캡처
+
+GitHub 웹에서 로컬보다 폴더 수가 적게 보이는 것은 정상입니다. `node_modules/`, `dist/`, `.env.local`, 로컬 캐시, QA 산출물 등은 `.gitignore`로 제외되어 저장소에는 실행에 필요한 소스와 설정만 올라갑니다.

@@ -98,13 +98,7 @@ export const defaultCharacterTokens: CharacterToken[] = [
   },
 ];
 
-export const starterStickers: StickerItem[] = [
-  { id: "default-hello", title: "인사하는 미니미", phrase: "안녕!", emotion: "happy", image: imageAssets.library[0], color: "#BBB6FF", favorite: true, ownerId: null, isDefault: true, isPublished: true, characterTokenId: "default-flower-girl-soft3d", createdAt, updatedAt: createdAt },
-  { id: "default-space", title: "우주 브이", phrase: "해냈어!", emotion: "happy", image: imageAssets.library[1], color: "#C9BFFF", favorite: false, ownerId: null, isDefault: true, isPublished: true, characterTokenId: "default-astronaut-soft3d", createdAt, updatedAt: createdAt },
-  { id: "default-penguin", title: "차분한 펭귄", phrase: "괜찮아", emotion: "neutral", image: imageAssets.library[2], color: "#78D6C6", favorite: true, ownerId: null, isDefault: true, isPublished: true, characterTokenId: "default-penguin-soft3d", createdAt, updatedAt: createdAt },
-  { id: "default-aurora", title: "오로라 인사", phrase: "반가워!", emotion: "surprised", image: imageAssets.library[3], color: "#8CA5FF", favorite: false, ownerId: null, isDefault: true, isPublished: true, characterTokenId: "default-gradient-mascot-soft3d", createdAt, updatedAt: createdAt },
-  { id: "default-yellow", title: "노란 인사", phrase: "고마워", emotion: "happy", image: imageAssets.library[4], color: "#FFD36E", favorite: false, ownerId: null, isDefault: true, isPublished: true, characterTokenId: "default-yellow-girl-soft3d", createdAt, updatedAt: createdAt },
-];
+export const starterStickers: StickerItem[] = [];
 
 export const effectPresets = ["팝 스타", "플레임 버스트", "스모그 웨이브", "쉐이크 링", "소프트 웨이브", "레인 드롭", "스파클 링"] as const;
 

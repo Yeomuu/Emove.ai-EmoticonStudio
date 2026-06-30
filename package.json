@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "vite build",
+    "build:github": "vite build --mode github && node tools/copy-spa-fallback.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
