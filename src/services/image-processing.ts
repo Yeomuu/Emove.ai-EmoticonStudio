@@ -1,4 +1,6 @@
 const TRANSPARENT_PNG_PREFIX = "data:image/png;base64,";
+const OPENAI_REFERENCE_MAX_SIDE = 512;
+const OPENAI_REFERENCE_TARGET_BYTES = 1_200_000;
 
 export async function removeChromaKeyBackground(source: string): Promise<string> {
   if (typeof document === "undefined" || !source) return source;
@@ -19,6 +21,39 @@ export function isProbablyTransparentPng(source: string): boolean {
   return source.startsWith(TRANSPARENT_PNG_PREFIX);
 }
 
+export async function compactReferenceImageForOpenAI(source: string): Promise<string> {
+  if (typeof document === "undefined" || !source || !isDataOrLocalAsset(source)) return source;
+  try {
+    const image = await decodeImage(source);
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    if (!width || !height) return source;
+    const scale = Math.min(1, OPENAI_REFERENCE_MAX_SIDE / Math.max(width, height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) return source;
+    context.fillStyle = "#00FF00";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const png = canvas.toDataURL("image/png");
+    if (dataUrlBytes(png) <= OPENAI_REFERENCE_TARGET_BYTES) return png;
+    return canvas.toDataURL("image/jpeg", .82);
+  } catch {
+    return source;
+  }
+}
+
+export async function compactReferenceImagesForOpenAI(sources: string[]): Promise<string[]> {
+  const compacted: string[] = [];
+  for (const source of sources) {
+    const next = await compactReferenceImageForOpenAI(source);
+    if (next) compacted.push(next);
+  }
+  return compacted;
+}
+
 function decodeImage(source: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -28,6 +63,19 @@ function decodeImage(source: string): Promise<HTMLImageElement> {
     image.onerror = () => reject(new Error("생성 이미지를 투명 PNG로 처리하지 못했습니다."));
     image.src = source;
   });
+}
+
+function isDataOrLocalAsset(source: string): boolean {
+  if (source.startsWith("data:") || source.startsWith("blob:")) return true;
+  try {
+    return new URL(source, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function dataUrlBytes(value: string): number {
+  return new Blob([value]).size;
 }
 
 function keyOutConnectedGreen(data: Uint8ClampedArray, width: number, height: number): void {

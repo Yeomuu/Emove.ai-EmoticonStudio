@@ -108,7 +108,9 @@ async function editImage(prompt: string, referenceUrl: string, key: string, env:
     if (value !== undefined) form.append(name, String(value));
   });
   form.append("prompt", prompt);
-  form.append("image", new File([await source.blob()], "character.png", { type: "image/png" }));
+  const blob = await source.blob();
+  const type = blob.type || "image/png";
+  form.append("image", new File([blob], `character.${extensionForMimeType(type)}`, { type }));
   const openai = await fetch("https://api.openai.com/v1/images/edits", { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form });
   return imagePayload(openai, options.output_format);
 }
@@ -124,6 +126,12 @@ async function imagePayload(response: Response, outputFormat: ImageOutputFormat)
 
 function mimeTypeForOutput(outputFormat: ImageOutputFormat): string {
   return outputFormat === "jpeg" ? "image/jpeg" : `image/${outputFormat}`;
+}
+
+function extensionForMimeType(type: string): string {
+  if (type.includes("jpeg") || type.includes("jpg")) return "jpg";
+  if (type.includes("webp")) return "webp";
+  return "png";
 }
 
 async function fetchImageAsDataUrl(url: string): Promise<string> {

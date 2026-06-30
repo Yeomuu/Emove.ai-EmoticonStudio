@@ -1,11 +1,12 @@
 import type { CharacterToken, GeneratedCharacterResult, MotionBrief, OpenAIProvider, TranscriptionResult } from "../types";
 import { buildCharacterPrompt, buildCoreEffectPrompt, buildFramePrompts, compactEmoticonText } from "./prompt-builder";
-import { removeChromaKeyBackground } from "./image-processing";
+import { compactReferenceImagesForOpenAI, removeChromaKeyBackground } from "./image-processing";
 
 const CHARACTER_VARIATION_REQUESTS = 1;
 const FRAME_COUNT = 5;
 const JOB_POLL_INTERVAL_MS = 2500;
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
+const MAX_JSON_PAYLOAD_BYTES = 5_500_000;
 
 type AsyncJobAccepted = {
   jobId: string;
@@ -60,14 +61,15 @@ export class ServerOpenAIProvider implements OpenAIProvider {
 
   async generateCharacterFrames(brief: MotionBrief, token: CharacterToken): Promise<string[]> {
     const prompts = buildFramePrompts(brief, token).slice(0, FRAME_COUNT);
+    const referenceImages = await compactReferenceImagesForOpenAI(token.referenceImages.length ? token.referenceImages : token.sourceAsset ? [token.sourceAsset] : []);
     const frameImages: string[] = [];
     for (const [frameIndex, prompt] of prompts.entries()) {
       const payload = await requestJson<{ imageUrl: string }>(openAIEndpoint("frame"), {
         brief,
-        token,
+        token: compactCharacterTokenForRequest(token),
         prompt,
         frameIndex,
-        referenceImages: token.referenceImages,
+        referenceImages,
         chromaKeyBackground: "#00FF00",
       });
       frameImages.push(await removeChromaKeyBackground(payload.imageUrl));
@@ -82,7 +84,11 @@ export class ServerOpenAIProvider implements OpenAIProvider {
 }
 
 async function requestJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const jsonBody = JSON.stringify(body);
+  if (new Blob([jsonBody]).size > MAX_JSON_PAYLOAD_BYTES) {
+    throw new Error("AI 생성 요청의 참조 이미지 용량이 너무 큽니다. 캐릭터 이미지를 다시 선택하거나 새로 생성해 주세요.");
+  }
+  const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: jsonBody });
   const payload = (await response.json().catch(() => undefined)) as { error?: string } | T | undefined;
   if (response.status === 202 && isAsyncJobAccepted(payload)) {
     const statusUrl = payload.statusUrl?.startsWith("http") ? payload.statusUrl : openAIEndpoint(`jobs/${payload.jobId}`);
@@ -122,6 +128,10 @@ function isAsyncJobResult<T>(payload: unknown): payload is AsyncJobResult<T> {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+}
+
+function compactCharacterTokenForRequest(token: CharacterToken): CharacterToken {
+  return { ...token, sourceAsset: "", referenceImages: [] };
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
