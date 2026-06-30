@@ -30,16 +30,34 @@ export function Stage() {
   }, [motionBrief.value, layers.value, layerTransforms.value, frameImages.value, selectedFrame.value, textBoxShape.value, textFont.value, coreEffectImage.value]);
 
   const beginMove = (event: PointerEvent, id: LayerKind) => {
-    if (layers.value.find((layer) => layer.id === id)?.locked) return;
-    event.preventDefault(); event.stopPropagation(); activeLayer.value = id;
+    const targetId = pickLayerAtPoint(event.clientX, event.clientY, id);
+    if (targetId !== id) {
+      event.preventDefault(); event.stopPropagation(); activeLayer.value = targetId;
+      return;
+    }
+    if (layers.value.find((layer) => layer.id === targetId)?.locked) return;
+    event.preventDefault(); event.stopPropagation(); activeLayer.value = targetId;
     const target = event.currentTarget as HTMLElement; target.setPointerCapture(event.pointerId);
-    const start = { clientX: event.clientX, clientY: event.clientY, transform: { ...layerTransforms.value[id] } };
+    const start = { clientX: event.clientX, clientY: event.clientY, transform: { ...layerTransforms.value[targetId] } };
     const move = (next: PointerEvent) => {
       const width = surfaceRef.current?.getBoundingClientRect().width ?? DESIGN_SIZE;
-      updateLayerTransform(id, { x: start.transform.x + (next.clientX - start.clientX) * DESIGN_SIZE / width, y: start.transform.y + (next.clientY - start.clientY) * DESIGN_SIZE / width });
+      updateLayerTransform(targetId, { x: start.transform.x + (next.clientX - start.clientX) * DESIGN_SIZE / width, y: start.transform.y + (next.clientY - start.clientY) * DESIGN_SIZE / width });
     };
     const end = () => { target.removeEventListener("pointermove", move); target.removeEventListener("pointerup", end); target.removeEventListener("pointercancel", end); };
     target.addEventListener("pointermove", move); target.addEventListener("pointerup", end); target.addEventListener("pointercancel", end);
+  };
+
+  const pickLayerAtPoint = (clientX: number, clientY: number, fallback: LayerKind): LayerKind => {
+    const candidates = Array.from(surfaceRef.current?.querySelectorAll<HTMLElement>("[data-canvas-layer-id]") ?? [])
+      .filter((element) => {
+        const box = element.getBoundingClientRect();
+        return clientX >= box.left && clientX <= box.right && clientY >= box.top && clientY <= box.bottom;
+      })
+      .map((element) => element.dataset.canvasLayerId as LayerKind)
+      .filter((candidate) => layers.value.some((layer) => layer.id === candidate && layer.visible && !layer.locked));
+    if (candidates.length <= 1) return candidates[0] ?? fallback;
+    const activeIndex = candidates.indexOf(activeLayer.value);
+    return activeIndex >= 0 ? candidates[(activeIndex + 1) % candidates.length] : candidates[0] ?? fallback;
   };
 
   const beginScale = (event: PointerEvent, id: LayerKind) => {
@@ -69,6 +87,7 @@ export function Stage() {
         return (
         <div
           key={layer.id}
+          data-canvas-layer-id={layer.id}
           class={`canvas-selection ${selectionClassName(layer.id)} ${activeLayer.value === layer.id ? "is-selected" : ""}`}
           style={{
             zIndex: reverseIndex + 2,

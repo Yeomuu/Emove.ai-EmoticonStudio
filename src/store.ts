@@ -38,6 +38,7 @@ export const coreEffect = signal(emotionMeta.unknown.effect);
 export const coreEffectImage = signal<string | null>(null);
 export const sourceTranscript = signal("");
 export const transcript = signal("");
+export const emoticonTitle = signal("");
 export const audioRms = signal(0);
 export const audioPeak = signal(0);
 export const motionIntensity = computed(() => Math.max(0, Math.min(1, audioRms.value * 1.7)));
@@ -106,6 +107,7 @@ export function selectCharacter(id: string): void {
 
 export function startNewEmoticonProject(): void {
   editingProject.value = null;
+  emoticonTitle.value = transcript.value.trim().slice(0, 12) || "새 이모티콘";
   exportGifBlob.value = null;
   exportShareUrl.value = null;
   exportModalOpen.value = false;
@@ -128,6 +130,7 @@ export function loadProjectForEditing(project: EmoticonProject): void {
   coreEffectImage.value = project.coreEffectImage ?? null;
   sourceTranscript.value = project.motionBrief.sourceText;
   transcript.value = project.motionBrief.shortText;
+  emoticonTitle.value = project.sticker.title;
   frameDelayMs.value = project.motionBrief.frameDelayMs;
   motionStyle.value = project.motionBrief.motionStyle ?? "smooth";
   behaviorCapture.value = { ...behaviorCapture.value, ...project.behaviorCapture };

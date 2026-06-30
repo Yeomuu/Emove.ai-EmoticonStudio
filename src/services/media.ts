@@ -61,8 +61,10 @@ export class AudioCapture {
 
   release(): void {
     if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
-    this.stream?.getTracks().forEach((track) => track.stop()); void this.context?.close();
-    this.stream = undefined; this.recorder = undefined; this.analyser = undefined;
+    this.stream?.getTracks().forEach((track) => track.stop());
+    const context = this.context;
+    if (context && context.state !== "closed") void context.close().catch(() => undefined);
+    this.stream = undefined; this.recorder = undefined; this.analyser = undefined; this.context = undefined; this.animationFrame = undefined;
   }
 }
 

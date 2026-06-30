@@ -293,6 +293,11 @@ button:not(:disabled):active { transform: scale(.965); transition-duration: .08s
 /* Edit: functional 4-layer editor on the same Figma frame. */
 .editor-page { padding: 0; }
 .editor-toolbar { width: 100%; min-height: 66px; margin: 0 0 16px; padding: 10px 12px 10px 20px; border-radius: 999px; background: linear-gradient(145deg, rgba(255,255,255,.045), rgba(255,255,255,.012)); }
+.editor-title-group { min-width: 0; display: grid; grid-template-columns: auto minmax(120px, 1fr); align-items: center; column-gap: 12px; row-gap: 3px; }
+.editor-title-group .eyebrow { grid-column: 1 / -1; }
+.emoticon-title-control { min-width: 180px; max-width: 280px; height: 34px; padding: 0 10px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; background: rgba(255,255,255,.028); }
+.emoticon-title-control span { color: rgba(187,182,255,.72); font-size: 8px; letter-spacing: .14em; }
+.emoticon-title-control input { width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: #f0edf7; font-size: 12px; outline: none; }
 .editor-grid { width: 100%; min-height: 500px; display: grid; grid-template-columns: 280px minmax(0, 858px) 270px; gap: 16px; }
 .effect-settings, .layer-properties { min-width: 0; min-height: 500px; padding: 22px; border-radius: 30px; }
 .editor-stage-wrap { min-width: 0; display: grid; grid-template-rows: 1fr auto; gap: 8px; }
@@ -725,6 +730,8 @@ select:focus {
   .emotion-setting-row { grid-template-columns: 1fr; }
   .input-ready-row { justify-content: space-between; }
   .editor-toolbar { min-height: auto; padding: 14px; border-radius: 24px; flex-direction: column; align-items: stretch; }
+  .editor-title-group { grid-template-columns: 1fr; }
+  .emoticon-title-control { max-width: none; }
   .toolbar-actions { width: 100%; overflow-x: auto; }
   .editor-grid { display: flex; flex-direction: column; }
   .editor-stage-wrap { order: -1; }
@@ -1042,6 +1049,10 @@ body {
   box-sizing: border-box;
   margin: 0;
   transform-origin: center;
+}
+
+.canvas-selection:not(.is-selected) {
+  cursor: pointer;
 }
 
 .canvas-selection.is-selected {

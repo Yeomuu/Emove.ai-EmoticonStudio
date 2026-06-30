@@ -2,7 +2,7 @@ import type { BehaviorCapture, CharacterToken, EmoticonProject, StickerItem } fr
 import type { FirebaseApp } from "firebase/app";
 import { EXPORT_SIZE, FRAME_COUNT } from "../constants";
 
-export interface FirebaseSyncResult { enabled: boolean; syncedAt?: string; downloadUrl?: string; storagePath?: string; ownerId?: string }
+export interface FirebaseSyncResult { enabled: boolean; syncedAt?: string; downloadUrl?: string; storagePath?: string; ownerId?: string; storageWarning?: string }
 
 type FirebaseConfig = {
   apiKey: string;
@@ -69,14 +69,14 @@ async function getFirebase() {
 export async function syncStickerToFirebase(item: StickerItem): Promise<FirebaseSyncResult> {
   const firebase = await getFirebase(); if (!firebase) return { enabled: false };
   const { firestore, ownerId } = firebase;
-  await firestore.setDoc(firestore.doc(firebase.database, "stickers", item.id), createStickerDoc(item, ownerId, firestore.serverTimestamp()), { merge: true });
+  await firestore.setDoc(firestore.doc(firebase.database, "stickers", item.id), cleanFirestoreData(createStickerDoc(item, ownerId, firestore.serverTimestamp())), { merge: true });
   return { enabled: true, syncedAt: new Date().toISOString(), ownerId };
 }
 
 export async function syncCharacterToFirebase(item: CharacterToken): Promise<FirebaseSyncResult> {
   const firebase = await getFirebase(); if (!firebase) return { enabled: false };
   const { firestore, ownerId } = firebase;
-  await firestore.setDoc(firestore.doc(firebase.database, "characters", item.id), createCharacterDoc(item, ownerId, firestore.serverTimestamp()), { merge: true });
+  await firestore.setDoc(firestore.doc(firebase.database, "characters", item.id), cleanFirestoreData(createCharacterDoc(item, ownerId, firestore.serverTimestamp())), { merge: true });
   return { enabled: true, syncedAt: new Date().toISOString(), ownerId };
 }
 
@@ -84,7 +84,7 @@ export async function syncCaptureToFirebase(item: BehaviorCapture): Promise<Fire
   const firebase = await getFirebase(); if (!firebase) return { enabled: false };
   const { firestore, ownerId } = firebase;
   const { videoBlob: _video, audioBlob: _audio, ...capture } = item as BehaviorCapture & { videoBlob?: Blob; audioBlob?: Blob };
-  await firestore.setDoc(firestore.doc(firebase.database, "captures", item.id), createCaptureDoc(capture, ownerId, firestore.serverTimestamp()), { merge: true });
+  await firestore.setDoc(firestore.doc(firebase.database, "captures", item.id), cleanFirestoreData(createCaptureDoc(capture, ownerId, firestore.serverTimestamp())), { merge: true });
   return { enabled: true, syncedAt: new Date().toISOString(), ownerId };
 }
 
@@ -92,19 +92,32 @@ export async function syncProjectToFirebase(project: EmoticonProject): Promise<F
   const firebase = await getFirebase(); if (!firebase) return { enabled: false };
   const { ownerId } = firebase;
   const storagePath = `emoticons/${ownerId}/${project.id}.gif`;
-  const gifRef = firebase.storage.ref(firebase.bucket, storagePath);
-  await firebase.storage.uploadBytes(gifRef, project.gifBlob, { contentType: "image/gif", customMetadata: { projectId: project.id, characterTokenId: project.characterToken.id, ownerId, isPublished: String(project.sticker.isPublished) } });
-  const downloadUrl = await firebase.storage.getDownloadURL(gifRef); const { videoBlob: _video, audioBlob: _audio, ...capture } = project.behaviorCapture as typeof project.behaviorCapture & { videoBlob?: Blob; audioBlob?: Blob };
+  let downloadUrl: string | undefined;
+  let storedPath: string | undefined;
+  let storageWarning: string | undefined;
+  if (shouldUploadGifToStorage()) {
+    try {
+      const gifRef = firebase.storage.ref(firebase.bucket, storagePath);
+      await firebase.storage.uploadBytes(gifRef, project.gifBlob, { contentType: "image/gif", customMetadata: { projectId: project.id, characterTokenId: project.characterToken.id, ownerId, isPublished: String(project.sticker.isPublished) } });
+      downloadUrl = await firebase.storage.getDownloadURL(gifRef);
+      storedPath = storagePath;
+    } catch (error) {
+      storageWarning = `Firebase Storage GIF 업로드가 실패해 Firestore 메타데이터만 저장했습니다: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  } else {
+    storageWarning = "Firebase Storage GIF 업로드가 비활성화되어 Firestore 메타데이터만 저장했습니다.";
+  }
+  const { videoBlob: _video, audioBlob: _audio, ...capture } = project.behaviorCapture as typeof project.behaviorCapture & { videoBlob?: Blob; audioBlob?: Blob };
   const timestamp = firebase.firestore.serverTimestamp();
-  const sticker = { ...project.sticker, ownerId, animatedImage: downloadUrl, gifStoragePath: storagePath };
+  const sticker = { ...project.sticker, ownerId, animatedImage: downloadUrl ?? project.sticker.animatedImage, gifStoragePath: storedPath ?? project.sticker.gifStoragePath };
   const characterToken = { ...project.characterToken, ownerId };
   await Promise.all([
-    firebase.firestore.setDoc(firebase.firestore.doc(firebase.database, "captures", capture.id), createCaptureDoc(capture, ownerId, timestamp), { merge: true }),
-    firebase.firestore.setDoc(firebase.firestore.doc(firebase.database, "projects", project.id), createProjectDoc(project, ownerId, downloadUrl, timestamp), { merge: true }),
-    firebase.firestore.setDoc(firebase.firestore.doc(firebase.database, "stickers", project.sticker.id), createStickerDoc(sticker, ownerId, timestamp), { merge: true }),
-    firebase.firestore.setDoc(firebase.firestore.doc(firebase.database, "characters", project.characterToken.id), createCharacterDoc(characterToken, ownerId, timestamp), { merge: true }),
+    firebase.firestore.setDoc(firebase.firestore.doc(firebase.database, "captures", capture.id), cleanFirestoreData(createCaptureDoc(capture, ownerId, timestamp)), { merge: true }),
+    firebase.firestore.setDoc(firebase.firestore.doc(firebase.database, "projects", project.id), cleanFirestoreData(createProjectDoc({ ...project, sticker }, ownerId, downloadUrl ?? "", timestamp, storageWarning)), { merge: true }),
+    firebase.firestore.setDoc(firebase.firestore.doc(firebase.database, "stickers", project.sticker.id), cleanFirestoreData(createStickerDoc(sticker, ownerId, timestamp)), { merge: true }),
+    firebase.firestore.setDoc(firebase.firestore.doc(firebase.database, "characters", project.characterToken.id), cleanFirestoreData(createCharacterDoc(characterToken, ownerId, timestamp)), { merge: true }),
   ]);
-  return { enabled: true, syncedAt: new Date().toISOString(), downloadUrl, storagePath, ownerId };
+  return { enabled: true, syncedAt: new Date().toISOString(), downloadUrl, storagePath: storedPath, ownerId, storageWarning };
 }
 
 function createCharacterDoc(item: CharacterToken, ownerId: string, timestamp: unknown) {
@@ -150,7 +163,7 @@ function createCaptureDoc(item: Omit<BehaviorCapture, "videoBlob" | "audioBlob">
   };
 }
 
-function createProjectDoc(project: EmoticonProject, ownerId: string, gifUrl: string, timestamp: unknown) {
+function createProjectDoc(project: EmoticonProject, ownerId: string, gifUrl: string, timestamp: unknown, storageWarning?: string) {
   return {
     id: project.id,
     ownerId,
@@ -177,6 +190,7 @@ function createProjectDoc(project: EmoticonProject, ownerId: string, gifUrl: str
     metadata: {
       createdAt: timestamp,
       updatedAt: timestamp,
+      ...(storageWarning ? { storageWarning } : {}),
     },
   };
 }
@@ -226,5 +240,24 @@ function getDominantEmotion(item: Omit<BehaviorCapture, "videoBlob" | "audioBlob
 
 function compactAssetUrl(value: string | null | undefined, fallback: string): string {
   if (!value) return fallback;
-  return /^(data:|blob:)/.test(value) ? fallback : value;
+  if (/^(data:|blob:)/.test(value)) return /^(data:|blob:)/.test(fallback) ? "" : fallback;
+  return value;
+}
+
+function cleanFirestoreData<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => cleanFirestoreData(item)) as T;
+  if (!isPlainObject(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .map(([key, item]) => [key, cleanFirestoreData(item)]),
+  ) as T;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype);
+}
+
+function shouldUploadGifToStorage(): boolean {
+  return import.meta.env.VITE_FIREBASE_STORAGE_UPLOAD === "enabled";
 }

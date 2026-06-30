@@ -144,6 +144,8 @@
   .editor-toolbar { min-height: 66px; margin-bottom: 16px; padding: 10px 12px 10px 20px; border-radius: 999px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
   .editor-toolbar > div:first-child { display: grid; }
   .editor-toolbar > div:first-child strong { font-size: 14px; }
+  .editor-title-group { min-width: 0; }
+  .emoticon-title-control { min-width: 180px; }
   .toolbar-actions { display: flex; align-items: center; gap: 7px; }
   .save-state { margin: 0 8px; color: var(--dim); font-size: 9px; }
   .editor-grid { display: grid; grid-template-columns: 280px minmax(440px, 1fr) 270px; gap: 16px; min-height: 550px; }
