@@ -1,8 +1,7 @@
 node_modules/
-dist/
-.vite/
-.vite-temp/
-.netlify/
+.next/
+.vercel/
+out/
 .npm-cache/
 .pnpm-store/
 .agents/
@@ -16,5 +15,6 @@ qa/
 deploy-*.zip
 
 coverage/
+*.tsbuildinfo
 .DS_Store
 Thumbs.db

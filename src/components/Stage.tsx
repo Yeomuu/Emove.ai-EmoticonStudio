@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import { activeLayer, coreEffectImage, frameImages, layerTransforms, layers, motionBrief, selectedFrame, textBoxShape, textFont, updateLayerTransform } from "../store";
 import { measureTextBubble, renderFrame } from "../services/renderer";
-import type { LayerKind } from "../types";
+import type { EditorLayer, LayerKind } from "../types";
 
 const selectionRects: Record<LayerKind, { x: number; y: number; width: number; height: number }> = {
   "background-effects": { x: 18, y: 18, width: 324, height: 324 },
@@ -26,41 +26,27 @@ export function Stage() {
 
   useEffect(() => {
     const canvas = canvasRef.current; const context = canvas?.getContext("2d"); if (!canvas || !context) return;
-    void renderFrame(context, { characterUrl: frameImages.value[selectedFrame.value] ?? frameImages.value[0], coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: canvas.width, height: canvas.height, gifSafe: true }, selectedFrame.value / (FRAME_COUNT - 1));
-  }, [motionBrief.value, layers.value, layerTransforms.value, frameImages.value, selectedFrame.value, textBoxShape.value, textFont.value, coreEffectImage.value]);
+    void renderFrame(context, { characterUrl: frameImages.value[selectedFrame.value] ?? frameImages.value[0], coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: activePreviewLayers(layers.value, activeLayer.value), transforms: layerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: canvas.width, height: canvas.height, gifSafe: true }, selectedFrame.value / (FRAME_COUNT - 1));
+  }, [motionBrief.value, layers.value, layerTransforms.value, frameImages.value, selectedFrame.value, textBoxShape.value, textFont.value, coreEffectImage.value, activeLayer.value]);
 
-  const beginMove = (event: PointerEvent, id: LayerKind) => {
-    const targetId = pickLayerAtPoint(event.clientX, event.clientY, id);
-    if (targetId !== id) {
-      event.preventDefault(); event.stopPropagation(); activeLayer.value = targetId;
-      return;
-    }
-    if (layers.value.find((layer) => layer.id === targetId)?.locked) return;
-    event.preventDefault(); event.stopPropagation(); activeLayer.value = targetId;
+  const beginMove = (event: ReactPointerEvent<HTMLElement>, id: LayerKind) => {
+    if (layers.value.find((layer) => layer.id === id)?.locked) return;
+    event.preventDefault(); event.stopPropagation(); activeLayer.value = id;
     const target = event.currentTarget as HTMLElement; target.setPointerCapture(event.pointerId);
-    const start = { clientX: event.clientX, clientY: event.clientY, transform: { ...layerTransforms.value[targetId] } };
+    const start = { clientX: event.clientX, clientY: event.clientY, transform: { ...layerTransforms.value[id] } };
     const move = (next: PointerEvent) => {
       const width = surfaceRef.current?.getBoundingClientRect().width ?? DESIGN_SIZE;
-      updateLayerTransform(targetId, { x: start.transform.x + (next.clientX - start.clientX) * DESIGN_SIZE / width, y: start.transform.y + (next.clientY - start.clientY) * DESIGN_SIZE / width });
+      updateLayerTransform(id, { x: start.transform.x + (next.clientX - start.clientX) * DESIGN_SIZE / width, y: start.transform.y + (next.clientY - start.clientY) * DESIGN_SIZE / width });
     };
     const end = () => { target.removeEventListener("pointermove", move); target.removeEventListener("pointerup", end); target.removeEventListener("pointercancel", end); };
     target.addEventListener("pointermove", move); target.addEventListener("pointerup", end); target.addEventListener("pointercancel", end);
   };
 
-  const pickLayerAtPoint = (clientX: number, clientY: number, fallback: LayerKind): LayerKind => {
-    const candidates = Array.from(surfaceRef.current?.querySelectorAll<HTMLElement>("[data-canvas-layer-id]") ?? [])
-      .filter((element) => {
-        const box = element.getBoundingClientRect();
-        return clientX >= box.left && clientX <= box.right && clientY >= box.top && clientY <= box.bottom;
-      })
-      .map((element) => element.dataset.canvasLayerId as LayerKind)
-      .filter((candidate) => layers.value.some((layer) => layer.id === candidate && layer.visible && !layer.locked));
-    if (candidates.length <= 1) return candidates[0] ?? fallback;
-    const activeIndex = candidates.indexOf(activeLayer.value);
-    return activeIndex >= 0 ? candidates[(activeIndex + 1) % candidates.length] : candidates[0] ?? fallback;
+  const clearSelection = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget || event.target === canvasRef.current) activeLayer.value = null;
   };
 
-  const beginScale = (event: PointerEvent, id: LayerKind) => {
+  const beginScale = (event: ReactPointerEvent<HTMLElement>, id: LayerKind) => {
     event.preventDefault(); event.stopPropagation(); const target = event.currentTarget as HTMLElement; target.setPointerCapture(event.pointerId);
     const startX = event.clientX; const startScale = layerTransforms.value[id].scale;
     const move = (next: PointerEvent) => updateLayerTransform(id, { scale: Math.max(.25, Math.min(2.4, startScale + (next.clientX - startX) / 150)) });
@@ -68,7 +54,7 @@ export function Stage() {
     target.addEventListener("pointermove", move); target.addEventListener("pointerup", end);
   };
 
-  const beginRotate = (event: PointerEvent, id: LayerKind) => {
+  const beginRotate = (event: ReactPointerEvent<HTMLElement>, id: LayerKind) => {
     event.preventDefault(); event.stopPropagation(); const target = event.currentTarget as HTMLElement; const box = target.parentElement?.getBoundingClientRect(); if (!box) return; target.setPointerCapture(event.pointerId);
     const center = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
     const move = (next: PointerEvent) => updateLayerTransform(id, { rotation: Math.round(Math.atan2(next.clientY - center.y, next.clientX - center.x) * 180 / Math.PI + 90) });
@@ -77,8 +63,8 @@ export function Stage() {
   };
 
   return (
-    <div class="canvas-artboard" ref={surfaceRef} aria-label="직접 편집 가능한 이모티콘 캔버스">
-      <canvas class="stage-canvas" ref={canvasRef} width={EXPORT_SIZE} height={EXPORT_SIZE} />
+    <div className="canvas-artboard" ref={surfaceRef} onPointerDown={clearSelection} aria-label="직접 편집 가능한 이모티콘 캔버스">
+      <canvas className="stage-canvas" ref={canvasRef} width={EXPORT_SIZE} height={EXPORT_SIZE} />
       {[...layers.value].reverse().map((layer, reverseIndex) => {
         if (!layer.visible) return null;
         const rect = layer.id === "text" ? measureTextBubble(motionBrief.value, textBoxShape.value, textFont.value, EXPORT_SIZE, EXPORT_SIZE) : scaleRect(selectionRects[layer.id]);
@@ -88,9 +74,9 @@ export function Stage() {
         <div
           key={layer.id}
           data-canvas-layer-id={layer.id}
-          class={`canvas-selection ${selectionClassName(layer.id)} ${activeLayer.value === layer.id ? "is-selected" : ""}`}
+          className={`canvas-selection ${selectionClassName(layer.id)} ${activeLayer.value === layer.id ? "is-selected" : ""}`}
           style={{
-            zIndex: reverseIndex + 2,
+            zIndex: activeLayer.value === layer.id ? 100 : reverseIndex + 2,
             left: `${((rect.x + rect.width / 2 + transform.x * unit) / EXPORT_SIZE) * 100}%`,
             top: `${((rect.y + rect.height / 2 + transform.y * unit) / EXPORT_SIZE) * 100}%`,
             width: `${(rect.width / EXPORT_SIZE) * 100}%`,
@@ -100,9 +86,16 @@ export function Stage() {
           onPointerDown={(event) => beginMove(event, layer.id)}
           role="button" tabIndex={0} aria-label={`${layer.label} 레이어 선택 및 이동`}
         >
-          {activeLayer.value === layer.id && !layer.locked ? <><i class="selection-rotate" onPointerDown={(event) => beginRotate(event, layer.id)} /><i class="selection-resize" onPointerDown={(event) => beginScale(event, layer.id)} /></> : null}
+          {activeLayer.value === layer.id && !layer.locked ? <><i className="selection-rotate" onPointerDown={(event) => beginRotate(event, layer.id)} /><i className="selection-resize" onPointerDown={(event) => beginScale(event, layer.id)} /></> : null}
         </div>
       ); })}
     </div>
   );
+}
+
+function activePreviewLayers(items: EditorLayer[], active: LayerKind | null): EditorLayer[] {
+  if (!active) return items;
+  const target = items.find((layer) => layer.id === active);
+  if (!target) return items;
+  return [target, ...items.filter((layer) => layer.id !== active)];
 }

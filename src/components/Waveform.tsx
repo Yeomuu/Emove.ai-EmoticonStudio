@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef } from "react";
 
 export function Waveform({ levels, active = false }: { levels?: number[]; active?: boolean }) {
   const fallback = useMemo(() => Array.from({ length: 34 }, (_, index) => 0.18 + Math.abs(Math.sin(index * 0.72)) * 0.54), []);
@@ -30,5 +30,5 @@ export function Waveform({ levels, active = false }: { levels?: number[]; active
     });
   }, [values, active, idle]);
 
-  return <canvas class={`waveform ${idle ? "is-idle" : ""}`} ref={canvasRef} aria-label={active ? "실시간 음성 FFT 파형" : "입력 대기 음성 파형"} />;
+  return <canvas className={`waveform ${idle ? "is-idle" : ""}`} ref={canvasRef} aria-label={active ? "실시간 음성 FFT 파형" : "입력 대기 음성 파형"} />;
 }

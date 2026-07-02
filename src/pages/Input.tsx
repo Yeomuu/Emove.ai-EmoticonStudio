@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Shell";
 import { Waveform } from "../components/Waveform";
@@ -7,7 +7,7 @@ import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
 import { AudioCapture, CameraCapture } from "../services/media";
 import { inferEmotionFromText } from "../services/prompt-builder";
-import { syncCaptureToFirebase } from "../services/firebase";
+import { syncCaptureToRemote } from "../services/remote-store";
 import { saveCapture } from "../services/repository";
 import { createLiveVisionAnalyzer } from "../services/vision";
 import { audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, effectColor, emotion, expressionEmotion, frameDelayMs, frameImages, motionBrief, motionIntensity, motionStyle, notify, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
@@ -24,7 +24,7 @@ const motionStyleOptions: Array<{ id: MotionStyle; label: string; delay: number;
 ];
 
 export function InputPage() {
-  const videoRef = useRef<HTMLVideoElement>(null); const camera = useRef(new CameraCapture()); const audio = useRef(new AudioCapture()); const idleTimer = useRef<number>();
+  const videoRef = useRef<HTMLVideoElement>(null); const camera = useRef(new CameraCapture()); const audio = useRef(new AudioCapture()); const idleTimer = useRef<number | undefined>(undefined);
   const [cameraReady, setCameraReady] = useState(false); const [captureProgress, setCaptureProgress] = useState(0); const [capturing, setCapturing] = useState(false); const [lastCaptureLabel, setLastCaptureLabel] = useState("Preview");
   const [recording, setRecording] = useState(false); const [voiceProgress, setVoiceProgress] = useState(0); const [levels, setLevels] = useState<number[]>([]); const [recorded, setRecorded] = useState<Blob>(); const [analyzing, setAnalyzing] = useState(false); const [generationStep, setGenerationStep] = useState("Ready for Generation"); const [characterMenu, setCharacterMenu] = useState(false);
   useEffect(() => () => { window.clearTimeout(idleTimer.current); camera.current.release(); audio.current.release(); }, []);
@@ -127,7 +127,7 @@ export function InputPage() {
     behaviorCapture.value = { ...behaviorCapture.value, id: `capture-${Date.now()}`, videoBlob, audioBlob, poseSummary: describePose(metrics), gesture: metrics.gesture ?? "Not_Detected", expression: metrics.face?.expression ?? "unknown", sourceText: resultText.sourceText, shortText: resultText.shortText, audio, emotionScores, createdAt: new Date().toISOString() };
     const persistence = await saveCaptureRemoteFirst(behaviorCapture.value);
     notify(metrics.source === "mediapipe"
-      ? `${describePose(metrics)}, ${describeFaceUse(expressionEmotion.value, metrics)}, "${resultText.shortText || resultText.sourceText}" 입력을 분석했어요. ${persistence.synced ? "Firebase에 저장했습니다." : persistence.message}`
+      ? `${describePose(metrics)}, ${describeFaceUse(expressionEmotion.value, metrics)}, "${resultText.shortText || resultText.sourceText}" 입력을 분석했어요. ${persistence.synced ? "원격 DB에 저장했습니다." : persistence.message}`
       : "카메라에서 행동을 인식하지 못했습니다. 다시 촬영해 주세요.");
   };
 
@@ -145,48 +145,48 @@ export function InputPage() {
   const selectedMotionStyle = motionStyleOptions.find((item) => item.id === motionStyle.value) ?? motionStyleOptions[0];
 
   return (
-    <div class="workspace-page input-page">
-        <div class="input-composer">
-          <Panel title="✦ 포즈" class="pose-capture-panel">
-            <div class="pose-media-frame"><video ref={videoRef} muted playsInline class={cameraReady ? "visible" : ""} />{!cameraReady ? <img src={imageAssets.pose} alt="팔을 펼친 자세 입력 예시" /> : null}<span class="camera-status"><i class={cameraReady ? "on" : ""} />{capturing ? `${Math.ceil((1 - captureProgress) * 5)}초 입력 중` : "CAMERA CLOSED"}</span></div>
-            <div class="pose-meta"><span>Camera + Voice · 5s</span><span>{lastCaptureLabel}</span></div>
-            <div class="pose-playback"><button class="round-tool" type="button" onClick={cameraReady ? () => capturePose() : turnCameraOn} disabled={capturing} aria-label="5초 자세 촬영"><Icon name={capturing ? "pause" : "camera"} /></button><div class="compact-wave"><Waveform levels={capturing && levels.length ? levels : undefined} active={capturing} /></div><span>{capturing ? `${Math.ceil((1 - captureProgress) * 5)}초` : "5초 입력"}</span></div>
-            <div class="pose-intensity"><span>행동 강도 · 음성 크기 기반</span><div>{["낮음", "중간", "높음"].map((item) => <button type="button" class={item === intensityTier ? "active" : ""} disabled>{item}</button>)}</div></div>
-            <div class="pose-capture-actions"><button type="button" onClick={turnCameraOn} disabled={capturing || recording}><Icon name="camera" />{capturing ? "입력 중" : "카메라+음성 5초 입력"}</button></div>
+    <div className="workspace-page input-page">
+        <div className="input-composer">
+          <Panel title="✦ 포즈" className="pose-capture-panel">
+            <div className="pose-media-frame"><video ref={videoRef} muted playsInline className={cameraReady ? "visible" : ""} />{!cameraReady ? <img src={imageAssets.pose} alt="팔을 펼친 자세 입력 예시" /> : null}<span className="camera-status"><i className={cameraReady ? "on" : ""} />{capturing ? `${Math.ceil((1 - captureProgress) * 5)}초 입력 중` : "CAMERA CLOSED"}</span></div>
+            <div className="pose-meta"><span>Camera + Voice · 5s</span><span>{lastCaptureLabel}</span></div>
+            <div className="pose-playback"><button className="round-tool" type="button" onClick={cameraReady ? () => capturePose() : turnCameraOn} disabled={capturing} aria-label="5초 자세 촬영"><Icon name={capturing ? "pause" : "camera"} /></button><div className="compact-wave"><Waveform levels={capturing && levels.length ? levels : undefined} active={capturing} /></div><span>{capturing ? `${Math.ceil((1 - captureProgress) * 5)}초` : "5초 입력"}</span></div>
+            <div className="pose-intensity"><span>행동 강도 · 음성 크기 기반</span><div>{["낮음", "중간", "높음"].map((item) => <button type="button" className={item === intensityTier ? "active" : ""} disabled>{item}</button>)}</div></div>
+            <div className="pose-capture-actions"><button type="button" onClick={turnCameraOn} disabled={capturing || recording}><Icon name="camera" />{capturing ? "입력 중" : "카메라+음성 5초 입력"}</button></div>
           </Panel>
 
-          <div class="input-right-column">
-            <div class="input-top-cards">
-              <Panel title="✦ 음성" class="voice-source-panel">
-                <button class={`audio-source-card ${recording ? "recording" : ""}`} type="button" onClick={recordVoiceOnly} disabled={capturing || recording}><span><Icon name={recording ? "pause" : "voice"} /></span><div><strong>{recording ? "5초 녹음 중" : "음성 다시 입력"}</strong><small>{recorded ? "WAV · 전사 완료" : "5초 동안 말하면 문구와 키워드를 요약합니다"}</small></div></button>
-                <div class="voice-playback"><button class="round-tool" type="button" onClick={recordVoiceOnly} disabled={capturing || recording} aria-label="5초 음성 녹음"><Icon name={recording ? "pause" : "play"} /></button><div class="compact-wave"><Waveform levels={recording && levels.length ? levels : undefined} active={recording} /></div><span>{recording ? `${Math.ceil((1 - voiceProgress) * 5)}초` : "5초 입력"}</span></div>
-                <div class="voice-actions"><button type="button" onClick={() => notify("음성 전사 문구는 텍스트 레이어, 음량은 모션 강도에 사용됩니다.")}>사용 방식</button><button type="button" onClick={recordVoiceOnly} disabled={capturing || recording}>{recording ? "녹음 중" : "5초 다시 녹음"}</button></div>
-                <label class="keyword-input"><span>EMOTICON KEYWORD</span><input value={transcript.value} onInput={(event) => (transcript.value = event.currentTarget.value)} aria-label="이모티콘 문장" /></label>
+          <div className="input-right-column">
+            <div className="input-top-cards">
+              <Panel title="✦ 음성" className="voice-source-panel">
+                <button className={`audio-source-card ${recording ? "recording" : ""}`} type="button" onClick={recordVoiceOnly} disabled={capturing || recording}><span><Icon name={recording ? "pause" : "voice"} /></span><div><strong>{recording ? "5초 녹음 중" : "음성 다시 입력"}</strong><small>{recorded ? "WAV · 전사 완료" : "5초 동안 말하면 문구와 키워드를 요약합니다"}</small></div></button>
+                <div className="voice-playback"><button className="round-tool" type="button" onClick={recordVoiceOnly} disabled={capturing || recording} aria-label="5초 음성 녹음"><Icon name={recording ? "pause" : "play"} /></button><div className="compact-wave"><Waveform levels={recording && levels.length ? levels : undefined} active={recording} /></div><span>{recording ? `${Math.ceil((1 - voiceProgress) * 5)}초` : "5초 입력"}</span></div>
+                <div className="voice-actions"><button type="button" onClick={() => notify("음성 전사 문구는 텍스트 레이어, 음량은 모션 강도에 사용됩니다.")}>사용 방식</button><button type="button" onClick={recordVoiceOnly} disabled={capturing || recording}>{recording ? "녹음 중" : "5초 다시 녹음"}</button></div>
+                <label className="keyword-input"><span>EMOTICON KEYWORD</span><input value={transcript.value} onInput={(event) => (transcript.value = event.currentTarget.value)} aria-label="이모티콘 문장" /></label>
               </Panel>
 
-              <Panel title="✦ 캐릭터" class="selected-character-panel">
-                <button class="selected-character-summary" type="button" onClick={() => setCharacterMenu(!characterMenu)}><span class="selected-character-image">{selectedCharacter.value.sourceAsset ? <img src={selectedCharacter.value.sourceAsset} alt="선택한 캐릭터" /> : <Icon name="image" size={32} />}</span><span><strong><i style={{ background: emotionMeta[emotion.value].color }} />{selectedCharacter.value.sourceAsset ? selectedCharacter.value.name : "캐릭터 필요"}</strong><small>{selectedCharacter.value.sourceAsset ? selectedCharacter.value.isDefault ? "#기본세트　#캐릭터토큰" : "#사용자생성　#캐릭터토큰" : "Character에서 새 캐릭터를 생성하세요"}</small></span></button>
-                <button class="select-character-button" type="button" onClick={() => setCharacterMenu(!characterMenu)}>캐릭터 선택하기</button>
-                {characterMenu ? <div class="character-popover">{characters.value.length ? characters.value.map((token) => <button type="button" class={token.id === selectedCharacter.value.id ? "active" : ""} onClick={() => { selectCharacter(token.id); setCharacterMenu(false); }}><img src={token.sourceAsset} alt="" /><span>{token.name}<small>{token.stylePreset}</small></span></button>) : <button type="button" onClick={() => navigate("/character")}><span>저장된 캐릭터 없음<small>새 캐릭터를 먼저 생성하세요</small></span></button>}</div> : null}
+              <Panel title="✦ 캐릭터" className="selected-character-panel">
+                <button className="selected-character-summary" type="button" onClick={() => setCharacterMenu(!characterMenu)}><span className="selected-character-image">{selectedCharacter.value.sourceAsset ? <img src={selectedCharacter.value.sourceAsset} alt="선택한 캐릭터" /> : <Icon name="image" size={32} />}</span><span><strong><i style={{ background: emotionMeta[emotion.value].color }} />{selectedCharacter.value.sourceAsset ? selectedCharacter.value.name : "캐릭터 필요"}</strong><small>{selectedCharacter.value.sourceAsset ? selectedCharacter.value.isDefault ? "#기본세트　#캐릭터토큰" : "#사용자생성　#캐릭터토큰" : "Character에서 새 캐릭터를 생성하세요"}</small></span></button>
+                <button className="select-character-button" type="button" onClick={() => setCharacterMenu(!characterMenu)}>캐릭터 선택하기</button>
+                {characterMenu ? <div className="character-popover">{characters.value.length ? characters.value.map((token) => <button type="button" className={token.id === selectedCharacter.value.id ? "active" : ""} onClick={() => { selectCharacter(token.id); setCharacterMenu(false); }}><img src={token.sourceAsset} alt="" /><span>{token.name}<small>{token.stylePreset}</small></span></button>) : <button type="button" onClick={() => navigate("/character")}><span>저장된 캐릭터 없음<small>새 캐릭터를 먼저 생성하세요</small></span></button>}</div> : null}
               </Panel>
             </div>
 
-            <Panel title="✦ 움직이는 이모티콘 설정" class="motion-settings-panel">
-              <div class="motion-slider-row"><div class="fixed-frame-card"><span>총 프레임</span><b>{FRAME_COUNT} frames 고정</b></div><label><span>프레임당 속도 <b>{frameDelayMs.value}ms / frame</b></span><input type="range" min="70" max="220" step="10" value={frameDelayMs.value} onInput={(event) => (frameDelayMs.value = Number(event.currentTarget.value))} /></label></div>
-              <div class="motion-option-row"><label class="motion-style-select"><span>움직임 스타일</span><select value={motionStyle.value} onChange={(event) => chooseMotionStyle(event.currentTarget.value as MotionStyle)}>{motionStyleOptions.map((item) => <option value={item.id}>{item.label} · {item.copy}</option>)}</select></label><div class="loop-format-note"><span>GIF loop</span><b>{selectedMotionStyle.label}</b></div></div>
-              <div class="emotion-setting-row"><span>감정 분석 · 9가지</span><div class="emotion-selector">{emotionOrder.map((item) => <button type="button" class={emotion.value === item ? "active" : ""} onClick={() => setEmotion(item)}><i style={{ background: emotionMeta[item].color }} />{emotionMeta[item].label}</button>)}</div></div>
-              <div class="motion-background-row"><span>배경 / 핵심 효과</span><strong>{emotionMeta[emotion.value].effect}<small>감정 선택은 배경 효과와 핵심 효과 색에만 반영</small></strong><div><i /><i /><i style={{ background: effectColor.value }} /><label class="effect-color-picker" aria-label="효과 색상 직접 선택" style={{ background: effectColor.value }}><input type="color" value={effectColor.value} onInput={(event) => (effectColor.value = event.currentTarget.value)} /><Icon name="add" size={12} /></label></div></div>
-              <div class="analysis-readout-grid" aria-label="입력 분석 결과">
+            <Panel title="✦ 움직이는 이모티콘 설정" className="motion-settings-panel">
+              <div className="motion-slider-row"><div className="fixed-frame-card"><span>총 프레임</span><b>{FRAME_COUNT} frames 고정</b></div><label><span>프레임당 속도 <b>{frameDelayMs.value}ms / frame</b></span><input type="range" min="70" max="220" step="10" value={frameDelayMs.value} onInput={(event) => (frameDelayMs.value = Number(event.currentTarget.value))} /></label></div>
+              <div className="motion-option-row"><label className="motion-style-select"><span>움직임 스타일</span><select value={motionStyle.value} onChange={(event) => chooseMotionStyle(event.currentTarget.value as MotionStyle)}>{motionStyleOptions.map((item) => <option value={item.id}>{item.label} · {item.copy}</option>)}</select></label><div className="loop-format-note"><span>GIF loop</span><b>{selectedMotionStyle.label}</b></div></div>
+              <div className="emotion-setting-row"><span>감정 분석 · 9가지</span><div className="emotion-selector">{emotionOrder.map((item) => <button type="button" className={emotion.value === item ? "active" : ""} onClick={() => setEmotion(item)}><i style={{ background: emotionMeta[item].color }} />{emotionMeta[item].label}</button>)}</div></div>
+              <div className="motion-background-row"><span>배경 / 핵심 효과</span><strong>{emotionMeta[emotion.value].effect}<small>감정 선택은 배경 효과와 핵심 효과 색에만 반영</small></strong><div><i /><i /><i style={{ background: effectColor.value }} /><label className="effect-color-picker" aria-label="효과 색상 직접 선택" style={{ background: effectColor.value }}><input type="color" value={effectColor.value} onInput={(event) => (effectColor.value = event.currentTarget.value)} /><Icon name="add" size={12} /></label></div></div>
+              <div className="analysis-readout-grid" aria-label="입력 분석 결과">
                 <article><span>행동</span><strong>{poseSummary}</strong><p>{motionBrief.value.pose} · 움직임 강도 {Math.round(motionIntensity.value * 100)}%</p></article>
                 <article><span>표정</span><strong>{faceSummary}</strong><p>현재 캐릭터 프레임 표정과 모션 프롬프트에 감정 키로 반영됩니다.</p></article>
                 <article><span>목소리</span><strong>{voiceSummary}</strong><p>전사 문장은 텍스트 레이어, 음량은 모션 강도와 프레임 리듬에 사용됩니다.</p></article>
                 <article><span>배경 효과</span><strong>{effectGuide.background}</strong><p>{effectGuide.accent} · {effectGuide.motion}</p></article>
               </div>
-              <div class="motion-analysis-summary"><span>{poseSummary}</span><span>{intensityTier} · {Math.round(motionIntensity.value * 100)}%</span><span>{emotionMeta[emotion.value].label} · {visionMetrics.value.source === "mediapipe" ? "분석됨" : "대기"}</span><span>프레임 {FRAME_COUNT}</span><span>{frameDelayMs.value}ms/frame</span></div>
-              <div class="privacy-note"><Icon name="lock" /><p><strong>입력 제어권은 사용자에게</strong><span>카메라·마이크는 실행 중에만 사용되며 원본과 분석값을 분리 저장합니다.</span></p></div>
+              <div className="motion-analysis-summary"><span>{poseSummary}</span><span>{intensityTier} · {Math.round(motionIntensity.value * 100)}%</span><span>{emotionMeta[emotion.value].label} · {visionMetrics.value.source === "mediapipe" ? "분석됨" : "대기"}</span><span>프레임 {FRAME_COUNT}</span><span>{frameDelayMs.value}ms/frame</span></div>
+              <div className="privacy-note"><Icon name="lock" /><p><strong>입력 제어권은 사용자에게</strong><span>카메라·마이크는 실행 중에만 사용되며 원본과 분석값을 분리 저장합니다.</span></p></div>
             </Panel>
 
-            <div class="input-ready-row"><span class={`generation-status ${analyzing ? "active" : ""}`}><Icon name={analyzing ? "reload" : "check"} class={analyzing ? "spin" : ""} />{analyzing ? generationStep : "Ready for Generation"}</span><button type="button" onClick={proceed} disabled={recording || capturing || analyzing}>{analyzing ? "프레임 만드는 중" : "이모티콘 생성하기"}</button></div>
+            <div className="input-ready-row"><span className={`generation-status ${analyzing ? "active" : ""}`}><Icon name={analyzing ? "reload" : "check"} className={analyzing ? "spin" : ""} />{analyzing ? generationStep : "Ready for Generation"}</span><button type="button" onClick={proceed} disabled={recording || capturing || analyzing}>{analyzing ? "프레임 만드는 중" : "이모티콘 생성하기"}</button></div>
           </div>
         </div>
     </div>
@@ -228,13 +228,13 @@ function waitWithProgress(durationMs: number, onProgress: (progress: number) => 
 
 async function saveCaptureRemoteFirst(capture: BehaviorCapture): Promise<{ synced: boolean; message: string }> {
   try {
-    const sync = await syncCaptureToFirebase(capture);
+    const sync = await syncCaptureToRemote(capture);
     await saveCapture(capture);
     return sync.enabled
-      ? { synced: true, message: "Firebase에 입력 분석을 저장했습니다." }
-      : { synced: false, message: "Firebase 설정이 없어 IndexedDB에만 임시 저장했습니다." };
+      ? { synced: true, message: "원격 DB에 입력 분석을 저장했습니다." }
+      : { synced: false, message: `${sync.storageWarning ?? "원격 DB 설정이 없습니다."} IndexedDB에만 임시 저장했습니다.` };
   } catch (error) {
     await saveCapture(capture);
-    return { synced: false, message: `Firebase 저장 실패로 IndexedDB에만 임시 저장했습니다: ${error instanceof Error ? error.message : String(error)}` };
+    return { synced: false, message: `원격 DB 저장 실패로 IndexedDB에만 임시 저장했습니다: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

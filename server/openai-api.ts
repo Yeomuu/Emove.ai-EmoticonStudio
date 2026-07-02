@@ -246,9 +246,7 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, worker:
 function openAIRoute(url: string): string | null {
   const path = new URL(url, "http://localhost").pathname;
   const apiMarker = "/api/openai/";
-  const functionMarker = "/.netlify/functions/openai/";
   if (path.startsWith(apiMarker)) return path.slice(apiMarker.length).split("/")[0] || null;
-  if (path.startsWith(functionMarker)) return path.slice(functionMarker.length).split("/")[0] || null;
   return null;
 }
 

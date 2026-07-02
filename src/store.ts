@@ -1,4 +1,4 @@
-import { computed, signal } from "@preact/signals";
+import { computed, signal } from "./lib/signals";
 import { createMotionBrief, defaultCharacterTokens, emotionMeta, initialLayers, starterStickers } from "./data";
 import type { BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, LayerKind, LayerTransform, MotionStyle, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
 
@@ -46,7 +46,7 @@ export const frameDelayMs = signal(120);
 export const motionStyle = signal<MotionStyle>("smooth");
 
 export const selectedFrame = signal(0);
-export const activeLayer = signal<LayerKind>("accent-effects");
+export const activeLayer = signal<LayerKind | null>("accent-effects");
 export const textBoxShape = signal<TextBoxShape>("pill");
 export const textFont = signal<TextFont>("Pretendard");
 export const layers = signal(initialLayers.map((layer) => ({ ...layer })));

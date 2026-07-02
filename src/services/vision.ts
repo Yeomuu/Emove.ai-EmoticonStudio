@@ -67,7 +67,7 @@ function detectCurrentVideoFrame(video: HTMLVideoElement, timestampMs: number): 
 async function ensureFileset(): Promise<VisionFileset> {
   if (!fileset) {
     const { FilesetResolver } = await import("@mediapipe/tasks-vision");
-    fileset = await FilesetResolver.forVisionTasks(import.meta.env.VITE_MEDIAPIPE_WASM_PATH || publicAssetPath("models/wasm"));
+    fileset = await FilesetResolver.forVisionTasks(process.env.NEXT_PUBLIC_MEDIAPIPE_WASM_PATH || publicAssetPath("models/wasm"));
   }
   return fileset;
 }
@@ -75,7 +75,7 @@ async function ensureFileset(): Promise<VisionFileset> {
 async function ensurePoseLandmarker(): Promise<void> {
   if (poseLandmarker) return;
   const [{ PoseLandmarker }, nextFileset] = await Promise.all([import("@mediapipe/tasks-vision"), ensureFileset()]);
-  const modelAssetPath = import.meta.env.VITE_POSE_MODEL_PATH || publicAssetPath("models/pose_landmarker_lite.task");
+  const modelAssetPath = process.env.NEXT_PUBLIC_POSE_MODEL_PATH || publicAssetPath("models/pose_landmarker_lite.task");
   try {
     poseLandmarker = await PoseLandmarker.createFromOptions(nextFileset, {
       baseOptions: { modelAssetPath, delegate: "GPU" },
@@ -95,7 +95,7 @@ async function ensurePoseLandmarker(): Promise<void> {
 
 async function ensureFaceLandmarker(): Promise<void> {
   if (faceLandmarker || faceUnavailable) return;
-  const modelAssetPath = import.meta.env.VITE_FACE_MODEL_PATH || "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
+  const modelAssetPath = process.env.NEXT_PUBLIC_FACE_MODEL_PATH || "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
   if (!modelAssetPath) return;
   try {
     const [{ FaceLandmarker }, nextFileset] = await Promise.all([import("@mediapipe/tasks-vision"), ensureFileset()]);
@@ -214,7 +214,5 @@ function clamp01(value: number): number {
 }
 
 function publicAssetPath(path: string): string {
-  const base = import.meta.env.BASE_URL || "/";
-  const cleanBase = base.endsWith("/") ? base : `${base}/`;
-  return `${cleanBase}${path.replace(/^\/+/, "")}`;
+  return `/${path.replace(/^\/+/, "")}`;
 }

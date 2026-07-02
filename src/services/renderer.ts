@@ -1,5 +1,6 @@
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
+import starIcon from "../assets/icons/star.svg";
 import type { EditorLayer, LayerKind, LayerTransform, MotionBrief, TextBoxShape, TextFont } from "../types";
 
 export interface RenderOptions {
@@ -27,7 +28,7 @@ export interface TextBubbleBounds {
 
 const imageCache = new Map<string, HTMLImageElement>();
 const tintedIconCache = new Map<string, HTMLCanvasElement>();
-const accentStarUrl = new URL("../assets/icons/star.svg", import.meta.url).href;
+const accentStarUrl = typeof starIcon === "string" ? starIcon : starIcon.src;
 const GIF_ALPHA_THRESHOLD = 96;
 const BAYER_4X4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 

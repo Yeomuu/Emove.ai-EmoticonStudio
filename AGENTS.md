@@ -10,12 +10,18 @@ When implementing from a selected generated mock, treat that image as the source
 
 - The latest user-provided screen reference set is the visual source of truth.
 - Use clean History API paths such as `/home`, `/character`, `/input`, `/edit`, and `/library`.
+- Next.js App Router is the primary application framework while keeping TypeScript central and attaching React client components, Canvas/Web Workers, Tailwind/shadcn-style components, and custom CSS only where needed.
+- Vercel is the active deployment target for the Next.js-centered architecture.
+- Loading indicators must distinguish measured progress from simulated/estimated progress; long AI generation should show truthful job stages rather than pretending exact progress.
+- Page transitions should prefer a full-screen loading surface that rises from the bottom, briefly centers the EMOVE logo at about 120×120, then exits upward after the route is ready.
+- Loading spinner/curtain backgrounds should stay solid unless a later visual reference explicitly asks for decorated loader backgrounds.
+- In-page depth changes inside dense flows such as behavior input should not show the global loading curtain; reserve the global curtain for route/page transitions and long generation work.
 - Keep desktop content at a maximum width of 1440px and make every screen responsive.
 - Use 760px as the global minimum screen height; if the viewport is shorter, the page must scroll instead of clipping.
 - The Edit timeline has exactly four ordered layers: background effects, character, accent effects, and text.
 - OpenAI-dependent features must not fabricate mock user assets; if the API key or server proxy is unavailable, show a clear failure instead of substituting default characters, voice text, poses, or frames.
-- OpenAI generation requires a server proxy. Vite dev/preview and Netlify Functions serve `/api/openai/*`; GitHub Pages is not an active deployment target for this project.
-- The production deployment target is Netlify project `emove-emoticonstudio` (`981ce471-efd5-4043-873d-3a00441626bc`) from GitHub `main`.
+- OpenAI generation requires a server proxy. Next.js Route Handlers serve `/api/openai/*`; static-only hosting is not an active deployment target for this project.
+- The production deployment target is Vercel from GitHub `main`.
 - Keep `README.md` written for outside readers. Move implementation logs, QA notes, validation notes, and prompt-rule drafts into Notion when they are not required for the app to run.
 - For `gpt-image-2`, generate character/effect assets on flat chroma-key green and remove the green background in-browser so stored/displayed assets become transparent PNG data URLs.
 - Copy every used font, icon, and image into this project. Use coolicons only; never mix icon libraries.
@@ -25,10 +31,13 @@ When implementing from a selected generated mock, treat that image as the source
 - All primary page regions, including the Edit toolbar, editor grid, properties, and timeline, share one 1440px desktop frame and common left/right edges.
 - Use a restrained dark liquid-glass treatment: near-black translucent surfaces, thin lavender borders, and small highlight/refraction cues. Avoid opaque blue panel fills.
 - Treat liquid glass as the first visual priority: black glass depth, thin lavender rim light, top glint, subtle internal refraction, and press/hover micro-interactions should be consistent across nav, panels, cards, buttons, and editor controls.
+- Liquid glass should read like softened optical glass: a bright but slightly blurred rim with uneven highlights, visible background detail behind it, subtle refraction cues, and no hard opaque outline.
+- Liquid glass panels should keep the front fill nearly transparent, around a 1% visible white base when possible; color mood should come from blurred backing shapes or background detail rather than an opaque white overlay.
 - Keep the moving glass sheen/sparkle hover effect on buttons only; panels, cards, and generic div regions may change border/depth but must not run shimmer sweeps on hover.
 - `/home` is not one of the primary nav destinations, so the nav should not show an active moving glass pill on Home.
 - In Library, the decorated first card in the source represents hover/focus state; all cards use the same default style.
 - Use short spring-like micro-interactions only where they communicate selection, press, reveal, drag, or navigation. Respect reduced-motion and avoid continuously animating blur or filters.
+- Character playground physics should keep non-character UI controls out of pointer repulsion, while draggable characters may push nearby characters away for collision feedback.
 - Character creation starts empty: do not show an existing character until the user generates a new draft, then save the resulting token explicitly.
 - Keep the bundled default character set available for users who want to skip character creation, but never use those defaults as fallback output when the user explicitly runs new character generation.
 - Character color palette is a dropdown preset; point color remains swatches plus one custom color picker swatch that shows the selected custom color.
@@ -53,9 +62,10 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit preview and export must share the same 1024×1024 GIF-safe color/alpha constraints so the looped GIF does not visually diverge from the frame editor.
 - Edit save overwrites the active source project/sticker in place when editing from Library; it must preserve the original id, createdAt, favorite/group metadata, and Library ordering instead of creating a duplicate.
 - Edit lets users rename the saved emoticon explicitly; the sticker title must not be overwritten by speech-bubble text unless no custom title exists.
-- Edit canvas resize/rotate control handles belong only to the current active layer, and overlapping selection bounds should allow the user to select lower layers without inactive handles stealing the click.
+- Edit canvas resize/rotate control handles belong only to the current active layer; inactive selection bounds must not show handles or steal resize/rotate interactions.
+- Edit canvas may temporarily preview the currently selected layer above the other layers for easier adjustment, but this must never mutate the actual layer order or exported order. Clicking empty canvas space clears the active layer selection.
 - Source code, styles, fonts, icons, and used UI images should be referenced from `src/` and `src/assets/` in v1; old root-level source/asset folders are legacy copies only until explicitly removed.
-- Firebase sync uses optional `VITE_FIREBASE_CONFIG` plus anonymous auth. Firestore stores `characters`, `captures`, `projects`, and `stickers`; Storage stores generated GIFs under `emoticons/{ownerId}/{fileName}` only when `VITE_FIREBASE_STORAGE_UPLOAD=enabled` and Storage CORS/rules are ready. Firebase Firestore is the primary metadata save path when configured, and IndexedDB is only a local cache/fallback.
+- Remote persistence uses Vercel Route Handlers. Vercel Blob stores exported GIF files for QR/mobile viewing through `/api/share/gif`; Neon Postgres via `DATABASE_URL` stores optional shared metadata for `characters`, `captures`, `projects`, and `stickers`; IndexedDB remains the local fallback when remote storage is unavailable.
 - Input analysis must visibly show the understood behavior, expression/emotion key, voice usage, and emotion background-effect guide instead of only showing a completion toast.
 - Input camera analysis uses MediaPipe Pose Landmarker and Face Landmarker for the closest single person; if real landmarks are unavailable, the app must say the analysis failed instead of substituting preset behavior or expression data.
 - Library category UI must keep display category state separate from emotion filtering so same-emotion categories such as celebration and gratitude do not appear selected at the same time.
@@ -66,141 +76,51 @@ When implementing from a selected generated mock, treat that image as the source
 - Future UI updates may replace the current screen source. When the user provides a new canonical screen reference set, implement the app to match that supplied screen screenshot pixel-for-pixel.
 - The current final emoticon output target is a simple 1024×1024 looping emoticon generated from `gpt-image-2`-sized assets, not a Kakao 360×360 submission package.
 - Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
-- OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to Netlify timeout or response-size limits.
+- OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to serverless timeout or response-size limits.
 - Use compressed `webp` image API responses by default before browser chroma-key removal; if this changes, the returned data URL MIME type must match the requested image output format.
-- On Netlify, image routes such as `character`, `frame`, `frames`, and `effect` must run through background jobs with Blob-backed status/result polling. Do not make synchronous browser-facing functions wait for OpenAI image generation, because a 504 can still incur OpenAI cost while losing the result.
+- On Vercel production, long image routes such as `character`, `frame`, `frames`, and `effect` should move to durable background jobs with Blob-backed or DB-backed status/result polling before paid production traffic. Do not make long browser-facing functions risk losing paid OpenAI results to timeout.
+- Treat the Notion Design System page as fixed unless the user explicitly asks to change it; PRD, technical specification, and page/function documentation may be updated around that fixed design system.
+- When transplanting Notion page-function inventories into a technical test app, focus on the actual page functions, states, controls, and route behavior rather than recreating sidebar/navigation layout details.
+- Use the Next.js lab to stress-test accumulated EMOVE features with realistic mock state before wiring paid API calls, remote persistence, or production background jobs.
 
-## Firebase Firestore Data Model
+## Vercel Storage Data Model
 
-모든 저장 작업은 사용자 UID(`ownerId`)를 기반으로 권한 검증 및 캡슐화됩니다.
+원격 저장은 선택 기능입니다. `DATABASE_URL`이 없으면 IndexedDB 로컬 저장만 사용하고, `BLOB_READ_WRITE_TOKEN`이 없으면 로컬 개발용 메모리 GIF 공유 URL만 사용합니다.
 
-### 1. `characters` 컬렉션
-**캐릭터 생성 결과 저장**
+### 1. `emove_library_records`
+**Neon Postgres shared metadata table**
 
 ```typescript
 {
-  id: string;               // Firestore auto-generated ID
-  ownerId: string;          // User UID
-  name: string;             // 사용자 지정 캐릭터 이름
-  token: string;            // 생성된 캐릭터 고유 토큰 (OpenAI 응답 추적용)
-  styleMode: "2D" | "3D";   // 생성 스타일
-  isDefault?: boolean;      // 기본 캐릭터 플래그 (공개 공유용)
-  imageUrl: string;         // 생성된 캐릭터 이미지 URL (GCS 또는 data URL)
-  metadata?: {
-    generatedAt: Timestamp;
-    prompt: string;         // 생성에 사용된 프롬프트
-  };
+  id: string;          // character/capture/project/sticker id
+  kind: "characters" | "captures" | "projects" | "stickers";
+  payload: object;     // compact metadata payload, no raw Blob fields
+  created_at: string;
+  updated_at: string;
 }
 ```
 
-### 2. `captures` 컬렉션
-**표정/제스처/음성/감정 분석 데이터 저장**
+### 2. Vercel Blob GIF Objects
+**QR/mobile share file storage**
 
 ```typescript
 {
-  id: string;               // Firestore auto-generated ID
-  ownerId: string;          // User UID
-  characterId?: string;     // 관련 캐릭터 참조 (선택사항)
-  behavior: {
-    expression: string;     // 인식된 표정 (emotion2vec+ 9개 라벨 중 선택)
-    gesture: string;        // 인식된 제스처/자세
-    emotionKey: string;     // 감정 분류 (happy, sad, angry, etc.)
-    poseData?: object;      // MediaPipe 포즈 랜드마크 (마지막 프레임)
-  };
-  voice: {
-    waveformData?: number[]; // FFT 주파수 bin 또는 time-domain RMS/peak
-    speechText: string;      // 음성 인식 텍스트
-    voiceIntensity: number;  // 음량 크기 (0~1)
-  };
-  backgroundEffect: {
-    recommendedEmotion: string; // 분석 기반 권장 감정
-    colorGuide?: string;     // 효과 색상 가이드 또는 preset
-  };
-  metadata?: {
-    capturedAt: Timestamp;
-    videoDuration?: number;  // 초 단위
-  };
-}
-```
-
-### 3. `projects` 컬렉션
-**이모티콘 제작 프로젝트 (5개 프레임 + 편집 상태) 저장**
-
-```typescript
-{
-  id: string;               // Firestore auto-generated ID
-  ownerId: string;          // User UID
-  name: string;             // 프로젝트 이름
-  characterId: string;      // 사용된 캐릭터 참조
-  captureId: string;        // 기반이 된 캡처 데이터 참조
-  frames: [
-    {
-      frameIndex: 0;        // 0~4 (5개 고정)
-      layers: [
-        {
-          type: "backgroundEffect" | "character" | "accentEffect" | "text";
-          layerOrder: number;  // 각 타입별 순서
-          assetUrl: string;   // 생성된 이미지/에셋 URL
-          transform: {
-            x: number;
-            y: number;
-            scale: number;
-            rotation: number;
-          };
-          // text layer 전용
-          content?: string;
-          style?: object;     // 폰트, 색상, 크기 등
-        }
-      ];
-      delay?: number;        // 프레임 지속 시간 (ms, GIF export용)
-    }
-  ];
-  generatedPrompt: string;  // 이모티콘 생성 시 사용된 프롬프트
-  isPublished?: boolean;    // 공개 여부
-  metadata?: {
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
-  };
-}
-```
-
-### 4. `stickers` 컬렉션
-**최종 생성된 이모티콘 GIF 메타데이터 및 관리**
-
-```typescript
-{
-  id: string;               // Firestore auto-generated ID
-  ownerId: string;          // User UID
-  name: string;             // 스티커/이모티콘 이름
-  projectId: string;        // 생성 기반이 된 프로젝트 참조
-  gifStoragePath: string;   // GCS Storage 경로 (emoticons/{ownerId}/{fileName}.gif)
-  thumbnail?: string;       // 썸네일 이미지 URL (첫 프레임 또는 data URL)
-  metadata: {
-    totalFrames: number;    // 5 (고정)
-    averageDelay: number;   // 평균 프레임 지속 시간
-    width: 1024;
-    height: 1024;
-    format: "GIF";
-  };
-  category?: {
-    group: string;          // 사용자 지정 그룹 또는 preset
-    emotion: string;        // happy, sad, angry, etc.
-  };
-  isDefault?: boolean;      // 기본 스티커 플래그 (공개 공유용)
-  isPublished?: boolean;    // 공개 여부
-  createdAt: Timestamp;
+  path: `vercel-blob://gifs/${shareId}.gif`;
+  url: string;         // public Vercel Blob URL returned by /api/share/gif
+  contentType: "image/gif";
+  maxSizeBytes: 5750000;
 }
 ```
 
 ### 데이터 흐름 및 저장 시점
 
-1. **Input 페이지**: 사용자 입력 → `captures` 생성 (표정/음성/제스처 데이터)
-2. **Character 페이지**: OpenAI 생성 → `characters` 저장 (캐릭터 토큰 + 이미지)
-3. **Edit 페이지**: 프레임별 편집 상태 → `projects` 저장 (5개 프레임의 레이어 + transform)
-4. **Export**: GIF 렌더링 → GCS Storage에 업로드 → `stickers` 메타데이터 저장
-5. **Library**: 모든 `stickers` 및 `characters` 조회 (emotion, group 필터링)
+1. **Input 페이지**: 사용자 입력 → local `captures` 저장, `DATABASE_URL`이 있으면 `/api/library/captures`에도 compact metadata 저장
+2. **Character 페이지**: OpenAI 생성 → local `characters` 저장, `DATABASE_URL`이 있으면 `/api/library/characters`에도 저장
+3. **Edit 페이지**: 프레임별 편집 상태 → local `projects`, `stickers`, `characters` 저장, `DATABASE_URL`이 있으면 `/api/library/projects`에도 compact metadata 저장
+4. **Export**: GIF 렌더링 → `/api/share/gif` 업로드 → Vercel Blob public URL 또는 local memory URL을 QR로 사용
+5. **Library**: 현재 구현은 IndexedDB/local state를 우선 표시하며, shared public gallery reads can be added from Neon when the public gallery policy is finalized
 
 ### 권한 및 보안
-- 모든 write 작업은 `ownerId == request.auth.uid` 검증
-- `isPublished == true` 또는 `isDefault == true`인 항목만 타 사용자가 읽을 수 있음
-- Storage: `emoticons/{ownerId}/{fileName}` 경로로 캡슐화, 파일 크기 < 10MB, 이미지만 허용
+- `OPENAI_API_KEY`, `BLOB_READ_WRITE_TOKEN`, `DATABASE_URL`은 서버 환경변수로만 보관합니다.
+- 브라우저 공개 환경변수는 `NEXT_PUBLIC_` prefix만 사용합니다.
+- 원격 shared library를 production에 열기 전에는 visibility, moderation, rate limiting, and ownership 정책을 먼저 확정합니다.

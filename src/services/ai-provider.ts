@@ -144,24 +144,16 @@ function errorMessageFromPayload(status: number, payload: { error?: string } | u
 }
 
 function openAIEndpoint(path: string): string {
-  const base = import.meta.env.VITE_OPENAI_API_BASE?.trim();
+  const base = process.env.NEXT_PUBLIC_OPENAI_API_BASE?.trim();
   if (base) return `${base.replace(/\/+$/, "")}/${path}`;
-  if (isGitHubPagesHost()) {
-    throw new Error("GitHub Pages는 정적 호스팅이라 OpenAI 생성 API를 직접 실행할 수 없습니다. Netlify Functions 같은 외부 프록시를 배포한 뒤 GitHub Actions 변수 VITE_OPENAI_API_BASE에 프록시 주소를 설정해 주세요.");
-  }
   return `/api/openai/${path}`;
 }
 
 function openAIErrorMessage(status: number): string {
   if (status === 404 || status === 405) {
-    return "OpenAI 서버 프록시가 실행되지 않는 주소입니다. 로컬에서는 pnpm dev 또는 pnpm preview를 사용하고, 배포에서는 Netlify Functions나 VITE_OPENAI_API_BASE 프록시를 설정해 주세요.";
+    return "OpenAI 서버 프록시가 실행되지 않는 주소입니다. 로컬에서는 pnpm dev를 사용하고, 배포에서는 Vercel Route Handler 또는 NEXT_PUBLIC_OPENAI_API_BASE 프록시를 설정해 주세요.";
   }
   return `AI 생성 요청에 실패했습니다. (${status})`;
-}
-
-function isGitHubPagesHost(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.location.hostname.endsWith("github.io");
 }
 
 export function getAIProvider(): OpenAIProvider {

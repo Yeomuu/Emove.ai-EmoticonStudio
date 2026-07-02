@@ -1,0 +1,25 @@
+import { saveLibraryRecord } from "../../../../../server/library-store";
+
+export const runtime = "nodejs";
+
+const allowedKinds = new Set(["characters", "captures", "projects", "stickers"]);
+
+export async function POST(request: Request, { params }: { params: Promise<{ kind: string }> }): Promise<Response> {
+  const { kind } = await params;
+  if (!allowedKinds.has(kind)) return json(404, { error: "지원하지 않는 라이브러리 저장소입니다." });
+  const body = await request.json().catch(() => undefined) as { id?: string; payload?: unknown } | undefined;
+  if (!body?.id || body.payload == null) return json(400, { error: "저장할 라이브러리 레코드가 비어 있습니다." });
+
+  const result = await saveLibraryRecord({ id: body.id, kind, payload: body.payload });
+  if (!result.enabled) return json(501, { error: "DATABASE_URL이 설정되지 않아 원격 DB 저장을 건너뜁니다." });
+  return json(201, result);
+}
+
+function json(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+    },
+  });
+}

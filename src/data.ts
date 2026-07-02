@@ -1,21 +1,37 @@
 import type { CharacterToken, EditorLayer, Emotion, MotionStyle, StickerItem } from "./types";
+import characterImage from "./assets/images/character-main.webp";
+import detailProfileImage from "./assets/images/detail-profile.webp";
+import detailStickerImage from "./assets/images/detail-sticker.webp";
+import editCharacterImage from "./assets/images/edit-character.webp";
+import editThumbImage from "./assets/images/edit-thumb.webp";
+import heroImage from "./assets/images/home-ecosystem.webp";
+import inputCharacterImage from "./assets/images/input-character.webp";
+import libraryImage01 from "./assets/images/library-01.webp";
+import libraryImage02 from "./assets/images/library-02.webp";
+import libraryImage03 from "./assets/images/library-03.webp";
+import libraryImage04 from "./assets/images/library-04.webp";
+import libraryImage05 from "./assets/images/library-05.webp";
+import logoImage from "./assets/images/logo-mark.png";
+import poseImage from "./assets/images/pose-reference.webp";
+
+const assetSrc = (asset: { src: string }) => asset.src;
 
 export const imageAssets = {
-  hero: new URL("./assets/images/home-ecosystem.webp", import.meta.url).href,
-  logo: new URL("./assets/images/logo-mark.png", import.meta.url).href,
-  character: new URL("./assets/images/character-main.webp", import.meta.url).href,
-  pose: new URL("./assets/images/pose-reference.webp", import.meta.url).href,
-  inputCharacter: new URL("./assets/images/input-character.webp", import.meta.url).href,
-  editCharacterSheet: new URL("./assets/images/edit-character.webp", import.meta.url).href,
-  editThumb: new URL("./assets/images/edit-thumb.webp", import.meta.url).href,
-  detailProfile: new URL("./assets/images/detail-profile.webp", import.meta.url).href,
-  detailSticker: new URL("./assets/images/detail-sticker.webp", import.meta.url).href,
+  hero: assetSrc(heroImage),
+  logo: assetSrc(logoImage),
+  character: assetSrc(characterImage),
+  pose: assetSrc(poseImage),
+  inputCharacter: assetSrc(inputCharacterImage),
+  editCharacterSheet: assetSrc(editCharacterImage),
+  editThumb: assetSrc(editThumbImage),
+  detailProfile: assetSrc(detailProfileImage),
+  detailSticker: assetSrc(detailStickerImage),
   library: [
-    new URL("./assets/images/library-01.webp", import.meta.url).href,
-    new URL("./assets/images/library-02.webp", import.meta.url).href,
-    new URL("./assets/images/library-03.webp", import.meta.url).href,
-    new URL("./assets/images/library-04.webp", import.meta.url).href,
-    new URL("./assets/images/library-05.webp", import.meta.url).href,
+    assetSrc(libraryImage01),
+    assetSrc(libraryImage02),
+    assetSrc(libraryImage03),
+    assetSrc(libraryImage04),
+    assetSrc(libraryImage05),
   ],
 } as const;
 
