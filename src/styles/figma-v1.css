@@ -777,7 +777,7 @@ select:focus {
   .detail-actions { grid-template-columns: 52px 52px 1fr; }
 }
 
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+@supports not ((backdrop-filter: blur(6px)) or (-webkit-backdrop-filter: blur(6px))) {
   .glass-panel, .primary-nav, .character-popover { background-color: rgba(18,17,30,.96); }
 }
 
@@ -1847,7 +1847,7 @@ select:focus-visible {
   }
 }
 
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+@supports not ((backdrop-filter: blur(6px)) or (-webkit-backdrop-filter: blur(6px))) {
   .glass-panel,
   .primary-nav,
   .profile-button,
