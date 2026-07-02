@@ -881,6 +881,8 @@ body {
   line-height: 1;
   text-align: center;
   overflow: clip;
+  backdrop-filter: blur(22px) saturate(150%) contrast(108%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%) contrast(108%);
 }
 
 .button:hover,
@@ -2057,6 +2059,7 @@ html[data-theme="light"] body {
   inset: 0;
   overflow: hidden;
   border-radius: 34px;
+  cursor: default;
   touch-action: none;
 }
 
@@ -2083,9 +2086,9 @@ html[data-theme="light"] body {
   border: 0;
   appearance: none;
   background: transparent;
-  cursor: grab;
   filter: drop-shadow(0 26px 38px rgba(0,0,0,.38)) drop-shadow(0 0 20px rgba(187,182,255,.16));
   isolation: isolate;
+  pointer-events: none;
   transform: translate(-50%, -50%);
   touch-action: none;
   user-select: none;
@@ -2125,6 +2128,12 @@ html[data-theme="light"] body {
 
 .home-copy {
   z-index: 3;
+  pointer-events: none;
+}
+
+.home-copy .hero-actions,
+.home-copy .hero-button {
+  pointer-events: auto;
 }
 
 .home-footer {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { imageAssets } from "../data";
 import { navigate } from "../router";
 
@@ -26,7 +26,15 @@ type DragState = {
   offsetY: number;
 } | null;
 
+type AlphaMap = {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+};
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const alphaHitThreshold = 24;
+const alphaMapMaxSize = 220;
 const getFieldScale = (width: number) => {
   if (width < 560) return 0.64;
   if (width < 820) return 0.76;
@@ -61,13 +69,52 @@ function createLandingCharacters(): LandingCharacterSpec[] {
   });
 }
 
+function loadAlphaMap(src: string): Promise<AlphaMap | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      try {
+        const sourceWidth = image.naturalWidth || image.width;
+        const sourceHeight = image.naturalHeight || image.height;
+        const scale = Math.min(1, alphaMapMaxSize / Math.max(sourceWidth, sourceHeight));
+        const width = Math.max(1, Math.round(sourceWidth * scale));
+        const height = Math.max(1, Math.round(sourceHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) {
+          resolve(null);
+          return;
+        }
+        context.clearRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+        resolve({ width, height, data: context.getImageData(0, 0, width, height).data });
+      } catch {
+        resolve(null);
+      }
+    };
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+}
+
+function isOpaqueAlphaPixel(map: AlphaMap, localX: number, localY: number, size: number): boolean {
+  if (localX < 0 || localY < 0 || localX > size || localY > size) return false;
+  const sampleX = clamp(Math.floor((localX / size) * map.width), 0, map.width - 1);
+  const sampleY = clamp(Math.floor((localY / size) * map.height), 0, map.height - 1);
+  return map.data[(sampleY * map.width + sampleX) * 4 + 3] > alphaHitThreshold;
+}
+
 function HomeCharacterField() {
   const characters = useMemo(createLandingCharacters, []);
   const fieldRef = useRef<HTMLDivElement | null>(null);
-  const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const itemRefs = useRef(new Map<string, HTMLSpanElement>());
   const bodiesRef = useRef<LandingCharacterBody[]>([]);
-  const pointerRef = useRef({ active: false, x: 0, y: 0 });
+  const pointerRef = useRef<{ active: boolean; x: number; y: number; hitId: string | null }>({ active: false, x: 0, y: 0, hitId: null });
   const dragRef = useRef<DragState>(null);
+  const alphaMapsRef = useRef(new Map<string, AlphaMap | null>());
   const randomLayoutRef = useRef<Array<{ x: number; y: number }> | null>(null);
   const reducedMotionRef = useRef(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -86,6 +133,27 @@ function HomeCharacterField() {
       y: clamp(slot.y + (Math.random() - 0.5) * 0.1, 0.24, 0.84),
     }));
     return randomLayoutRef.current;
+  }, []);
+
+  const findOpaqueBodyAt = useCallback((x: number, y: number, rect: DOMRect): LandingCharacterBody | null => {
+    const sizeScale = getFieldScale(rect.width);
+
+    for (let index = bodiesRef.current.length - 1; index >= 0; index -= 1) {
+      const body = bodiesRef.current[index];
+      const alphaMap = alphaMapsRef.current.get(body.src);
+      if (!alphaMap) continue;
+
+      const size = body.size * sizeScale;
+      const dx = x - body.x;
+      const dy = y - body.y;
+      const rotation = -body.rotation * Math.PI / 180;
+      const localX = dx * Math.cos(rotation) - dy * Math.sin(rotation) + size / 2;
+      const localY = dx * Math.sin(rotation) + dy * Math.cos(rotation) + size / 2;
+
+      if (isOpaqueAlphaPixel(alphaMap, localX, localY, size)) return body;
+    }
+
+    return null;
   }, []);
 
   const placeCharacters = useCallback((randomize = false) => {
@@ -114,6 +182,21 @@ function HomeCharacterField() {
   }, [characters, getRandomLayout]);
 
   useEffect(() => {
+    let cancelled = false;
+    const uniqueSources = [...new Set(characters.map((character) => character.src))];
+
+    uniqueSources.forEach((src) => {
+      void loadAlphaMap(src).then((alphaMap) => {
+        if (!cancelled) alphaMapsRef.current.set(src, alphaMap);
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [characters]);
+
+  useEffect(() => {
     const field = fieldRef.current;
     if (!field) return undefined;
 
@@ -134,6 +217,11 @@ function HomeCharacterField() {
       const motionFactor = reducedMotionRef.current ? 0.48 : 1;
       const sizeScale = getFieldScale(rect.width);
 
+      if (pointer.active && !drag) {
+        pointer.hitId = findOpaqueBodyAt(pointer.x, pointer.y, rect)?.id ?? null;
+        currentField.style.cursor = pointer.hitId ? "grab" : "default";
+      }
+
       for (const body of bodiesRef.current) {
         const isDragging = drag?.id === body.id;
         const size = body.size * sizeScale;
@@ -151,7 +239,7 @@ function HomeCharacterField() {
           body.vx += (rect.width * body.homeX - body.x) * 0.012 * motionFactor;
           body.vy += (rect.height * body.homeY - body.y) * 0.012 * motionFactor;
 
-          if (pointer.active) {
+          if (pointer.active && pointer.hitId === body.id) {
             const dx = body.x - pointer.x;
             const dy = body.y - pointer.y;
             const distance = Math.max(1, Math.hypot(dx, dy));
@@ -223,34 +311,67 @@ function HomeCharacterField() {
       resizeObserver.disconnect();
       window.cancelAnimationFrame(frame);
     };
-  }, [placeCharacters]);
+  }, [findOpaqueBodyAt, placeCharacters]);
 
   const updatePointer = useCallback((clientX: number, clientY: number, active = true) => {
+    const field = fieldRef.current;
+    const rect = field?.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const inside = x >= 0 && y >= 0 && x <= rect.width && y <= rect.height;
+    const drag = dragRef.current;
+    const hitBody = drag ? bodiesRef.current.find((body) => body.id === drag.id) ?? null : findOpaqueBodyAt(x, y, rect);
+
+    pointerRef.current = {
+      active: active && (inside || Boolean(drag)),
+      x,
+      y,
+      hitId: hitBody?.id ?? null,
+    };
+
+    if (field) field.style.cursor = drag ? "grabbing" : hitBody ? "grab" : "default";
+  }, [findOpaqueBodyAt]);
+
+  useEffect(() => {
+    const handlePointerMove = (event: globalThis.PointerEvent) => updatePointer(event.clientX, event.clientY);
+    const handlePointerUp = () => {
+      dragRef.current = null;
+      setDraggingId(null);
+      if (fieldRef.current) fieldRef.current.style.cursor = pointerRef.current.hitId ? "grab" : "default";
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [updatePointer]);
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    updatePointer(event.clientX, event.clientY);
     const rect = fieldRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    pointerRef.current = {
-      active,
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    };
-  }, []);
-
-  const handlePointerDown = (event: PointerEvent<HTMLButtonElement>, id: string) => {
-    const body = bodiesRef.current.find((item) => item.id === id);
+    const body = findOpaqueBodyAt(pointerRef.current.x, pointerRef.current.y, rect);
     if (!body) return;
 
-    updatePointer(event.clientX, event.clientY);
     dragRef.current = {
-      id,
+      id: body.id,
       offsetX: pointerRef.current.x - body.x,
       offsetY: pointerRef.current.y - body.y,
     };
-    setDraggingId(id);
+    setDraggingId(body.id);
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const endDrag = (event: PointerEvent<HTMLButtonElement>) => {
+  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     dragRef.current = null;
     setDraggingId(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -262,22 +383,15 @@ function HomeCharacterField() {
     <div
       className="home-character-field"
       ref={fieldRef}
-      onPointerMove={(event) => updatePointer(event.clientX, event.clientY)}
-      onPointerLeave={() => {
-        if (!dragRef.current) pointerRef.current.active = false;
-      }}
+      aria-hidden="true"
+      onPointerDown={handlePointerDown}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
     >
       {characters.map((character) => (
-        <button
+        <span
           className={`home-character-token${draggingId === character.id ? " is-dragging" : ""}`}
           key={character.id}
-          type="button"
-          tabIndex={-1}
-          aria-label={`${character.label} 위치 이동`}
-          onPointerDown={(event) => handlePointerDown(event, character.id)}
-          onPointerMove={(event) => updatePointer(event.clientX, event.clientY)}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
           ref={(node) => {
             if (node) itemRefs.current.set(character.id, node);
             else itemRefs.current.delete(character.id);
@@ -289,7 +403,7 @@ function HomeCharacterField() {
           } as CSSProperties}
         >
           <img src={character.src} alt="" draggable={false} />
-        </button>
+        </span>
       ))}
     </div>
   );

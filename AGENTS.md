@@ -51,7 +51,9 @@ When implementing from a selected generated mock, treat that image as the source
 - Keep the top shell/header persistent across route changes so the nav selection can spring between pages without remounting.
 - Home/landing should use randomly placed character tokens as the primary interactive background instead of the previous static ecosystem image.
 - Home character tokens should repel from the pointer, remain draggable, and push nearby character tokens away when they collide during drag.
+- Home character pointer interactions must use alpha-hit-testing so transparent image pixels do not trigger drag or repulsion.
 - Header layout keeps the logo centered, primary nav pinned to the left side of the 1440px frame, and profile/theme controls pinned to the right side.
+- Glassmorphism buttons should use `backdrop-filter` so the background behind the button blurs while button text/icons remain sharp.
 - Do not show pointer-style glow outlines on text inputs after mouse click; keep only a restrained accessible keyboard focus state.
 - Character and emoticon generation prompts must request flat chroma-key green backgrounds only, not transparent backgrounds; transparency is produced by the in-browser chroma-key removal step.
 - Generated character variations must be selectable, and selecting a variation must update the main preview/canvas to that exact result.
