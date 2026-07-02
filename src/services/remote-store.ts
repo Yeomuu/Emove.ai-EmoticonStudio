@@ -11,6 +11,33 @@ export interface RemoteSyncResult {
 }
 
 type RemoteKind = "characters" | "captures" | "projects" | "stickers";
+type RemoteLibraryRecord = { id: string; kind: RemoteKind; payload: unknown; createdAt?: string; updatedAt?: string };
+
+type RemoteStickerDoc = {
+  id?: unknown;
+  ownerId?: unknown;
+  name?: unknown;
+  projectId?: unknown;
+  gifStoragePath?: unknown;
+  gifUrl?: unknown;
+  thumbnail?: unknown;
+  metadata?: { averageDelay?: unknown };
+  category?: { group?: unknown; emotion?: unknown };
+  isDefault?: unknown;
+  isPublished?: unknown;
+  createdAt?: unknown;
+};
+
+type RemoteCharacterDoc = {
+  id?: unknown;
+  ownerId?: unknown;
+  name?: unknown;
+  token?: unknown;
+  styleMode?: unknown;
+  isDefault?: unknown;
+  imageUrl?: unknown;
+  metadata?: { generatedAt?: unknown; prompt?: unknown };
+};
 
 export async function syncStickerToRemote(item: StickerItem): Promise<RemoteSyncResult> {
   return postRemoteRecord("stickers", createStickerDoc(item, item.ownerId ?? "public"));
@@ -41,6 +68,36 @@ export async function syncProjectToRemote(project: EmoticonProject): Promise<Rem
   return { ...result, ownerId };
 }
 
+export async function loadRemoteStickers(): Promise<{ enabled: boolean; stickers: StickerItem[]; storageWarning?: string }> {
+  const [stickers, projects] = await Promise.all([getRemoteRecords("stickers"), getRemoteRecords("projects")]);
+  if (!stickers.enabled && !projects.enabled) return { enabled: false, stickers: [], storageWarning: stickers.storageWarning ?? projects.storageWarning };
+  const fromStickers = stickers.records.flatMap((record) => {
+    const item = stickerFromRemoteDoc(record.payload, record.updatedAt);
+    return item ? [item] : [];
+  });
+  const fromProjects = projects.records.flatMap((record) => {
+    const payload = asRecord(record.payload);
+    const item = stickerFromRemoteDoc(payload?.sticker, record.updatedAt);
+    return item ? [item] : [];
+  });
+  return { enabled: true, stickers: uniqueById([...fromStickers, ...fromProjects]) };
+}
+
+export async function loadRemoteCharacters(): Promise<{ enabled: boolean; characters: CharacterToken[]; storageWarning?: string }> {
+  const [characters, projects] = await Promise.all([getRemoteRecords("characters"), getRemoteRecords("projects")]);
+  if (!characters.enabled && !projects.enabled) return { enabled: false, characters: [], storageWarning: characters.storageWarning ?? projects.storageWarning };
+  const fromCharacters = characters.records.flatMap((record) => {
+    const item = characterFromRemoteDoc(record.payload, record.updatedAt);
+    return item ? [item] : [];
+  });
+  const fromProjects = projects.records.flatMap((record) => {
+    const payload = asRecord(record.payload);
+    const item = characterFromRemoteDoc(payload?.character, record.updatedAt);
+    return item ? [item] : [];
+  });
+  return { enabled: true, characters: uniqueById([...fromCharacters, ...fromProjects]) };
+}
+
 async function postRemoteRecord(kind: RemoteKind, payload: unknown, id = recordId(payload)): Promise<RemoteSyncResult> {
   try {
     const response = await fetch(remoteEndpoint(kind), {
@@ -54,6 +111,18 @@ async function postRemoteRecord(kind: RemoteKind, payload: unknown, id = recordI
     return { enabled: true, syncedAt: body.syncedAt ?? new Date().toISOString(), ownerId: body.ownerId, storagePath: body.storagePath, downloadUrl: body.downloadUrl };
   } catch (error) {
     return { enabled: false, storageWarning: error instanceof Error ? error.message : "원격 저장에 실패했습니다." };
+  }
+}
+
+async function getRemoteRecords(kind: RemoteKind): Promise<{ enabled: boolean; records: RemoteLibraryRecord[]; storageWarning?: string }> {
+  try {
+    const response = await fetch(remoteEndpoint(kind), { method: "GET" });
+    const body = await response.json().catch(() => ({})) as { records?: RemoteLibraryRecord[]; error?: string };
+    if (response.status === 501) return { enabled: false, records: [], storageWarning: body.error ?? "원격 DB가 아직 설정되지 않았습니다." };
+    if (!response.ok) throw new Error(body.error ?? `원격 보관함 조회에 실패했습니다. (${response.status})`);
+    return { enabled: true, records: Array.isArray(body.records) ? body.records : [] };
+  } catch (error) {
+    return { enabled: false, records: [], storageWarning: error instanceof Error ? error.message : "원격 보관함 조회에 실패했습니다." };
   }
 }
 
@@ -167,6 +236,68 @@ function createStickerDoc(item: StickerItem, ownerId: string) {
   };
 }
 
+function stickerFromRemoteDoc(value: unknown, updatedAt?: string): StickerItem | null {
+  const doc = asRecord(value) as RemoteStickerDoc | null;
+  if (!doc) return null;
+  const id = text(doc.id);
+  const title = text(doc.name) || "공유 이모티콘";
+  const animatedImage = text(doc.gifUrl);
+  const image = text(doc.thumbnail) || animatedImage;
+  if (!id || !image) return null;
+  const emotion = toEmotion(text(doc.category?.emotion));
+  return {
+    id,
+    title,
+    phrase: title,
+    emotion,
+    image,
+    animatedImage: animatedImage || image,
+    thumbnail: text(doc.thumbnail) || image,
+    gifStoragePath: text(doc.gifStoragePath) || undefined,
+    projectId: text(doc.projectId) || id,
+    group: text(doc.category?.group) || "이모티콘 그룹",
+    frameDelayMs: numberValue(doc.metadata?.averageDelay) ?? 120,
+    color: "#BBB6FF",
+    favorite: false,
+    ownerId: text(doc.ownerId) || "public",
+    isDefault: Boolean(doc.isDefault),
+    isPublished: Boolean(doc.isPublished),
+    characterTokenId: "remote",
+    createdAt: text(doc.createdAt) || updatedAt || new Date().toISOString(),
+    updatedAt: updatedAt || text(doc.createdAt) || new Date().toISOString(),
+  };
+}
+
+function characterFromRemoteDoc(value: unknown, updatedAt?: string): CharacterToken | null {
+  const doc = asRecord(value) as RemoteCharacterDoc | null;
+  if (!doc) return null;
+  const id = text(doc.id) || text(doc.token);
+  const imageUrl = text(doc.imageUrl);
+  if (!id || !imageUrl) return null;
+  const styleMode = text(doc.styleMode) === "2D" ? "2D" : "3D";
+  const createdAt = text(doc.metadata?.generatedAt) || updatedAt || new Date().toISOString();
+  return {
+    id,
+    version: 1,
+    name: text(doc.name) || "공유 캐릭터",
+    ownerId: text(doc.ownerId) || "public",
+    isDefault: Boolean(doc.isDefault),
+    sourceAsset: imageUrl,
+    referenceImages: [imageUrl],
+    styleMode,
+    stylePreset: styleMode === "2D" ? "Soft 2D" : "Soft 3D",
+    styleDescription: `${styleMode} shared EMOVE character`,
+    prompt: text(doc.metadata?.prompt) || "",
+    observableTraits: [],
+    personalityTags: [],
+    colors: { body: "#BBB6FF", accent: "#BBB6FF", eyes: "#201E28" },
+    fixedTraits: [],
+    doNotChange: [],
+    createdAt,
+    updatedAt: updatedAt || createdAt,
+  };
+}
+
 function layerType(id: EmoticonProject["layers"][number]["id"]): "backgroundEffect" | "character" | "accentEffect" | "text" {
   if (id === "background-effects") return "backgroundEffect";
   if (id === "accent-effects") return "accentEffect";
@@ -188,4 +319,30 @@ function compactAssetUrl(value: string | null | undefined, fallback: string): st
   if (!value) return fallback;
   if (/^(data:|blob:)/.test(value)) return /^(data:|blob:)/.test(fallback) ? "" : fallback;
   return value;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function toEmotion(value: string): StickerItem["emotion"] {
+  const allowed: StickerItem["emotion"][] = ["angry", "disgusted", "fearful", "happy", "neutral", "other", "sad", "surprised", "unknown"];
+  return allowed.includes(value as StickerItem["emotion"]) ? value as StickerItem["emotion"] : "unknown";
+}
+
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
 }

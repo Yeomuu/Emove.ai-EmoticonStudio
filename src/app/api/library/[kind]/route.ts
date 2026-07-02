@@ -1,8 +1,17 @@
-import { saveLibraryRecord } from "../../../../../server/library-store";
+import { listLibraryRecords, saveLibraryRecord } from "../../../../../server/library-store";
 
 export const runtime = "nodejs";
 
 const allowedKinds = new Set(["characters", "captures", "projects", "stickers"]);
+
+export async function GET(_request: Request, { params }: { params: Promise<{ kind: string }> }): Promise<Response> {
+  const { kind } = await params;
+  if (!allowedKinds.has(kind)) return json(404, { error: "지원하지 않는 라이브러리 저장소입니다." });
+
+  const result = await listLibraryRecords(kind);
+  if (!result.enabled) return json(501, { error: "DATABASE_URL이 설정되지 않아 원격 DB 조회를 건너뜁니다." });
+  return json(200, result);
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ kind: string }> }): Promise<Response> {
   const { kind } = await params;

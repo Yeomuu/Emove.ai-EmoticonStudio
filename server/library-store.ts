@@ -6,6 +6,11 @@ type LibraryRecord = {
   payload: unknown;
 };
 
+type StoredLibraryRecord = LibraryRecord & {
+  createdAt: string;
+  updatedAt: string;
+};
+
 let sqlClient: ReturnType<typeof neon> | null = null;
 let schemaReady = false;
 
@@ -32,6 +37,29 @@ export async function saveLibraryRecord(record: LibraryRecord): Promise<{ enable
   return { enabled: true, syncedAt, storagePath: `neon://emove_library_records/${record.id}` };
 }
 
+export async function listLibraryRecords(kind: string): Promise<{ enabled: boolean; records?: StoredLibraryRecord[] }> {
+  const sql = getSql();
+  if (!sql) return { enabled: false };
+  await ensureSchema(sql);
+  const rows = await sql`
+    select id, kind, payload, created_at, updated_at
+    from emove_library_records
+    where kind = ${kind}
+    order by updated_at desc
+    limit 200
+  `;
+  return {
+    enabled: true,
+    records: rows.map((row) => ({
+      id: String(row.id),
+      kind: String(row.kind),
+      payload: row.payload,
+      createdAt: toIsoString(row.created_at),
+      updatedAt: toIsoString(row.updated_at),
+    })),
+  };
+}
+
 async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {
   if (schemaReady) return;
   await sql`
@@ -44,4 +72,10 @@ async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {
     )
   `;
   schemaReady = true;
+}
+
+function toIsoString(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string") return new Date(value).toISOString();
+  return new Date().toISOString();
 }

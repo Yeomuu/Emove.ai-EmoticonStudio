@@ -4,6 +4,7 @@ import { emotionMeta, emotionOrder } from "../data";
 import { navigate, route } from "../router";
 import { downloadBlob } from "../services/renderer";
 import { loadProjects, loadStickers } from "../services/repository";
+import { loadRemoteCharacters, loadRemoteStickers } from "../services/remote-store";
 import { characters, loadProjectForEditing, notify, selectCharacter, stickers, toggleFavorite } from "../store";
 import type { CharacterToken, EmoticonProject, Emotion, StickerItem } from "../types";
 
@@ -29,7 +30,7 @@ export function LibraryPage() {
   const detailId = route.value.startsWith("/library/") ? route.value.split("/")[2] : undefined;
 
   useEffect(() => {
-    Promise.all([loadStickers(), loadProjects()]).then(([saved, savedProjects]) => {
+    Promise.all([loadStickers(), loadProjects(), loadRemoteStickers(), loadRemoteCharacters()]).then(([saved, savedProjects, remoteStickers, remoteCharacters]) => {
       const projectById = new Map(savedProjects.map((project) => [project.id, project]));
       const hydrated = saved.filter((item) => !item.isDefault).map((item) => {
         const project = projectById.get(item.projectId ?? item.id);
@@ -38,7 +39,14 @@ export function LibraryPage() {
         return { ...item, image: item.thumbnail ?? item.image, thumbnail: item.thumbnail ?? item.image, animatedImage };
       });
       const known = new Set(stickers.value.map((item) => item.id));
-      stickers.value = [...hydrated.filter((item) => !known.has(item.id)), ...stickers.value];
+      const localOnly = hydrated.filter((item) => !known.has(item.id));
+      const visibleIds = new Set([...known, ...localOnly.map((item) => item.id)]);
+      const mergedRemoteStickers = remoteStickers.enabled ? remoteStickers.stickers.filter((item) => !visibleIds.has(item.id)) : [];
+      stickers.value = [...mergedRemoteStickers, ...localOnly, ...stickers.value];
+      if (remoteCharacters.enabled) {
+        const knownCharacters = new Set(characters.value.map((item) => item.id));
+        characters.value = [...remoteCharacters.characters.filter((item) => !knownCharacters.has(item.id)), ...characters.value];
+      }
       setProjects(savedProjects);
     }).catch(() => undefined);
   }, []);

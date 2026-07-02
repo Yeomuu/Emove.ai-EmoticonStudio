@@ -41,7 +41,7 @@ If `BLOB_READ_WRITE_TOKEN` is missing, local GIF sharing falls back to an in-mem
 
 - Exported GIF files are uploaded through `/api/share/gif`.
 - Production file storage should use Vercel Blob.
-- Shared library metadata is posted to `/api/library/:kind`.
+- Shared library metadata is posted to and read from `/api/library/:kind`.
 - Production metadata storage should use Neon Postgres from Vercel Marketplace.
 - Local-first work continues through IndexedDB when remote storage is unavailable.
 
@@ -51,6 +51,7 @@ After creating Vercel Storage, confirm that the connected project has these prod
 - `DATABASE_URL` for Neon-backed shared library metadata
 
 Redeploy after adding or changing storage environment variables so the route handlers receive them.
+The first successful remote save or read creates the `emove_library_records` table automatically.
 
 ## Deployment
 
