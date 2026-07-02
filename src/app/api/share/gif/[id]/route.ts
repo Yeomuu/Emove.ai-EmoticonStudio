@@ -12,7 +12,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     });
   }
 
-  return new Response(entry.data, {
+  const body = new ArrayBuffer(entry.data.byteLength);
+  new Uint8Array(body).set(entry.data);
+
+  return new Response(body, {
     status: 200,
     headers: {
       "Cache-Control": "no-store",
