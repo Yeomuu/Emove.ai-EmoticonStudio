@@ -45,6 +45,13 @@ If `BLOB_READ_WRITE_TOKEN` is missing, local GIF sharing falls back to an in-mem
 - Production metadata storage should use Neon Postgres from Vercel Marketplace.
 - Local-first work continues through IndexedDB when remote storage is unavailable.
 
+After creating Vercel Storage, confirm that the connected project has these production variables:
+
+- `BLOB_READ_WRITE_TOKEN` for Vercel Blob GIF sharing
+- `DATABASE_URL` for Neon-backed shared library metadata
+
+Redeploy after adding or changing storage environment variables so the route handlers receive them.
+
 ## Deployment
 
 Deploy the project as a Vercel Next.js app.

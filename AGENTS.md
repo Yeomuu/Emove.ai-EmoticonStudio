@@ -12,6 +12,8 @@ When implementing from a selected generated mock, treat that image as the source
 - Use clean History API paths such as `/home`, `/character`, `/input`, `/edit`, and `/library`.
 - Next.js App Router is the primary application framework while keeping TypeScript central and attaching React client components, Canvas/Web Workers, Tailwind/shadcn-style components, and custom CSS only where needed.
 - Vercel is the active deployment target for the Next.js-centered architecture.
+- The production Vercel domain is `emove-emoticonstudio.vercel.app`.
+- Light mode should invert the dark visual hierarchy: dark-mode dark surfaces become light glass surfaces, and dark-mode bright text/icons become dark text/icons except for intentional accent buttons.
 - Loading indicators must distinguish measured progress from simulated/estimated progress; long AI generation should show truthful job stages rather than pretending exact progress.
 - Page transitions should prefer a full-screen loading surface that rises from the bottom, briefly centers the EMOVE logo at about 120×120, then exits upward after the route is ready.
 - Loading spinner/curtain backgrounds should stay solid unless a later visual reference explicitly asks for decorated loader backgrounds.

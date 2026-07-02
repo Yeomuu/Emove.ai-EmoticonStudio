@@ -63,7 +63,7 @@
     letter-spacing: .18em;
     text-transform: uppercase;
   }
-  .icon { object-fit: contain; filter: brightness(0) invert(1); opacity: .88; flex: none; }
+  .icon { object-fit: contain; filter: var(--icon-filter, brightness(0) invert(1)); opacity: .88; flex: none; }
   .spin { animation: spin .8s linear infinite; }
   .flip { transform: scaleX(-1); }
   @keyframes spin { to { transform: rotate(1turn); } }

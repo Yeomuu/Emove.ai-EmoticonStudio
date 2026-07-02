@@ -6,7 +6,10 @@ import { toast } from "../store";
 import type { RoutePath } from "../types";
 
 const navItems: Array<{ label: string; path: RoutePath }> = [
-  { label: "Character", path: "/character" }, { label: "Input", path: "/input" }, { label: "Edit", path: "/edit" }, { label: "Library", path: "/library" },
+  { label: "Character", path: "/character" },
+  { label: "Input", path: "/input" },
+  { label: "Edit", path: "/edit" },
+  { label: "Library", path: "/library" },
 ];
 
 type ThemeMode = "dark" | "light";
@@ -49,12 +52,23 @@ export function Shell({ children, immersive = false }: { children: ReactNode; im
             </a>
           ))}
         </nav>
-        <button className="brand" type="button" onClick={() => navigate("/home")} aria-label="EMOVE 홈"><img src={imageAssets.logo} alt="" /></button>
+        <button className="brand" type="button" onClick={() => navigate("/home")} aria-label="EMOVE 홈">
+          <img src={imageAssets.logo} alt="" />
+        </button>
         <div className="topbar-actions">
-          <Button className="theme-toggle" variant="glass" size="sm" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label={`${theme === "dark" ? "라이트" : "다크"} 모드로 전환`}>
+          <Button
+            className="theme-toggle"
+            variant="glass"
+            size="sm"
+            type="button"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            aria-label={`${theme === "dark" ? "라이트" : "다크"} 모드로 전환`}
+          >
             <span>{theme === "dark" ? "Dark" : "Light"}</span>
           </Button>
-          <button className="profile-button" type="button" onClick={() => navigate("/library")} aria-label="마이페이지"><img src={imageAssets.detailProfile} alt="" /></button>
+          <button className="profile-button" type="button" onClick={() => navigate("/library")} aria-label="마이페이지">
+            <img src={imageAssets.detailProfile} alt="" />
+          </button>
         </div>
       </header>
       <main>{children}</main>
