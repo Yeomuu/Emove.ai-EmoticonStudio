@@ -1976,6 +1976,9 @@ html[data-theme="light"] body {
 }
 
 .topbar {
+  width: var(--frame);
+  max-width: 1440px;
+  margin-inline: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: clamp(10px, 2vw, 18px);
