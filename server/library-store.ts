@@ -11,6 +11,14 @@ type StoredLibraryRecord = LibraryRecord & {
   updatedAt: string;
 };
 
+type LibraryRow = {
+  id: unknown;
+  kind: unknown;
+  payload: unknown;
+  created_at: unknown;
+  updated_at: unknown;
+};
+
 let sqlClient: ReturnType<typeof neon> | null = null;
 let schemaReady = false;
 
@@ -47,7 +55,7 @@ export async function listLibraryRecords(kind: string): Promise<{ enabled: boole
     where kind = ${kind}
     order by updated_at desc
     limit 200
-  `;
+  ` as LibraryRow[];
   return {
     enabled: true,
     records: rows.map((row) => ({
