@@ -1,11 +1,305 @@
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { imageAssets } from "../data";
 import { navigate } from "../router";
+
+type LandingCharacterSpec = {
+  id: string;
+  src: string;
+  label: string;
+  homeX: number;
+  homeY: number;
+  size: number;
+  depth: number;
+};
+
+type LandingCharacterBody = LandingCharacterSpec & {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  rotation: number;
+};
+
+type DragState = {
+  id: string;
+  offsetX: number;
+  offsetY: number;
+} | null;
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const getFieldScale = (width: number) => {
+  if (width < 560) return 0.64;
+  if (width < 820) return 0.76;
+  if (width < 1100) return 0.88;
+  return 1;
+};
+
+const placementSlots = [
+  [0.13, 0.46],
+  [0.24, 0.75],
+  [0.36, 0.32],
+  [0.62, 0.28],
+  [0.73, 0.66],
+  [0.86, 0.43],
+  [0.54, 0.78],
+] as const;
+
+function createLandingCharacters(): LandingCharacterSpec[] {
+  const sources = [
+    { id: "main", src: imageAssets.character, label: "메인 캐릭터", size: 184, depth: 1.08 },
+    { id: "input", src: imageAssets.inputCharacter, label: "입력 캐릭터", size: 136, depth: 0.94 },
+    { id: "edit", src: imageAssets.editCharacterSheet, label: "편집 캐릭터", size: 158, depth: 1 },
+    { id: "library-1", src: imageAssets.library[0], label: "라이브러리 캐릭터 1", size: 144, depth: 0.92 },
+    { id: "library-2", src: imageAssets.library[1], label: "라이브러리 캐릭터 2", size: 150, depth: 0.98 },
+    { id: "library-4", src: imageAssets.library[3], label: "라이브러리 캐릭터 3", size: 128, depth: 0.88 },
+    { id: "detail", src: imageAssets.detailSticker, label: "완성 이모티콘", size: 168, depth: 1.02 },
+  ];
+
+  return sources.map((source, index) => {
+    const slot = placementSlots[index];
+    return { ...source, homeX: slot[0], homeY: slot[1] };
+  });
+}
+
+function HomeCharacterField() {
+  const characters = useMemo(createLandingCharacters, []);
+  const fieldRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const bodiesRef = useRef<LandingCharacterBody[]>([]);
+  const pointerRef = useRef({ active: false, x: 0, y: 0 });
+  const dragRef = useRef<DragState>(null);
+  const randomLayoutRef = useRef<Array<{ x: number; y: number }> | null>(null);
+  const reducedMotionRef = useRef(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  const getRandomLayout = useCallback(() => {
+    if (randomLayoutRef.current) return randomLayoutRef.current;
+
+    const slots = placementSlots.map(([x, y]) => ({ x, y }));
+    for (let index = slots.length - 1; index > 0; index -= 1) {
+      const target = Math.floor(Math.random() * (index + 1));
+      [slots[index], slots[target]] = [slots[target], slots[index]];
+    }
+
+    randomLayoutRef.current = slots.map((slot) => ({
+      x: clamp(slot.x + (Math.random() - 0.5) * 0.08, 0.1, 0.9),
+      y: clamp(slot.y + (Math.random() - 0.5) * 0.1, 0.24, 0.84),
+    }));
+    return randomLayoutRef.current;
+  }, []);
+
+  const placeCharacters = useCallback((randomize = false) => {
+    const field = fieldRef.current;
+    if (!field) return;
+
+    const rect = field.getBoundingClientRect();
+    const layout = randomize ? getRandomLayout() : null;
+    bodiesRef.current = characters.map((character, index) => {
+      const existing = bodiesRef.current.find((body) => body.id === character.id);
+      const homeX = existing?.homeX ?? layout?.[index]?.x ?? character.homeX;
+      const homeY = existing?.homeY ?? layout?.[index]?.y ?? character.homeY;
+      const size = character.size * getFieldScale(rect.width);
+
+      return {
+        ...character,
+        homeX,
+        homeY,
+        x: clamp(rect.width * homeX, size * 0.36, rect.width - size * 0.36),
+        y: clamp(rect.height * homeY, size * 0.36, rect.height - size * 0.36),
+        vx: 0,
+        vy: 0,
+        rotation: existing?.rotation ?? 0,
+      };
+    });
+  }, [characters, getRandomLayout]);
+
+  useEffect(() => {
+    const field = fieldRef.current;
+    if (!field) return undefined;
+
+    reducedMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    placeCharacters(true);
+
+    const resizeObserver = new ResizeObserver(() => placeCharacters());
+    resizeObserver.observe(field);
+
+    let frame = 0;
+    const tick = () => {
+      const currentField = fieldRef.current;
+      if (!currentField) return;
+
+      const rect = currentField.getBoundingClientRect();
+      const pointer = pointerRef.current;
+      const drag = dragRef.current;
+      const motionFactor = reducedMotionRef.current ? 0.48 : 1;
+      const sizeScale = getFieldScale(rect.width);
+
+      for (const body of bodiesRef.current) {
+        const isDragging = drag?.id === body.id;
+        const size = body.size * sizeScale;
+
+        if (isDragging) {
+          const nextX = clamp(pointer.x - drag.offsetX, size * 0.34, rect.width - size * 0.34);
+          const nextY = clamp(pointer.y - drag.offsetY, size * 0.34, rect.height - size * 0.34);
+          body.vx = nextX - body.x;
+          body.vy = nextY - body.y;
+          body.x = nextX;
+          body.y = nextY;
+          body.homeX = clamp(nextX / rect.width, 0.06, 0.94);
+          body.homeY = clamp(nextY / rect.height, 0.12, 0.9);
+        } else {
+          body.vx += (rect.width * body.homeX - body.x) * 0.012 * motionFactor;
+          body.vy += (rect.height * body.homeY - body.y) * 0.012 * motionFactor;
+
+          if (pointer.active) {
+            const dx = body.x - pointer.x;
+            const dy = body.y - pointer.y;
+            const distance = Math.max(1, Math.hypot(dx, dy));
+            const radius = (reducedMotionRef.current ? 110 : 168) * body.depth;
+
+            if (distance < radius) {
+              const force = ((radius - distance) / radius) ** 2 * 8.2 * motionFactor;
+              body.vx += (dx / distance) * force;
+              body.vy += (dy / distance) * force;
+            }
+          }
+        }
+      }
+
+      for (let index = 0; index < bodiesRef.current.length; index += 1) {
+        for (let nextIndex = index + 1; nextIndex < bodiesRef.current.length; nextIndex += 1) {
+          const first = bodiesRef.current[index];
+          const second = bodiesRef.current[nextIndex];
+          const dx = first.x - second.x;
+          const dy = first.y - second.y;
+          const distance = Math.max(1, Math.hypot(dx, dy));
+          const minimumDistance = (first.size * sizeScale + second.size * sizeScale) * 0.44;
+
+          if (distance >= minimumDistance) continue;
+
+          const nx = dx / distance;
+          const ny = dy / distance;
+          const overlap = (minimumDistance - distance) / minimumDistance;
+          const impulse = overlap * 6.6 * motionFactor;
+          const firstDragging = drag?.id === first.id;
+          const secondDragging = drag?.id === second.id;
+
+          if (!firstDragging) {
+            first.vx += nx * impulse * (secondDragging ? 1.7 : 0.78);
+            first.vy += ny * impulse * (secondDragging ? 1.7 : 0.78);
+          }
+
+          if (!secondDragging) {
+            second.vx -= nx * impulse * (firstDragging ? 1.7 : 0.78);
+            second.vy -= ny * impulse * (firstDragging ? 1.7 : 0.78);
+          }
+        }
+      }
+
+      for (const body of bodiesRef.current) {
+        const isDragging = drag?.id === body.id;
+        const size = body.size * sizeScale;
+        body.vx *= isDragging ? 0.36 : 0.84;
+        body.vy *= isDragging ? 0.36 : 0.84;
+        body.x = clamp(body.x + clamp(body.vx, -30, 30), size * 0.34, rect.width - size * 0.34);
+        body.y = clamp(body.y + clamp(body.vy, -30, 30), size * 0.34, rect.height - size * 0.34);
+        body.rotation = clamp(body.vx * 0.82, -12, 12);
+
+        const element = itemRefs.current.get(body.id);
+        if (element) {
+          element.style.left = "0px";
+          element.style.top = "0px";
+          element.style.width = `${size}px`;
+          element.style.height = `${size}px`;
+          element.style.transform = `translate3d(${body.x - size / 2}px, ${body.y - size / 2}px, 0) rotate(${body.rotation}deg)`;
+        }
+      }
+
+      frame = window.requestAnimationFrame(tick);
+    };
+
+    frame = window.requestAnimationFrame(tick);
+    return () => {
+      resizeObserver.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
+  }, [placeCharacters]);
+
+  const updatePointer = useCallback((clientX: number, clientY: number, active = true) => {
+    const rect = fieldRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    pointerRef.current = {
+      active,
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  }, []);
+
+  const handlePointerDown = (event: PointerEvent<HTMLButtonElement>, id: string) => {
+    const body = bodiesRef.current.find((item) => item.id === id);
+    if (!body) return;
+
+    updatePointer(event.clientX, event.clientY);
+    dragRef.current = {
+      id,
+      offsetX: pointerRef.current.x - body.x,
+      offsetY: pointerRef.current.y - body.y,
+    };
+    setDraggingId(id);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const endDrag = (event: PointerEvent<HTMLButtonElement>) => {
+    dragRef.current = null;
+    setDraggingId(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  return (
+    <div
+      className="home-character-field"
+      ref={fieldRef}
+      onPointerMove={(event) => updatePointer(event.clientX, event.clientY)}
+      onPointerLeave={() => {
+        if (!dragRef.current) pointerRef.current.active = false;
+      }}
+    >
+      {characters.map((character) => (
+        <button
+          className={`home-character-token${draggingId === character.id ? " is-dragging" : ""}`}
+          key={character.id}
+          type="button"
+          tabIndex={-1}
+          aria-label={`${character.label} 위치 이동`}
+          onPointerDown={(event) => handlePointerDown(event, character.id)}
+          onPointerMove={(event) => updatePointer(event.clientX, event.clientY)}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          ref={(node) => {
+            if (node) itemRefs.current.set(character.id, node);
+            else itemRefs.current.delete(character.id);
+          }}
+          style={{
+            "--home-x": `${character.homeX * 100}%`,
+            "--home-y": `${character.homeY * 100}%`,
+            "--token-size": `${character.size}px`,
+          } as CSSProperties}
+        >
+          <img src={character.src} alt="" draggable={false} />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function HomePage() {
   return (
     <section className="home-hero">
-      <img className="home-ecosystem" src={imageAssets.hero} alt="다양한 3D 캐릭터와 제작 도구가 연결된 EMOVE 제작 생태계" />
       <div className="hero-glow" />
+      <HomeCharacterField />
       <div className="home-copy">
         <p className="hero-kicker">EMOTICON STUDIO</p>
         <h1>EM<span className="logo-letter"><img src={imageAssets.logo} alt="O" /></span>VE</h1>

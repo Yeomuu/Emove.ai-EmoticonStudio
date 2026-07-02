@@ -60,7 +60,6 @@
   /* Home */
   .app-shell.is-immersive { min-height: 100svh; padding-bottom: 0; overflow: hidden; }
   .home-hero { position: relative; max-width: 1778px; min-height: calc(100svh - 148px); margin: -8px auto 0; display: grid; place-items: start center; overflow: hidden; }
-  .home-ecosystem { position: absolute; z-index: -1; width: min(100%, 1778px); max-width: none; left: 50%; bottom: 0; transform: translateX(-50%); opacity: .73; mask-image: linear-gradient(to bottom, transparent 0, rgba(0,0,0,.42) 20%, black 43%, black 100%); }
   .hero-glow { position: absolute; z-index: -2; width: 42vw; height: 32vw; left: 50%; top: 13%; transform: translateX(-50%); background: var(--purple-deep); opacity: .08; border-radius: 50%; filter: blur(120px); }
   .home-copy { position: relative; z-index: 1; margin-top: 7.5%; display: grid; justify-items: center; text-align: center; }
   .hero-kicker { margin-bottom: 18px; color: var(--text); font: 300 clamp(42px, 3.45vw, 66px)/1.1 "Pretendard", sans-serif; letter-spacing: -.035em; }

@@ -4,7 +4,6 @@ import detailProfileImage from "./assets/images/detail-profile.webp";
 import detailStickerImage from "./assets/images/detail-sticker.webp";
 import editCharacterImage from "./assets/images/edit-character.webp";
 import editThumbImage from "./assets/images/edit-thumb.webp";
-import heroImage from "./assets/images/home-ecosystem.webp";
 import inputCharacterImage from "./assets/images/input-character.webp";
 import libraryImage01 from "./assets/images/library-01.webp";
 import libraryImage02 from "./assets/images/library-02.webp";
@@ -17,7 +16,6 @@ import poseImage from "./assets/images/pose-reference.webp";
 const assetSrc = (asset: { src: string }) => asset.src;
 
 export const imageAssets = {
-  hero: assetSrc(heroImage),
   logo: assetSrc(logoImage),
   character: assetSrc(characterImage),
   pose: assetSrc(poseImage),

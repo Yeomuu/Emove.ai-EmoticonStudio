@@ -49,6 +49,9 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit stores layer x/y/scale/rotation per each of the fixed five frames; GIF export renders those five frame states with a user-adjustable per-frame delay.
 - Voice waveform uses FFT frequency bins during recording and a quiet dot baseline before voice input.
 - Keep the top shell/header persistent across route changes so the nav selection can spring between pages without remounting.
+- Home/landing should use randomly placed character tokens as the primary interactive background instead of the previous static ecosystem image.
+- Home character tokens should repel from the pointer, remain draggable, and push nearby character tokens away when they collide during drag.
+- Header layout keeps the logo centered, primary nav pinned to the left side of the 1440px frame, and profile/theme controls pinned to the right side.
 - Do not show pointer-style glow outlines on text inputs after mouse click; keep only a restrained accessible keyboard focus state.
 - Character and emoticon generation prompts must request flat chroma-key green backgrounds only, not transparent backgrounds; transparency is produced by the in-browser chroma-key removal step.
 - Generated character variations must be selectable, and selecting a variation must update the main preview/canvas to that exact result.
