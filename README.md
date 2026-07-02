@@ -69,7 +69,7 @@ Optional public variables:
 ```text
 src/app/          Next.js routes and API route handlers
 src/components/   UI shell, editor stage, reusable components
-src/pages/        EMOVE workflow screens rendered by the client app
+src/screens/      EMOVE workflow screens rendered by the client app
 src/services/     AI, media, persistence, rendering, export logic
 src/styles/       Design tokens and current liquid-glass CSS
 server/           Shared server-only API helpers

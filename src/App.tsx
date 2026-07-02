@@ -2,17 +2,17 @@
 
 import { lazy, Suspense, useEffect } from "react";
 import { Shell } from "./components/Shell";
-import { HomePage } from "./pages/Home";
+import { HomePage } from "./screens/Home";
 import { route } from "./router";
 import { loadCharacters } from "./services/repository";
 import { characters } from "./store";
 import { useSignalSnapshot } from "./lib/signals";
 import type { RoutePath } from "./types";
 
-const CharacterPage = lazy(() => import("./pages/Character").then((module) => ({ default: module.CharacterPage })));
-const InputPage = lazy(() => import("./pages/Input").then((module) => ({ default: module.InputPage })));
-const EditPage = lazy(() => import("./pages/Edit").then((module) => ({ default: module.EditPage })));
-const LibraryPage = lazy(() => import("./pages/Library").then((module) => ({ default: module.LibraryPage })));
+const CharacterPage = lazy(() => import("./screens/Character").then((module) => ({ default: module.CharacterPage })));
+const InputPage = lazy(() => import("./screens/Input").then((module) => ({ default: module.InputPage })));
+const EditPage = lazy(() => import("./screens/Edit").then((module) => ({ default: module.EditPage })));
+const LibraryPage = lazy(() => import("./screens/Library").then((module) => ({ default: module.LibraryPage })));
 
 export function App({ initialPath }: { initialPath?: RoutePath }) {
   useSignalSnapshot();
