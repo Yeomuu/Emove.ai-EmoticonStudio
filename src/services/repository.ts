@@ -36,3 +36,17 @@ export async function saveProject(item: EmoticonProject): Promise<void> {
 }
 
 export const loadProjects = () => getAll<EmoticonProject>("projects");
+
+async function deleteKey(store: StoreName, id: string): Promise<void> {
+  const database = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(store, "readwrite");
+    transaction.objectStore(store).delete(id);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+  database.close();
+}
+
+export const deleteSticker = (id: string) => deleteKey("stickers", id);
+export const deleteCharacter = (id: string) => deleteKey("characters", id);

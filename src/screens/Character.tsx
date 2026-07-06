@@ -101,7 +101,7 @@ export function CharacterPage() {
     }
   };
 
-  const saveGeneratedCharacter = async (target: "/library" | "/input") => {
+  const saveGeneratedCharacter = async (target: "/mypage" | "/emoticon") => {
     if (!generated) return;
     const selectedImage = variationImages[selectedVariationIndex] ?? generated.imageUrl;
     let saved = { ...buildToken(selectedImage, generated.token.id), sourceAsset: selectedImage, referenceImages: [selectedImage], updatedAt: new Date().toISOString() };
@@ -121,12 +121,12 @@ export function CharacterPage() {
     characterTone.value = tone;
     characterStyle.value = style;
     selectCharacter(saved.id);
-    notify(target === "/input" ? `새 캐릭터 토큰을 저장하고 이 캐릭터로 이모티콘 제작을 시작합니다. ${remoteMessage}` : `새 캐릭터 토큰을 보관함에 저장했어요. ${remoteMessage}`);
+    notify(target === "/emoticon" ? `새 캐릭터 토큰을 저장하고 이 캐릭터로 이모티콘 제작을 시작합니다. ${remoteMessage}` : `새 캐릭터 토큰을 보관함에 저장했어요. ${remoteMessage}`);
     navigate(target);
   };
 
-  const saveAndContinue = () => saveGeneratedCharacter("/library");
-  const saveAndCreateEmoticon = () => saveGeneratedCharacter("/input");
+  const saveAndContinue = () => saveGeneratedCharacter("/mypage");
+  const saveAndCreateEmoticon = () => saveGeneratedCharacter("/emoticon");
 
   const chooseCustomTone = (value: string) => {
     setCustomTone(value);

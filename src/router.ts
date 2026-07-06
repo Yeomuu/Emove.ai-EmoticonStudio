@@ -1,12 +1,12 @@
 import { signal } from "./lib/signals";
 import type { RoutePath } from "./types";
 
-const allowed = new Set(["/home", "/character", "/input", "/edit", "/library"]);
+const allowed = new Set(["/home", "/character", "/emoticon", "/emoticon/edit", "/mypage"]);
 
 export function normalizePath(pathname: string): RoutePath {
   const clean = `/${pathname.split(/[?#]/)[0].split("/").filter(Boolean).join("/")}`;
   if (clean === "/" || clean === "") return "/home";
-  if (allowed.has(clean) || clean.startsWith("/library/")) return clean as RoutePath;
+  if (allowed.has(clean) || clean.startsWith("/mypage/")) return clean as RoutePath;
   return "/home";
 }
 

@@ -22,9 +22,38 @@ body::before { opacity: .05; background-size: 36px 36px; }
 button, a, input, select, textarea { transition: border-color .22s var(--swift), background-color .22s var(--swift), color .22s var(--swift), box-shadow .24s var(--swift), transform .28s var(--spring), opacity .2s ease; }
 button:not(:disabled):active { transform: scale(.965); transition-duration: .08s; }
 
-.app-shell { width: 100%; height: 100vh; min-height: 760px; padding: 40px 24px 52px; overflow: auto; }
+.app-shell { width: 100%; min-height: 760px; padding: 40px 24px 52px; overflow: auto; }
 .app-shell main { width: 100%; }
 .workspace-page, .editor-page, .topbar { width: var(--frame); max-width: 1440px; margin-inline: auto; }
+
+@media (min-width: 1024px) {
+  body {
+    width: 100svw;
+    height: 100svh;
+    max-width: 1920px;
+    margin: 0 auto;
+    overflow: hidden;
+  }
+  .app-shell {
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .app-shell main {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .workspace-page, .editor-page {
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+}
 .topbar {
   height: 60px;
   margin-bottom: 52px;
@@ -2180,12 +2209,22 @@ html[data-theme="light"] .hero-kicker {
   text-shadow: none;
 }
 
-html[data-theme="light"] :where(.primary-nav a, .chip, .style-preset-list button, .pose-intensity button, .pose-capture-actions button, .audio-source-card, .voice-actions button, .select-character-button, .motion-style-select, .loop-format-note, .emotion-setting-row, .motion-background-row, .library-sidebar nav button, .library-category-rail button, .generation-status, .fixed-frame-card, .analysis-readout-grid p, .loop-preview header span) {
-  color: var(--theme-control-text);
+html[data-theme="light"] :where(.primary-nav a, .chip, .style-preset-list button, .pose-intensity button, .pose-capture-actions button, .audio-source-card, .voice-actions button, .select-character-button, .motion-style-select, .loop-format-note, .emotion-setting-row, .motion-background-row, .library-sidebar nav button, .library-category-rail button, .generation-status, .fixed-frame-card, .analysis-readout-grid p, .loop-preview header span, button, .button, .hero-button, .character-generate-button, .save-character-button, .create-with-character-button, .btn-primary, .btn-secondary, .btn-generate-emoticon, .btn-select-char, .exaggeration-indicator .tier-btn) {
+  color: var(--theme-control-text) !important;
 }
 
-html[data-theme="light"] :where(.primary-nav a.active, .chip:hover, .chip.active, .style-preset-list button.active, .pose-intensity button.active, .emotion-selector button.active, .generation-status.active, .library-sidebar h1, .library-sidebar nav button:hover, .library-sidebar nav button.active, .library-mode-tabs button.active, .fixed-frame-card b, .analysis-readout-grid strong, .loop-preview header strong) {
-  color: var(--theme-control-active);
+html[data-theme="light"] :where(.primary-nav a.active, .chip:hover, .chip.active, .style-preset-list button.active, .pose-intensity button.active, .emotion-selector button.active, .generation-status.active, .library-sidebar h1, .library-sidebar nav button:hover, .library-sidebar nav button.active, .library-mode-tabs button.active, .fixed-frame-card b, .analysis-readout-grid strong, .loop-preview header strong, button:hover, .button:hover, .hero-button:hover, .character-generate-button:hover, .save-character-button:hover, .create-with-character-button:hover, .btn-primary:hover, .btn-secondary:hover, .btn-generate-emoticon:hover, .btn-select-char:hover, .exaggeration-indicator .tier-btn.active) {
+  color: var(--theme-control-active) !important;
+}
+
+html[data-theme="light"] .home-geometry::before,
+html[data-theme="light"] .home-geometry::after,
+html[data-theme="light"] .geo-circle {
+  border-color: rgba(91, 73, 255, 0.16) !important;
+}
+
+html[data-theme="light"] .geo-line {
+  background: linear-gradient(90deg, transparent, rgba(91, 73, 255, 0.22), transparent) !important;
 }
 
 html[data-theme="light"] :where(input, textarea, select, .character-select-grid select, .motion-style-select select, .emoticon-title-control input) {
@@ -2718,14 +2757,15 @@ body {
 
 .hero-underline {
   position: absolute;
-  left: clamp(120px, 35.9vw, 689px);
-  top: clamp(380px, 47.5vh, 513px);
-  width: clamp(300px, 31.35vw, 602px);
-  height: clamp(12px, 1.66vw, 32px);
+  left: 0;
+  right: 0;
+  bottom: 0px;
+  height: clamp(8px, 1.2vw, 16px);
   border-radius: 999px;
   background: linear-gradient(90deg, #7b69ff, #ff9bdd 72%, rgba(255,255,255,.8));
   box-shadow: 0 0 28px rgba(145, 117, 255, .34);
-  z-index: 1;
+  z-index: -1;
+  opacity: 0.8;
 }
 
 .hero-actions {
@@ -3867,4 +3907,180 @@ html[data-theme="light"] .work-process-inner strong {
   transition-delay: .28s;
 }
 
+/* ─── Library Horizontal Carousel System ─── */
+.library-horizontal-scroll {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  overflow-x: auto;
+  padding: 40px 24px;
+  scroll-behavior: smooth;
+  scrollbar-width: none; /* Firefox */
+}
+.library-horizontal-scroll::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
 
+.carousel-card {
+  flex-shrink: 0;
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  transition: width 0.35s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              height 0.35s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              opacity 0.35s ease, 
+              filter 0.35s ease;
+  cursor: pointer;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.carousel-card.inactive {
+  width: 200px;
+  height: 200px;
+  opacity: 0.45;
+  filter: grayscale(40%) blur(0.5px);
+}
+
+.carousel-card.active {
+  width: 380px;
+  height: 380px;
+  opacity: 1;
+  filter: none;
+  border: 1px solid rgba(137, 124, 255, 0.24);
+  box-shadow: 0 20px 48px rgba(123, 109, 255, 0.16);
+}
+
+.carousel-card .card-preview {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 9, 18, 0.32);
+}
+
+.carousel-card .card-preview img {
+  width: 90%;
+  height: 90%;
+  object-fit: contain;
+}
+
+.carousel-card .card-action-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(7, 7, 17, 0.88) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 24px;
+  color: #fff;
+  opacity: 0;
+  animation: fadeIn 0.3s forwards ease 0.15s;
+}
+
+.carousel-card.active:hover .card-action-overlay {
+  background: linear-gradient(180deg, transparent 30%, rgba(7, 7, 17, 0.94) 100%);
+}
+
+.carousel-card .card-info h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: #f1eefb;
+}
+
+.carousel-card .card-info p {
+  font-size: 13px;
+  color: #aaa6b4;
+  margin: 0 0 16px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.carousel-card .action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.carousel-card .action-buttons button {
+  flex: 1;
+  height: 38px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f1eefb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.carousel-card .action-buttons button:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.carousel-card .action-buttons button.btn-edit {
+  background: linear-gradient(90deg, #7b69ff, #9b8cff) !important;
+  border: none;
+  color: #fff !important;
+}
+
+.carousel-card .action-buttons button.btn-edit:hover {
+  background: linear-gradient(90deg, #8c7cff, #aba0ff) !important;
+  box-shadow: 0 4px 12px rgba(123, 109, 255, 0.3);
+}
+
+.carousel-card .action-buttons button.btn-delete:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5 !important;
+}
+
+.carousel-card .action-buttons button.btn-favorite.active {
+  color: #ffd700 !important;
+  background: rgba(255, 215, 0, 0.12);
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Light mode overrides for carousel action overlay and info text */
+html[data-theme="light"] .carousel-card .card-action-overlay {
+  background: linear-gradient(180deg, transparent 40%, rgba(248, 248, 255, 0.95) 100%) !important;
+  color: #201b34 !important;
+}
+
+html[data-theme="light"] .carousel-card .card-info h3 {
+  color: #201b34 !important;
+}
+
+html[data-theme="light"] .carousel-card .card-info p {
+  color: #5b586e !important;
+}
+
+html[data-theme="light"] .carousel-card .action-buttons button {
+  background: rgba(123, 109, 255, 0.08) !important;
+  border-color: rgba(123, 109, 255, 0.16) !important;
+  color: #4b475f !important;
+}
+
+html[data-theme="light"] .carousel-card .action-buttons button:hover {
+  background: rgba(123, 109, 255, 0.16) !important;
+  color: #201b34 !important;
+}
+
+html[data-theme="light"] .carousel-card .action-buttons button.btn-edit {
+  background: linear-gradient(90deg, #7b69ff, #9b8cff) !important;
+  color: #fff !important;
+}

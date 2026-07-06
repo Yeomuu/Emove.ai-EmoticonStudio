@@ -1,6 +1,10 @@
 export type RoutePath =
   | "/home"
   | "/character"
+  | "/emoticon"
+  | "/emoticon/edit"
+  | "/mypage"
+  | `/mypage/${string}`
   | "/input"
   | "/edit"
   | "/library"

@@ -8,7 +8,7 @@ import type { RoutePath } from "../types";
 const navItems: Array<{ label: string; path: RoutePath }> = [
   { label: "HOME", path: "/home" },
   { label: "CHARACTER", path: "/character" },
-  { label: "EMOTICON", path: "/input" },
+  { label: "EMOTICON", path: "/emoticon" },
 ];
 
 type ThemeMode = "dark" | "light";
@@ -45,7 +45,7 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
   const scheduleDockHide = () => {
     if (!dockAutoHide) return;
     window.clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => setDockVisible(false), 1800);
+    closeTimer.current = window.setTimeout(() => setDockVisible(false), 3000);
   };
 
   const navStyle = { "--nav-index": Math.max(0, selectedIndex) } as CSSProperties;
@@ -102,9 +102,9 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
             )}
           </button>
           <button
-            className={`profile-icon-btn ${current.startsWith("/library") ? "active" : ""}`}
+            className={`profile-icon-btn ${current.startsWith("/mypage") ? "active" : ""}`}
             type="button"
-            onClick={() => navigate("/library")}
+            onClick={() => navigate("/mypage")}
             aria-label="마이페이지 보관함"
           >
             <img src={imageAssets.detailProfile} alt="" />

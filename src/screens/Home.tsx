@@ -128,10 +128,30 @@ function HomeCharacterField() {
       [slots[index], slots[target]] = [slots[target], slots[index]];
     }
 
-    randomLayoutRef.current = slots.map((slot) => ({
-      x: clamp(slot.x + (Math.random() - 0.5) * 0.08, 0.1, 0.9),
-      y: clamp(slot.y + (Math.random() - 0.5) * 0.1, 0.24, 0.84),
-    }));
+    const avoidTextOverlap = (x: number, y: number): { x: number; y: number } => {
+      const minX = 0.18;
+      const maxX = 0.72;
+      const minY = 0.30;
+      const maxY = 0.58;
+      if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+        const distToLeft = x - minX;
+        const distToRight = maxX - x;
+        const distToTop = y - minY;
+        const distToBottom = maxY - y;
+        const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+        if (minDist === distToLeft) return { x: minX - 0.05, y };
+        if (minDist === distToRight) return { x: maxX + 0.05, y };
+        if (minDist === distToTop) return { x, y: minY - 0.05 };
+        return { x, y: maxY + 0.05 };
+      }
+      return { x, y };
+    };
+
+    randomLayoutRef.current = slots.map((slot) => {
+      const rawX = clamp(slot.x + (Math.random() - 0.5) * 0.08, 0.1, 0.9);
+      const rawY = clamp(slot.y + (Math.random() - 0.5) * 0.1, 0.24, 0.84);
+      return avoidTextOverlap(rawX, rawY);
+    });
     return randomLayoutRef.current;
   }, []);
 
@@ -426,10 +446,15 @@ export function HomePage() {
       </button>
       <div className="home-copy">
         <p className="hero-kicker">MOVE YOUR</p>
-        <h1>EMOTION<span className="hero-arrow" aria-hidden="true">→</span></h1>
-        <span className="hero-underline" aria-hidden="true" />
+        <h1>
+          <span style={{ position: "relative", display: "inline-block" }}>
+            EMOTION
+            <span className="hero-underline" aria-hidden="true" />
+          </span>
+          <span className="hero-arrow" aria-hidden="true">→</span>
+        </h1>
         <div className="hero-actions">
-          <button className="hero-button" type="button" onClick={() => navigate("/library")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 구경가기</span></button>
+          <button className="hero-button" type="button" onClick={() => navigate("/mypage")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 구경가기</span></button>
           <button className="hero-button" type="button" onClick={() => navigate("/character")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 제작하기</span></button>
         </div>
       </div>

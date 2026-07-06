@@ -3,7 +3,7 @@ import { Icon } from "../components/Icon";
 import { emotionMeta, emotionOrder } from "../data";
 import { navigate, route } from "../router";
 import { downloadBlob } from "../services/renderer";
-import { loadProjects, loadStickers } from "../services/repository";
+import { deleteCharacter, deleteSticker, loadProjects, loadStickers } from "../services/repository";
 import { loadRemoteCharacters, loadRemoteStickers } from "../services/remote-store";
 import { animationExtension } from "../services/share";
 import { characterName, characterPrompt, characterStyle, characterTone, characters, loadProjectForEditing, notify, selectCharacter, stickers, toggleFavorite } from "../store";
@@ -31,7 +31,7 @@ export function LibraryPage() {
   const [customGroups, setCustomGroups] = useState<Array<{ id: string; name: string; filter: Filter }>>([]);
   const [selectedCharacterToken, setSelectedCharacterToken] = useState<CharacterToken | null>(null);
 
-  const detailId = route.value.startsWith("/library/") ? route.value.split("/")[2] : undefined;
+  const detailId = route.value.startsWith("/mypage/") ? route.value.split("/")[2] : undefined;
 
   useEffect(() => {
     Promise.all([loadStickers(), loadProjects(), loadRemoteStickers(), loadRemoteCharacters()]).then(([saved, savedProjects, remoteStickers, remoteCharacters]) => {
@@ -79,7 +79,7 @@ export function LibraryPage() {
       return;
     }
     loadProjectForEditing(source);
-    navigate("/edit");
+    navigate("/emoticon/edit");
   };
 
   const beginEditCharacter = (token: CharacterToken) => {
@@ -89,6 +89,74 @@ export function LibraryPage() {
     characterStyle.value = token.styleMode;
     setSelectedCharacterToken(null);
     navigate("/character");
+  };
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
+  const isScrollingRef = useRef(false);
+
+  const itemsToDisplay = useMemo(() => {
+    if (mode === "emoticons") {
+      return visible.map((item) => ({ kind: "emoticon" as const, item, createdAt: item.createdAt }));
+    }
+    if (mode === "characters") {
+      return visibleCharacters.map((item) => ({ kind: "character" as const, item, createdAt: item.createdAt }));
+    }
+    return mixedItems;
+  }, [mode, visible, visibleCharacters, mixedItems]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+    if (listRef.current) {
+      listRef.current.scrollLeft = 0;
+    }
+  }, [mode, filter, query]);
+
+  const selectItem = (index: number) => {
+    setActiveIndex(index);
+    const list = listRef.current;
+    if (!list) return;
+    isScrollingRef.current = true;
+    let left = 0;
+    if (index > 0) {
+      left = 380 + 24 + (index - 1) * (200 + 24);
+    }
+    list.scrollTo({ left, behavior: "smooth" });
+    window.setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 500);
+  };
+
+  const handleScroll = () => {
+    if (isScrollingRef.current) return;
+    const list = listRef.current;
+    if (!list) return;
+    const scrollLeft = list.scrollLeft;
+    let targetIndex = 0;
+    if (scrollLeft > 90) {
+      targetIndex = 1 + Math.floor((scrollLeft - 90) / 224);
+    }
+    targetIndex = Math.max(0, Math.min(targetIndex, itemsToDisplay.length - 1));
+    if (targetIndex !== activeIndex) {
+      setActiveIndex(targetIndex);
+    }
+  };
+
+  const handleDelete = async (id: string, kind: "emoticon" | "character") => {
+    if (!window.confirm("정말로 이 항목을 삭제하시겠습니까?")) return;
+    try {
+      if (kind === "emoticon") {
+        await deleteSticker(id);
+        stickers.value = stickers.value.filter((s) => s.id !== id);
+        notify("이모티콘을 삭제했습니다.");
+      } else {
+        await deleteCharacter(id);
+        characters.value = characters.value.filter((c) => c.id !== id);
+        notify("캐릭터를 삭제했습니다.");
+      }
+    } catch (error) {
+      notify(`삭제에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   const createGroup = () => {
@@ -307,71 +375,102 @@ export function LibraryPage() {
                 </div>
               )}
 
-              {mode === "all" ? (
-                mixedItems.length ? (
-                  <div className="sticker-grid library-3column-grid">
-                    {mixedItems.map((entry, index) =>
-                      entry.kind === "emoticon" ? (
-                        <StickerCard
-                          key={`emoticon-${entry.item.id}`}
-                          item={entry.item}
-                          index={index}
-                          project={projects.find((project) => project.id === (entry.item.projectId ?? entry.item.id))}
-                          onEdit={beginEditSticker}
-                        />
-                      ) : (
-                        <CharacterCard
-                          key={`character-${entry.item.id}`}
-                          item={entry.item}
-                          index={index}
-                          onClick={() => setSelectedCharacterToken(entry.item)}
-                        />
-                      )
-                    )}
-                  </div>
-                ) : (
-                  <div className="empty-library glass-panel">
-                    <Icon name="folder" size={32} />
-                    <h2>조건에 맞는 항목이 없어요.</h2>
-                    <p>검색어나 그룹 조건을 바꿔보세요.</p>
-                  </div>
-                )
-              ) : mode === "emoticons" ? (
-                visible.length ? (
-                  <div className="sticker-grid library-3column-grid">
-                    {visible.map((item, index) => (
-                      <StickerCard
-                        key={item.id}
-                        item={item}
-                        index={index}
-                        project={projects.find((project) => project.id === (item.projectId ?? item.id))}
-                        onEdit={beginEditSticker}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-library glass-panel">
-                    <Icon name="folder" size={32} />
-                    <h2>조건에 맞는 움직임이 없어요.</h2>
-                    <p>다른 감정을 선택하거나 검색어를 바꿔보세요.</p>
-                  </div>
-                )
-              ) : visibleCharacters.length ? (
-                <div className="sticker-grid library-3column-grid">
-                  {visibleCharacters.map((item, index) => (
-                    <CharacterCard
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      onClick={() => setSelectedCharacterToken(item)}
-                    />
-                  ))}
+              {itemsToDisplay.length ? (
+                <div className="library-horizontal-scroll" ref={listRef} onScroll={handleScroll}>
+                  {itemsToDisplay.map((entry, index) => {
+                    const isActive = index === activeIndex;
+                    const key = `${entry.kind}-${entry.item.id}`;
+                    if (entry.kind === "emoticon") {
+                      const sticker = entry.item as StickerItem;
+                      const project = projects.find((p) => p.id === (sticker.projectId ?? sticker.id));
+                      return (
+                        <div
+                          key={key}
+                          className={`carousel-card emoticon-card ${isActive ? "active" : "inactive"}`}
+                          onClick={() => selectItem(index)}
+                        >
+                          <div className="card-preview">
+                            <img src={sticker.animatedImage ?? sticker.image} alt={sticker.title} />
+                          </div>
+                          {isActive && (
+                            <div className="card-action-overlay">
+                              <div className="card-info">
+                                <h3>{sticker.title}</h3>
+                                <p>{sticker.phrase}</p>
+                              </div>
+                              <div className="action-buttons">
+                                <button
+                                  type="button"
+                                  className="btn-edit"
+                                  onClick={(e) => { e.stopPropagation(); beginEditSticker(sticker, project); }}
+                                >
+                                  수정
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`btn-favorite ${sticker.favorite ? "active" : ""}`}
+                                  onClick={(e) => { e.stopPropagation(); toggleFavorite(sticker.id); }}
+                                >
+                                  <Icon name="star" size={14} />
+                                  즐겨찾기
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-delete"
+                                  onClick={(e) => { e.stopPropagation(); handleDelete(sticker.id, "emoticon"); }}
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    } else {
+                      const character = entry.item as CharacterToken;
+                      return (
+                        <div
+                          key={key}
+                          className={`carousel-card character-card ${isActive ? "active" : "inactive"}`}
+                          onClick={() => selectItem(index)}
+                        >
+                          <div className="card-preview" style={{ background: character.colors.body ?? "rgba(187, 182, 255, 0.12)" }}>
+                            <img src={character.sourceAsset} alt={character.name} />
+                          </div>
+                          {isActive && (
+                            <div className="card-action-overlay">
+                              <div className="card-info">
+                                <h3>{character.name}</h3>
+                                <p>{character.prompt}</p>
+                              </div>
+                              <div className="action-buttons">
+                                <button
+                                  type="button"
+                                  className="btn-edit"
+                                  onClick={(e) => { e.stopPropagation(); beginEditCharacter(character); }}
+                                >
+                                  수정
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-delete"
+                                  onClick={(e) => { e.stopPropagation(); handleDelete(character.id, "character"); }}
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                  })}
                 </div>
               ) : (
                 <div className="empty-library glass-panel">
                   <Icon name="folder" size={32} />
-                  <h2>조건에 맞는 캐릭터가 없어요.</h2>
-                  <p>새 캐릭터를 만들거나 검색어를 바꿔보세요.</p>
+                  <h2>조건에 맞는 항목이 없어요.</h2>
+                  <p>검색어나 그룹 조건을 바꿔보세요.</p>
                 </div>
               )}
             </section>

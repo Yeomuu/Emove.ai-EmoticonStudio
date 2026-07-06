@@ -121,14 +121,14 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
     };
   }, []);
 
-  const routeKey = activeRoute.startsWith("/library/") ? "/library/detail" : activeRoute;
-  const workRoutes = activeRoute === "/character" || activeRoute === "/input" || activeRoute === "/edit";
+  const routeKey = activeRoute.startsWith("/mypage/") ? "/mypage/detail" : activeRoute;
+  const workRoutes = activeRoute === "/character" || activeRoute === "/emoticon" || activeRoute === "/emoticon/edit";
 
   let page = <HomePage />;
   if (activeRoute === "/character") page = <CharacterPage />;
-  else if (activeRoute === "/input") page = <InputPage />;
-  else if (activeRoute === "/edit") page = <EditPage />;
-  else if (activeRoute.startsWith("/library")) page = <LibraryPage />;
+  else if (activeRoute === "/emoticon") page = <InputPage />;
+  else if (activeRoute === "/emoticon/edit") page = <EditPage />;
+  else if (activeRoute.startsWith("/mypage")) page = <LibraryPage />;
 
   const routeBusy = routePhase !== "idle";
 
