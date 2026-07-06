@@ -52,10 +52,39 @@ export function InputPage() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    let active = true;
+    let tickId = 0;
     camera.current.attach(video).then(() => {
       setCameraReady(true);
+      createLiveVisionAnalyzer().then((analyzer) => {
+        const checkFrame = () => {
+          if (!active) return;
+          if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+            try {
+              const metrics = analyzer.detectFrame?.(video);
+              if (metrics && metrics.source === "mediapipe") {
+                setPersonDetected(true);
+              } else {
+                setPersonDetected(false);
+              }
+            } catch (err) {
+              // Ignore frame errors
+            }
+          }
+          tickId = window.setTimeout(checkFrame, 250);
+        };
+        checkFrame();
+      }).catch(() => {
+        // Fallback for offline/no internet: clear blur after 3 seconds
+        window.setTimeout(() => {
+          if (active) setPersonDetected(true);
+        }, 3000);
+      });
     }).catch(() => { /* camera not available */ });
+
     return () => {
+      active = false;
+      window.clearTimeout(tickId);
       window.clearTimeout(idleTimer.current);
       camera.current.release();
       audio.current.release();
@@ -319,7 +348,7 @@ export function InputPage() {
                   muted
                   playsInline
                   className={cameraReady ? "visible" : ""}
-                  style={cameraReady && !personDetected && !capturing ? { filter: "blur(12px)", transition: "filter 0.5s ease" } : undefined}
+                  style={cameraReady && !personDetected && !capturing ? { filter: "blur(8px) brightness(0.68)", transition: "filter 0.5s ease" } : undefined}
                 />
                 {!cameraReady && <img src={imageAssets.pose} alt="포즈 예시" />}
                 <span className="camera-status">

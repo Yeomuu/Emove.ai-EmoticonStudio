@@ -3,8 +3,9 @@ import type { Emotion, VisionMetrics } from "../types";
 type BlendshapeCategory = { categoryName?: string; score?: number };
 type VisionFileset = Awaited<ReturnType<(typeof import("@mediapipe/tasks-vision"))["FilesetResolver"]["forVisionTasks"]>>;
 
-type LiveVisionAnalyzer = {
+export type LiveVisionAnalyzer = {
   analyze(video: HTMLVideoElement, durationMs: number, onProgress?: (progress: number) => void): Promise<VisionMetrics>;
+  detectFrame?(video: HTMLVideoElement): VisionMetrics;
 };
 
 let fileset: VisionFileset | undefined;
@@ -17,7 +18,12 @@ let faceDelegate: "GPU" | "CPU" | undefined;
 export async function createLiveVisionAnalyzer(): Promise<LiveVisionAnalyzer> {
   await ensurePoseLandmarker();
   await ensureFaceLandmarker();
-  return { analyze: analyzeVideoStream };
+  return {
+    analyze: analyzeVideoStream,
+    detectFrame: (video: HTMLVideoElement) => {
+      return detectCurrentVideoFrame(video, performance.now());
+    }
+  };
 }
 
 async function analyzeVideoStream(video: HTMLVideoElement, durationMs: number, onProgress?: (progress: number) => void): Promise<VisionMetrics> {
