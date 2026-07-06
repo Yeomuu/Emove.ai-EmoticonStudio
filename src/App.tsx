@@ -29,14 +29,20 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
   }, [initialPath]);
 
   const path = route.value;
+  const routeKey = path.startsWith("/library/") ? "/library/detail" : path;
+  const workRoutes = path === "/character" || path === "/input" || path === "/edit";
   let page = <HomePage />;
   if (path === "/character") page = <CharacterPage />;
   else if (path === "/input") page = <InputPage />;
   else if (path === "/edit") page = <EditPage />;
   else if (path.startsWith("/library")) page = <LibraryPage />;
   return (
-    <Shell immersive={path === "/home"}>
-      <Suspense fallback={<div className="route-loader" role="status"><span />화면을 불러오는 중</div>}>{page}</Suspense>
+    <Shell immersive={path === "/home"} dockAutoHide={workRoutes}>
+      <Suspense fallback={<div className="route-loader" role="status"><span />화면을 불러오는 중</div>}>
+        <div className="route-slide-frame" key={routeKey} data-route-frame={routeKey.replace("/", "") || "home"}>
+          {page}
+        </div>
+      </Suspense>
     </Shell>
   );
 }

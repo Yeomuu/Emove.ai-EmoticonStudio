@@ -26,7 +26,7 @@ export function Stage() {
 
   useEffect(() => {
     const canvas = canvasRef.current; const context = canvas?.getContext("2d"); if (!canvas || !context) return;
-    void renderFrame(context, { characterUrl: frameImages.value[selectedFrame.value] ?? frameImages.value[0], coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: activePreviewLayers(layers.value, activeLayer.value), transforms: layerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: canvas.width, height: canvas.height, gifSafe: true }, selectedFrame.value / (FRAME_COUNT - 1));
+    void renderFrame(context, { characterUrl: frameImages.value[selectedFrame.value] ?? frameImages.value[0], coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: activePreviewLayers(layers.value, activeLayer.value), transforms: layerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: canvas.width, height: canvas.height, gifSafe: false }, selectedFrame.value / (FRAME_COUNT - 1));
   }, [motionBrief.value, layers.value, layerTransforms.value, frameImages.value, selectedFrame.value, textBoxShape.value, textFont.value, coreEffectImage.value, activeLayer.value]);
 
   const beginMove = (event: ReactPointerEvent<HTMLElement>, id: LayerKind) => {

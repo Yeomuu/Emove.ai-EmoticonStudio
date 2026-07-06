@@ -413,10 +413,21 @@ export function HomePage() {
   return (
     <section className="home-hero">
       <div className="hero-glow" />
+      <div className="home-geometry" aria-hidden="true">
+        <span className="geo-circle geo-a" />
+        <span className="geo-circle geo-b" />
+        <span className="geo-circle geo-c" />
+        <span className="geo-line geo-line-a" />
+        <span className="geo-line geo-line-b" />
+      </div>
       <HomeCharacterField />
+      <button className="home-logo-mark" type="button" onClick={() => navigate("/home")} aria-label="EMOVE 홈">
+        <img src={imageAssets.logo} alt="" />
+      </button>
       <div className="home-copy">
-        <p className="hero-kicker">EMOTICON STUDIO</p>
-        <h1>EM<span className="logo-letter"><img src={imageAssets.logo} alt="O" /></span>VE</h1>
+        <p className="hero-kicker">MOVE YOUR</p>
+        <h1>EMOTION<span className="hero-arrow" aria-hidden="true">→</span></h1>
+        <span className="hero-underline" aria-hidden="true" />
         <div className="hero-actions">
           <button className="hero-button" type="button" onClick={() => navigate("/library")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 구경가기</span></button>
           <button className="hero-button" type="button" onClick={() => navigate("/character")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 제작하기</span></button>

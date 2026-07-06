@@ -10,6 +10,7 @@ When implementing from a selected generated mock, treat that image as the source
 
 - The latest user-provided screen reference set is the visual source of truth.
 - Use clean History API paths such as `/home`, `/character`, `/input`, `/edit`, and `/library`.
+- Keep route boundaries for Home, Character, Input, Edit, and Library so browser back/forward preserves the intended workflow model; make route changes feel like vertical one-page slide transitions instead of converting the app to a single scroll-only page.
 - Next.js App Router is the primary application framework while keeping TypeScript central and attaching React client components, Canvas/Web Workers, Tailwind/shadcn-style components, and custom CSS only where needed.
 - Vercel is the active deployment target for the Next.js-centered architecture.
 - The production Vercel domain is `emove-emoticonstudio.vercel.app`.
@@ -18,7 +19,9 @@ When implementing from a selected generated mock, treat that image as the source
 - Page transitions should prefer a full-screen loading surface that rises from the bottom, briefly centers the EMOVE logo at about 120×120, then exits upward after the route is ready.
 - Loading spinner/curtain backgrounds should stay solid unless a later visual reference explicitly asks for decorated loader backgrounds.
 - In-page depth changes inside dense flows such as behavior input should not show the global loading curtain; reserve the global curtain for route/page transitions and long generation work.
+- Generation and analysis progress bars should advance on real app work stages; when a single stage takes a long time and exact model progress is unavailable, keep the percent anchored to that stage while the bar surface continues flowing.
 - Keep desktop content at a maximum width of 1440px and make every screen responsive.
+- The current canonical Figma `디자인시안` layout uses 1920×1080 page frames; keep page content at a maximum width of 1920px for that redesign while preserving responsive behavior below desktop.
 - Use 760px as the global minimum screen height; if the viewport is shorter, the page must scroll instead of clipping.
 - The Edit timeline has exactly four ordered layers: background effects, character, accent effects, and text.
 - OpenAI-dependent features must not fabricate mock user assets; if the API key or server proxy is unavailable, show a clear failure instead of substituting default characters, voice text, poses, or frames.
@@ -41,18 +44,21 @@ When implementing from a selected generated mock, treat that image as the source
 - Use short spring-like micro-interactions only where they communicate selection, press, reveal, drag, or navigation. Respect reduced-motion and avoid continuously animating blur or filters.
 - Character playground physics should keep non-character UI controls out of pointer repulsion, while draggable characters may push nearby characters away for collision feedback.
 - Character creation starts empty: do not show an existing character until the user generates a new draft, then save the resulting token explicitly.
+- Character generation and emoticon generation are separate workflows. Character creation ends in Character/Library unless the user explicitly chooses "이 캐릭터로 이모티콘 생성하기", which saves/selects that character and then routes to Input.
 - Keep the bundled default character set available for users who want to skip character creation, but never use those defaults as fallback output when the user explicitly runs new character generation.
 - Character color palette is a dropdown preset; point color remains swatches plus one custom color picker swatch that shows the selected custom color.
 - Library separates emoticon and character views, and item cards flow horizontally first with a 3-column desktop grid rather than masonry columns.
 - Library category filters are horizontally scrollable/draggable and should show an edge fade when overflow is possible.
 - Edit canvas must clearly show the square 1024×1024 export boundary while keeping the surrounding stage usable as the workspace.
-- Edit stores layer x/y/scale/rotation per each of the fixed five frames; GIF export renders those five frame states with a user-adjustable per-frame delay.
+- Edit stores layer x/y/scale/rotation per each of the fixed five frames; animated export renders those five frame states with a user-adjustable per-frame delay.
 - Voice waveform uses FFT frequency bins during recording and a quiet dot baseline before voice input.
 - Keep the top shell/header persistent across route changes so the nav selection can spring between pages without remounting.
 - Home/landing should use randomly placed character tokens as the primary interactive background instead of the previous static ecosystem image.
+- Home/landing should also keep the Figma geometric circle/line pattern behind the random character tokens.
 - Home character tokens should repel from the pointer, remain draggable, and push nearby character tokens away when they collide during drag.
 - Home character pointer interactions must use alpha-hit-testing so transparent image pixels do not trigger drag or repulsion.
 - Header layout keeps the logo centered, primary nav pinned to the left side of the 1440px frame, and profile/theme controls pinned to the right side.
+- The current Figma redesign uses a bottom-right dock navigation. Home and Library show it by default; Character, Input, and Edit hide it during work and reveal it when the pointer enters the bottom-right dock zone.
 - Glassmorphism buttons should use `backdrop-filter` so the background behind the button blurs while button text/icons remain sharp.
 - Do not show pointer-style glow outlines on text inputs after mouse click; keep only a restrained accessible keyboard focus state.
 - Character and emoticon generation prompts must request flat chroma-key green backgrounds only, not transparent backgrounds; transparency is produced by the in-browser chroma-key removal step.
@@ -66,13 +72,13 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit text layer selection bounds must match the rendered text bubble exactly, including resize behavior.
 - Edit canvas selection boxes must be driven only by measured renderer bounds and layer transforms; do not apply legacy CSS offsets such as margins to `.canvas-selection` variants.
 - When editing a frame, later frames should inherit the same layer transform unless the user explicitly changes them, so animation remains continuous.
-- Edit preview and export must share the same 1024×1024 GIF-safe color/alpha constraints so the looped GIF does not visually diverge from the frame editor.
+- Edit preview and APNG export must share the same 1024×1024 full-color transparent frame constraints so the looped animation does not visually diverge from the frame editor.
 - Edit save overwrites the active source project/sticker in place when editing from Library; it must preserve the original id, createdAt, favorite/group metadata, and Library ordering instead of creating a duplicate.
 - Edit lets users rename the saved emoticon explicitly; the sticker title must not be overwritten by speech-bubble text unless no custom title exists.
 - Edit canvas resize/rotate control handles belong only to the current active layer; inactive selection bounds must not show handles or steal resize/rotate interactions.
 - Edit canvas may temporarily preview the currently selected layer above the other layers for easier adjustment, but this must never mutate the actual layer order or exported order. Clicking empty canvas space clears the active layer selection.
 - Source code, styles, fonts, icons, and used UI images should be referenced from `src/` and `src/assets/` in v1; old root-level source/asset folders are legacy copies only until explicitly removed.
-- Remote persistence uses Vercel Route Handlers. Vercel Blob stores exported GIF files for QR/mobile viewing through `/api/share/gif`; Neon Postgres via `DATABASE_URL` stores and reads optional shared metadata for `characters`, `captures`, `projects`, and `stickers`; IndexedDB remains the local fallback when remote storage is unavailable.
+- Remote persistence uses Vercel Route Handlers. Vercel Blob stores exported APNG-first animation files for QR/mobile viewing through `/api/share/animation` while `/api/share/gif` remains a legacy-compatible route; Neon Postgres via `DATABASE_URL` stores and reads optional shared metadata for `characters`, `captures`, `projects`, and `stickers`; IndexedDB remains the local fallback when remote storage is unavailable.
 - Input analysis must visibly show the understood behavior, expression/emotion key, voice usage, and emotion background-effect guide instead of only showing a completion toast.
 - Input camera analysis uses MediaPipe Pose Landmarker and Face Landmarker for the closest single person; if real landmarks are unavailable, the app must say the analysis failed instead of substituting preset behavior or expression data.
 - Library category UI must keep display category state separate from emotion filtering so same-emotion categories such as celebration and gratitude do not appear selected at the same time.
@@ -82,6 +88,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit must include a live loop preview that renders the same five frame states at the selected frame delay before exporting.
 - Future UI updates may replace the current screen source. When the user provides a new canonical screen reference set, implement the app to match that supplied screen screenshot pixel-for-pixel.
 - The current final emoticon output target is a simple 1024×1024 looping emoticon generated from `gpt-image-2`-sized assets, not a Kakao 360×360 submission package.
+- Prefer APNG for final animated emoticon export and QR/mobile downloads where possible because it preserves full-color transparent frames; keep GIF as a compatibility fallback and consider Animated WebP later when file size becomes the stronger constraint.
 - Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
 - OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to serverless timeout or response-size limits.
 - Use compressed `webp` image API responses by default before browser chroma-key removal; if this changes, the returned data URL MIME type must match the requested image output format.
@@ -92,7 +99,7 @@ When implementing from a selected generated mock, treat that image as the source
 
 ## Vercel Storage Data Model
 
-원격 저장은 선택 기능입니다. `DATABASE_URL`이 없으면 IndexedDB 로컬 저장만 사용하고, `BLOB_READ_WRITE_TOKEN`이 없으면 로컬 개발용 메모리 GIF 공유 URL만 사용합니다.
+원격 저장은 선택 기능입니다. `DATABASE_URL`이 없으면 IndexedDB 로컬 저장만 사용하고, `BLOB_READ_WRITE_TOKEN`이 없으면 로컬 개발용 메모리 애니메이션 공유 URL만 사용합니다.
 
 ### 1. `emove_library_records`
 **Neon Postgres shared metadata table**
@@ -107,14 +114,14 @@ When implementing from a selected generated mock, treat that image as the source
 }
 ```
 
-### 2. Vercel Blob GIF Objects
+### 2. Vercel Blob Animation Objects
 **QR/mobile share file storage**
 
 ```typescript
 {
-  path: `vercel-blob://gifs/${shareId}.gif`;
-  url: string;         // public Vercel Blob URL returned by /api/share/gif
-  contentType: "image/gif";
+  path: `vercel-blob://animations/${shareId}.apng`;
+  url: string;         // public Vercel Blob URL returned by /api/share/animation
+  contentType: "image/apng" | "image/gif" | "image/webp";
   maxSizeBytes: 5750000;
 }
 ```
@@ -124,7 +131,7 @@ When implementing from a selected generated mock, treat that image as the source
 1. **Input 페이지**: 사용자 입력 → local `captures` 저장, `DATABASE_URL`이 있으면 `/api/library/captures`에도 compact metadata 저장
 2. **Character 페이지**: OpenAI 생성 → local `characters` 저장, `DATABASE_URL`이 있으면 `/api/library/characters`에도 저장
 3. **Edit 페이지**: 프레임별 편집 상태 → local `projects`, `stickers`, `characters` 저장, `DATABASE_URL`이 있으면 `/api/library/projects`에도 compact metadata 저장
-4. **Export**: GIF 렌더링 → `/api/share/gif` 업로드 → Vercel Blob public URL 또는 local memory URL을 QR로 사용
+4. **Export**: APNG 우선 애니메이션 렌더링 → `/api/share/animation` 업로드 → Vercel Blob public URL 또는 local memory URL을 QR로 사용
 5. **Library**: 현재 구현은 IndexedDB/local state를 우선 표시하며, shared public gallery reads can be added from Neon when the public gallery policy is finalized
 
 ### 권한 및 보안

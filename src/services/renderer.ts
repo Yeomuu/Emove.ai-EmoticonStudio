@@ -1,7 +1,7 @@
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import starIcon from "../assets/icons/star.svg";
-import type { EditorLayer, LayerKind, LayerTransform, MotionBrief, TextBoxShape, TextFont } from "../types";
+import type { AnimationFormat, EditorLayer, LayerKind, LayerTransform, MotionBrief, TextBoxShape, TextFont } from "../types";
 
 export interface RenderOptions {
   characterUrl: string;
@@ -24,6 +24,14 @@ export interface TextBubbleBounds {
   width: number;
   height: number;
   bubbleHeight: number;
+}
+
+export interface ExportedAnimation {
+  blob: Blob;
+  format: AnimationFormat;
+  extension: "apng" | "gif" | "webp";
+  mimeType: "image/apng" | "image/gif" | "image/webp";
+  label: string;
 }
 
 const imageCache = new Map<string, HTMLImageElement>();
@@ -259,10 +267,33 @@ export async function exportGif(options: RenderOptions): Promise<Blob> {
   return encodeGifFrames(frames, width, height, options.brief.frameDelayMs);
 }
 
+export async function exportAnimation(options: RenderOptions, preferred: AnimationFormat = "APNG"): Promise<ExportedAnimation> {
+  if (preferred === "APNG") {
+    try {
+      return { blob: await exportApng(options), format: "APNG", extension: "apng", mimeType: "image/apng", label: "투명 APNG" };
+    } catch (error) {
+      console.warn("APNG export failed, falling back to GIF.", error);
+    }
+  }
+  return { blob: await exportGif(options), format: "GIF", extension: "gif", mimeType: "image/gif", label: "투명 GIF" };
+}
+
+export async function exportApng(options: RenderOptions): Promise<Blob> {
+  const width = options.width ?? EXPORT_SIZE; const height = options.height ?? EXPORT_SIZE; const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true }); if (!context) throw new Error("Canvas 2D를 사용할 수 없습니다.");
+  const pngFrames: Uint8Array[] = [];
+  for (let frame = 0; frame < FRAME_COUNT; frame += 1) {
+    await renderFrame(context, { ...options, transforms: options.frameTransforms?.[frame] ?? options.transforms, width, height, gifSafe: false }, frame / (FRAME_COUNT - 1));
+    const buffer = await canvasToBlob(canvas, "image/png").then((blob) => blob.arrayBuffer());
+    pngFrames.push(new Uint8Array(buffer));
+  }
+  return encodeApngPngFrames(pngFrames, options.brief.frameDelayMs);
+}
+
 export async function renderFrameDataUrl(options: RenderOptions, frame = 0): Promise<string> {
   const width = options.width ?? EXPORT_SIZE; const height = options.height ?? EXPORT_SIZE; const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
   const context = canvas.getContext("2d", { willReadFrequently: true }); if (!context) throw new Error("Canvas 2D를 사용할 수 없습니다.");
-  await renderFrame(context, { ...options, transforms: options.frameTransforms?.[frame] ?? options.transforms, width, height, gifSafe: options.gifSafe ?? true }, FRAME_COUNT > 1 ? frame / (FRAME_COUNT - 1) : 0);
+  await renderFrame(context, { ...options, transforms: options.frameTransforms?.[frame] ?? options.transforms, width, height, gifSafe: options.gifSafe ?? false }, FRAME_COUNT > 1 ? frame / (FRAME_COUNT - 1) : 0);
   return canvas.toDataURL("image/png");
 }
 
@@ -273,10 +304,162 @@ export function encodeGifFrames(frames: Uint8ClampedArray[], width: number, heig
     const frame = createGifPaletteFrame(rgba, width, height);
     gif.writeFrame(frame.indexed, width, height, { palette: frame.palette, delay, repeat: 0, transparent: frame.transparentIndex >= 0, transparentIndex: Math.max(0, frame.transparentIndex), dispose: 2 });
   });
-  gif.finish(); const bytes = gif.bytesView(); const copy = new Uint8Array(bytes.byteLength); copy.set(bytes); return new Blob([copy.buffer], { type: "image/gif" });
+  gif.finish(); const bytes = gif.bytesView(); const copy = new Uint8Array(bytes.byteLength); copy.set(bytes); return new Blob([toArrayBuffer(copy)], { type: "image/gif" });
 }
 
 export function downloadBlob(blob: Blob, filename: string): void { const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+
+async function canvasToBlob(canvas: HTMLCanvasElement, type: string): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("프레임 PNG를 만들 수 없습니다.")), type);
+  });
+}
+
+type ParsedPngFrame = {
+  ihdr: Uint8Array;
+  idats: Uint8Array[];
+  width: number;
+  height: number;
+};
+
+const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+let crcTable: Uint32Array | null = null;
+
+function encodeApngPngFrames(frames: Uint8Array[], delayMs = 100): Blob {
+  if (!frames.length) throw new Error("APNG 프레임이 없습니다.");
+  const parsed = frames.map(parsePngFrame);
+  const first = parsed[0];
+  if (!first) throw new Error("APNG 첫 프레임을 읽을 수 없습니다.");
+  parsed.forEach((frame) => {
+    if (frame.width !== first.width || frame.height !== first.height) throw new Error("APNG 프레임 크기가 서로 다릅니다.");
+  });
+
+  const chunks: Uint8Array[] = [PNG_SIGNATURE, createPngChunk("IHDR", first.ihdr)];
+  chunks.push(createPngChunk("acTL", createActlChunk(parsed.length, 0)));
+  let sequence = 0;
+  chunks.push(createPngChunk("fcTL", createFctlChunk(sequence, first.width, first.height, delayMs)));
+  sequence += 1;
+  first.idats.forEach((data) => chunks.push(createPngChunk("IDAT", data)));
+  parsed.slice(1).forEach((frame) => {
+    chunks.push(createPngChunk("fcTL", createFctlChunk(sequence, frame.width, frame.height, delayMs)));
+    sequence += 1;
+    frame.idats.forEach((data) => {
+      const fdat = new Uint8Array(data.length + 4);
+      writeUint32(fdat, 0, sequence);
+      fdat.set(data, 4);
+      chunks.push(createPngChunk("fdAT", fdat));
+      sequence += 1;
+    });
+  });
+  chunks.push(createPngChunk("IEND", new Uint8Array()));
+  return new Blob([toArrayBuffer(concatUint8(chunks))], { type: "image/apng" });
+}
+
+function parsePngFrame(data: Uint8Array): ParsedPngFrame {
+  if (data.length < PNG_SIGNATURE.length || !PNG_SIGNATURE.every((value, index) => data[index] === value)) {
+    throw new Error("PNG 프레임 형식이 아닙니다.");
+  }
+  let offset = PNG_SIGNATURE.length;
+  let ihdr: Uint8Array | null = null;
+  const idats: Uint8Array[] = [];
+  while (offset + 12 <= data.length) {
+    const length = readUint32(data, offset);
+    const type = String.fromCharCode(data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]);
+    const start = offset + 8;
+    const end = start + length;
+    if (end + 4 > data.length) throw new Error("PNG 청크가 손상되었습니다.");
+    const chunkData = data.slice(start, end);
+    if (type === "IHDR") ihdr = chunkData;
+    else if (type === "IDAT") idats.push(chunkData);
+    else if (type === "IEND") break;
+    offset = end + 4;
+  }
+  if (!ihdr || !idats.length) throw new Error("PNG 프레임에서 이미지 데이터를 찾지 못했습니다.");
+  return { ihdr, idats, width: readUint32(ihdr, 0), height: readUint32(ihdr, 4) };
+}
+
+function createActlChunk(frameCount: number, playCount: number): Uint8Array {
+  const data = new Uint8Array(8);
+  writeUint32(data, 0, frameCount);
+  writeUint32(data, 4, playCount);
+  return data;
+}
+
+function createFctlChunk(sequence: number, width: number, height: number, delayMs: number): Uint8Array {
+  const data = new Uint8Array(26);
+  writeUint32(data, 0, sequence);
+  writeUint32(data, 4, width);
+  writeUint32(data, 8, height);
+  writeUint32(data, 12, 0);
+  writeUint32(data, 16, 0);
+  writeUint16(data, 20, Math.max(1, Math.min(65535, Math.round(delayMs))));
+  writeUint16(data, 22, 1000);
+  data[24] = 0;
+  data[25] = 0;
+  return data;
+}
+
+function createPngChunk(type: string, data: Uint8Array): Uint8Array {
+  const typeBytes = new Uint8Array([...type].map((char) => char.charCodeAt(0)));
+  const chunk = new Uint8Array(12 + data.length);
+  writeUint32(chunk, 0, data.length);
+  chunk.set(typeBytes, 4);
+  chunk.set(data, 8);
+  writeUint32(chunk, 8 + data.length, crc32(concatUint8([typeBytes, data])));
+  return chunk;
+}
+
+function readUint32(data: Uint8Array, offset: number): number {
+  return ((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]) >>> 0;
+}
+
+function writeUint32(data: Uint8Array, offset: number, value: number): void {
+  data[offset] = (value >>> 24) & 0xff;
+  data[offset + 1] = (value >>> 16) & 0xff;
+  data[offset + 2] = (value >>> 8) & 0xff;
+  data[offset + 3] = value & 0xff;
+}
+
+function writeUint16(data: Uint8Array, offset: number, value: number): void {
+  data[offset] = (value >>> 8) & 0xff;
+  data[offset + 1] = value & 0xff;
+}
+
+function concatUint8(parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const output = new Uint8Array(total);
+  let offset = 0;
+  parts.forEach((part) => {
+    output.set(part, offset);
+    offset += part.length;
+  });
+  return output;
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+function crc32(data: Uint8Array): number {
+  const table = getCrcTable();
+  let crc = 0xffffffff;
+  for (let index = 0; index < data.length; index += 1) {
+    crc = table[(crc ^ data[index]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function getCrcTable(): Uint32Array {
+  if (crcTable) return crcTable;
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    table[index] = value >>> 0;
+  }
+  crcTable = table;
+  return table;
+}
 
 async function loadTintedIcon(url: string, color: string): Promise<HTMLCanvasElement> {
   const key = `${url}-${color}`; const cached = tintedIconCache.get(key); if (cached) return cached;

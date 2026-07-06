@@ -26,6 +26,7 @@ export type TextBoxShape = "pill" | "rounded" | "caption";
 export type TextFont = "Pretendard" | "Paperlogy";
 export type CharacterStyleMode = "2D" | "3D";
 export type MotionStyle = "smooth" | "dynamic" | "bouncy" | "subtle";
+export type AnimationFormat = "APNG" | "GIF" | "WEBP";
 
 export interface EditorLayer {
   id: LayerKind;
@@ -108,6 +109,8 @@ export interface StickerItem {
   emotion: Emotion;
   image: string;
   animatedImage?: string;
+  animationFormat?: AnimationFormat;
+  animationStoragePath?: string;
   thumbnail?: string;
   gifStoragePath?: string;
   projectId?: string;
@@ -128,6 +131,8 @@ export interface EmoticonProject {
   ownerId: string | null;
   sticker: StickerItem;
   gifBlob: Blob;
+  animationBlob?: Blob;
+  animationFormat?: AnimationFormat;
   characterToken: CharacterToken;
   behaviorCapture: Omit<BehaviorCapture, "videoBlob" | "audioBlob">;
   frameImages: string[];

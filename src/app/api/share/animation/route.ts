@@ -7,5 +7,5 @@ export async function OPTIONS(): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  return handleSharedAnimationPost(request, "gif");
+  return handleSharedAnimationPost(request, "animation");
 }

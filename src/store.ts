@@ -1,6 +1,6 @@
 import { computed, signal } from "./lib/signals";
 import { createMotionBrief, defaultCharacterTokens, emotionMeta, initialLayers, starterStickers } from "./data";
-import type { BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, LayerKind, LayerTransform, MotionStyle, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
+import type { AnimationFormat, BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, LayerKind, LayerTransform, MotionStyle, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
 
 const emptyCharacter: CharacterToken = {
   id: "character-empty",
@@ -75,6 +75,7 @@ export const toast = signal<string | null>(null);
 export const exportModalOpen = signal(false);
 export const exportShareUrl = signal<string | null>(null);
 export const exportGifBlob = signal<Blob | null>(null);
+export const exportAnimationFormat = signal<AnimationFormat>("APNG");
 
 export const motionBrief = computed(() => createMotionBrief(emotion.value, effectColor.value, sourceTranscript.value, transcript.value, motionIntensity.value, selectedCharacterId.value, frameDelayMs.value, coreEffect.value, expressionEmotion.value, behaviorCapture.value.poseSummary, motionStyle.value));
 
@@ -109,6 +110,7 @@ export function startNewEmoticonProject(): void {
   editingProject.value = null;
   emoticonTitle.value = transcript.value.trim().slice(0, 12) || "새 이모티콘";
   exportGifBlob.value = null;
+  exportAnimationFormat.value = "APNG";
   exportShareUrl.value = null;
   exportModalOpen.value = false;
 }
@@ -142,6 +144,7 @@ export function loadProjectForEditing(project: EmoticonProject): void {
   selectedFrame.value = 0;
   activeLayer.value = "text";
   exportGifBlob.value = null;
+  exportAnimationFormat.value = project.animationFormat ?? project.sticker.animationFormat ?? "APNG";
   exportShareUrl.value = project.sticker.animatedImage?.startsWith("http") ? project.sticker.animatedImage : null;
   exportModalOpen.value = false;
   lastSaved.value = new Date(project.updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });

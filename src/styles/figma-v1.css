@@ -2257,3 +2257,878 @@ html[data-theme="light"] :where(.button.primary, .save-character-button, .input-
     grid-column: 2;
   }
 }
+
+/* 2026-07-06: Figma 디자인시안 route-preserving slide frame. */
+:root {
+  --frame: min(1920px, 100vw);
+  --screen-pad-x: clamp(28px, 6.25vw, 120px);
+  --screen-pad-y: clamp(28px, 7.9vh, 85px);
+  --screen-min: max(760px, 100svh);
+  --dock-right: clamp(22px, 6.45vw, 124px);
+  --dock-bottom: clamp(22px, 5vh, 54px);
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+body {
+  min-height: 100svh;
+}
+
+.app-shell,
+.app-shell.is-immersive {
+  position: relative;
+  width: 100%;
+  height: 100svh;
+  min-height: 760px;
+  padding: 0;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(111, 94, 255, .14), transparent 31%),
+    radial-gradient(circle at 84% 14%, rgba(255, 173, 227, .1), transparent 24%),
+    radial-gradient(circle at 62% 84%, rgba(120, 168, 255, .08), transparent 28%),
+    #070711;
+}
+
+.app-shell main {
+  width: 100%;
+  min-height: var(--screen-min);
+}
+
+.route-slide-frame {
+  width: 100%;
+  min-height: var(--screen-min);
+  animation: route-slide-up .68s var(--swift) both;
+}
+
+@keyframes route-slide-up {
+  from {
+    opacity: .001;
+    transform: translateY(9.2vh);
+  }
+  58% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workspace-page,
+.editor-page,
+.home-hero,
+.library-detail-page {
+  position: relative;
+  width: var(--frame);
+  max-width: 1920px;
+  min-height: var(--screen-min);
+  height: var(--screen-min);
+  margin: 0 auto;
+  padding: 0;
+  overflow: hidden;
+}
+
+.screen-brief {
+  position: absolute;
+  z-index: 12;
+  left: var(--screen-pad-x);
+  top: clamp(72px, 13vh, 141px);
+  max-width: min(640px, calc(100% - var(--screen-pad-x) * 2));
+  pointer-events: none;
+}
+
+.screen-brief span {
+  display: block;
+  margin-bottom: clamp(18px, 4.6vh, 50px);
+  color: rgba(230, 226, 255, .38);
+  font: 700 clamp(42px, 5vw, 96px)/.9 "Paperlogy", "Pretendard", sans-serif;
+}
+
+.screen-brief h1 {
+  color: var(--theme-title);
+  font: 700 clamp(34px, 3.28vw, 63px)/1.1 "Paperlogy", "Pretendard", sans-serif;
+  letter-spacing: 0;
+}
+
+.screen-brief p {
+  margin-top: 18px;
+  color: rgba(225, 220, 242, .62);
+  font-size: clamp(14px, 1vw, 19px);
+}
+
+.nav-hover-zone {
+  position: fixed;
+  z-index: 220;
+  right: 0;
+  bottom: 0;
+  width: min(38vw, 560px);
+  height: 210px;
+}
+
+.bottom-dock {
+  position: fixed;
+  z-index: 240;
+  right: var(--dock-right);
+  bottom: var(--dock-bottom);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transform-origin: right bottom;
+  transition: opacity .28s var(--swift), transform .34s var(--spring), filter .28s ease;
+}
+
+.bottom-dock.is-hidden {
+  opacity: 0;
+  transform: translate3d(18px, 26px, 0) scale(.94);
+  pointer-events: none;
+  filter: blur(4px);
+}
+
+.bottom-dock.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  pointer-events: auto;
+  filter: none;
+}
+
+.bottom-dock .primary-nav {
+  width: clamp(286px, 17.7vw, 340px);
+  height: 48px;
+  padding: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-radius: 999px;
+}
+
+.bottom-dock .primary-nav a {
+  height: 38px;
+  font-size: clamp(10px, .68vw, 13px);
+  letter-spacing: 0;
+}
+
+.bottom-dock .nav-selection {
+  left: 4px;
+  top: 4px;
+  width: calc((100% - 8px) / 3);
+  height: 38px;
+  transform: translateX(calc(var(--nav-index) * 100%));
+}
+
+.bottom-dock .topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bottom-dock .theme-toggle {
+  min-width: 58px;
+  height: 48px;
+  padding-inline: 12px !important;
+  border-radius: 999px !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+.bottom-dock .profile-button {
+  width: 48px;
+  height: 48px;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+.primary-nav,
+.bottom-dock .theme-toggle,
+.bottom-dock .profile-button,
+.hero-button,
+.character-generate-button,
+.save-character-button,
+.create-with-character-button,
+.select-character-button,
+.input-ready-row > button,
+.button {
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+/* Home: Figma wireframe layout with the existing character physics preserved. */
+.home-hero {
+  display: block;
+  border-radius: 0;
+}
+
+.home-logo-mark {
+  position: absolute;
+  z-index: 5;
+  left: var(--screen-pad-x);
+  top: clamp(42px, 8.4vh, 91px);
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  filter: drop-shadow(0 12px 22px rgba(187, 182, 255, .24));
+}
+
+.home-logo-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.home-geometry {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  opacity: .82;
+}
+
+.home-geometry::before,
+.home-geometry::after,
+.geo-circle,
+.geo-line {
+  content: "";
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.home-geometry::before {
+  left: clamp(40px, 7.7vw, 148px);
+  top: clamp(110px, 21.4vh, 231px);
+  width: clamp(220px, 22vw, 422px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(232, 229, 255, .12);
+  border-radius: 50%;
+}
+
+.home-geometry::after {
+  right: clamp(42px, 8.2vw, 157px);
+  top: clamp(70px, 13.4vh, 145px);
+  width: clamp(380px, 41vw, 790px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(232, 229, 255, .11);
+  border-radius: 50%;
+}
+
+.geo-a {
+  left: clamp(390px, 29.4vw, 565px);
+  top: clamp(180px, 33.1vh, 358px);
+  width: clamp(520px, 48.4vw, 930px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(232, 229, 255, .1);
+  border-radius: 50%;
+}
+
+.geo-b {
+  left: clamp(950px, 62.7vw, 1204px);
+  top: clamp(84px, 11.8vh, 128px);
+  width: clamp(350px, 32.8vw, 630px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(232, 229, 255, .12);
+  border-radius: 50%;
+}
+
+.geo-c {
+  left: clamp(1180px, 78vw, 1498px);
+  top: clamp(532px, 65.7vh, 710px);
+  width: clamp(150px, 15.2vw, 292px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(232, 229, 255, .14);
+  border-radius: 50%;
+}
+
+.geo-line {
+  height: 1px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, transparent, rgba(232,229,255,.16), transparent);
+}
+
+.geo-line-a {
+  left: clamp(95px, 11.2vw, 216px);
+  top: clamp(520px, 62vh, 670px);
+  width: clamp(460px, 40vw, 768px);
+  transform: rotate(-26deg);
+}
+
+.geo-line-b {
+  left: clamp(1080px, 72vw, 1382px);
+  top: clamp(240px, 32vh, 346px);
+  width: clamp(260px, 22vw, 423px);
+  transform: rotate(32deg);
+}
+
+.home-character-field {
+  z-index: 2;
+  inset: 0;
+  border-radius: 0;
+}
+
+.home-character-field::before {
+  opacity: .56;
+}
+
+.home-copy {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  margin: 0;
+  display: block;
+  text-align: left;
+  pointer-events: none;
+}
+
+.hero-kicker {
+  position: absolute;
+  left: clamp(72px, 16.9vw, 325px);
+  top: clamp(150px, 22.7vh, 245px);
+  color: var(--theme-title);
+  font: 700 clamp(76px, 8.12vw, 156px)/1 "Paperlogy", "Pretendard", sans-serif;
+  letter-spacing: 0;
+  white-space: nowrap;
+  text-shadow: none;
+}
+
+.home-copy h1 {
+  position: absolute;
+  left: clamp(120px, 36vw, 691px);
+  top: clamp(275px, 37.4vh, 404px);
+  margin: 0;
+  display: block;
+  color: var(--theme-title);
+  font: 700 clamp(84px, 8.8vw, 169px)/1 "Paperlogy", "Pretendard", sans-serif;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.hero-arrow {
+  display: inline-block;
+  margin-left: clamp(22px, 2.2vw, 42px);
+  color: rgba(232, 229, 255, .82);
+  font-size: clamp(58px, 5.2vw, 100px);
+  transform: translateY(-.06em);
+}
+
+.hero-underline {
+  position: absolute;
+  left: clamp(120px, 35.9vw, 689px);
+  top: clamp(380px, 47.5vh, 513px);
+  width: clamp(300px, 31.35vw, 602px);
+  height: clamp(12px, 1.66vw, 32px);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7b69ff, #ff9bdd 72%, rgba(255,255,255,.8));
+  box-shadow: 0 0 28px rgba(145, 117, 255, .34);
+}
+
+.hero-actions {
+  position: absolute;
+  left: 50%;
+  top: clamp(500px, 55.37vh, 598px);
+  margin: 0;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.hero-button {
+  width: clamp(176px, 10.5vw, 202px);
+  height: 52px;
+  border-radius: 999px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.015)),
+    rgba(10, 9, 18, .32);
+  color: #f1eefb;
+  font-size: 14px;
+}
+
+.home-footer {
+  left: var(--screen-pad-x);
+  right: auto;
+  bottom: 34px;
+}
+
+/* Character creation: generation remains separate from emoticon generation. */
+.character-page {
+  padding: 0;
+}
+
+.character-designer {
+  position: absolute;
+  z-index: 8;
+  left: clamp(58px, 13.65vw, 262px);
+  right: clamp(58px, 13.65vw, 262px);
+  top: clamp(390px, 44.7vh, 483px);
+  bottom: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(360px, 686px) minmax(420px, 710px);
+  grid-template-rows: minmax(0, 1fr) minmax(158px, 26%);
+  gap: 18px;
+}
+
+.character-settings-panel,
+.character-preview-panel,
+.character-results-panel {
+  min-height: 0;
+  height: auto;
+  border-radius: 28px;
+}
+
+.character-settings-panel {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  overflow: auto;
+}
+
+.character-preview-panel {
+  grid-column: 2;
+  grid-row: 1;
+  border-left: 1px solid var(--glass-line);
+}
+
+.character-results-panel {
+  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
+  margin: 0;
+  overflow: auto;
+}
+
+.character-results-panel .character-summary {
+  display: none;
+}
+
+.character-results-panel .result-subtitle {
+  margin-top: 12px;
+}
+
+.character-variation-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.character-variation-grid button {
+  border-radius: 20px;
+}
+
+.character-preview-actions {
+  gap: 14px;
+  border-radius: 28px;
+}
+
+.character-save-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.save-character-button,
+.create-with-character-button {
+  width: auto;
+  min-width: 168px;
+  padding: 0 18px;
+  font-weight: 700;
+}
+
+.create-with-character-button {
+  min-height: 48px;
+  border: 1px solid rgba(207,201,255,.22);
+  border-radius: 999px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.065), rgba(255,255,255,.014)),
+    rgba(12, 11, 22, .38);
+  color: #e4dff4;
+}
+
+.create-with-character-button:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+
+/* Input flow. */
+.input-composer {
+  position: absolute;
+  z-index: 8;
+  left: clamp(52px, 20.5vw, 394px);
+  right: clamp(52px, 13.4vw, 258px);
+  top: clamp(305px, 34.25vh, 370px);
+  bottom: clamp(78px, 9vh, 98px);
+  min-height: 0;
+  grid-template-columns: minmax(360px, 44%) minmax(500px, 56%);
+  gap: clamp(18px, 2vw, 38px);
+}
+
+.pose-capture-panel,
+.input-right-column {
+  min-height: 0;
+}
+
+.input-right-column {
+  grid-template-rows: minmax(230px, 33%) minmax(260px, 1fr) 58px;
+}
+
+.input-top-cards {
+  min-height: 0;
+}
+
+.pose-capture-panel .panel-header h2::after {
+  content: " · 촬영";
+  color: rgba(230, 226, 255, .42);
+}
+
+.analysis-readout-grid {
+  max-height: 150px;
+  overflow: auto;
+}
+
+/* Edit: Figma 7:3 working split, same route state. */
+.editor-page {
+  padding: 0;
+}
+
+.edit-brief {
+  top: clamp(58px, 7.9vh, 85px);
+}
+
+.editor-toolbar {
+  position: absolute;
+  z-index: 9;
+  left: var(--screen-pad-x);
+  top: clamp(185px, 20.7vh, 224px);
+  width: min(940px, calc(58vw - 80px));
+  margin: 0;
+}
+
+.editor-grid {
+  position: absolute;
+  z-index: 8;
+  left: var(--screen-pad-x);
+  right: var(--screen-pad-x);
+  top: clamp(268px, 25.18vh, 272px);
+  bottom: clamp(80px, 8.9vh, 96px);
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(420px, 55fr) minmax(420px, 40fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: clamp(24px, 2.8vw, 54px);
+}
+
+.effect-settings {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 0;
+  max-height: 55%;
+  overflow: auto;
+}
+
+.editor-stage-wrap {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 0;
+}
+
+.editor-stage {
+  min-height: 0;
+  height: min(70vh, 686px);
+}
+
+.layer-properties {
+  position: absolute;
+  left: 0;
+  top: calc(55% + 18px);
+  width: min(44vw, 420px);
+  max-height: calc(45% - 18px);
+  overflow: auto;
+}
+
+.timeline {
+  position: absolute;
+  z-index: 9;
+  left: var(--screen-pad-x);
+  bottom: clamp(24px, 3vh, 32px);
+  width: min(940px, calc(58vw - 80px));
+  max-height: 214px;
+  overflow: auto;
+}
+
+/* Library: large horizontal browsing surface from the wireframe. */
+.library-page {
+  display: block;
+}
+
+.library-brief {
+  top: clamp(92px, 13vh, 141px);
+}
+
+.library-sidebar {
+  position: absolute;
+  z-index: 10;
+  right: var(--screen-pad-x);
+  top: clamp(248px, 23.9vh, 258px);
+  width: clamp(230px, 13.4vw, 258px);
+  height: auto;
+  max-height: clamp(420px, 58vh, 620px);
+  min-height: 0;
+  padding: 24px 20px;
+  overflow: auto;
+}
+
+.library-content {
+  position: absolute;
+  z-index: 8;
+  left: var(--screen-pad-x);
+  right: calc(var(--screen-pad-x) + clamp(258px, 17vw, 326px));
+  top: clamp(274px, 27.4vh, 296px);
+  bottom: clamp(70px, 8vh, 88px);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.library-content-header {
+  display: none;
+}
+
+.library-category-rail-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.library-category-rail {
+  height: 86px;
+  margin: 0;
+}
+
+.sticker-grid,
+.library-mixed-grid,
+.character-card-grid {
+  height: calc(100% - 120px);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: clamp(286px, 23vw, 442px);
+  grid-template-columns: none;
+  grid-template-rows: 1fr;
+  align-items: start;
+  gap: clamp(18px, 2vw, 38px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 4px 16px;
+  scrollbar-width: thin;
+}
+
+.sticker-grid .sticker-card:first-child {
+  width: clamp(360px, 29.6vw, 568px);
+}
+
+.sticker-card {
+  min-height: clamp(410px, 43.7vw, 602px);
+}
+
+.library-detail-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(320px, 22vw, 420px);
+  gap: clamp(20px, 3vw, 58px);
+  padding: clamp(76px, 8vh, 96px) var(--screen-pad-x);
+}
+
+.library-carousel-stage,
+.library-detail-page > .detail-sidebar {
+  min-height: 0;
+  height: 100%;
+}
+
+/* Actual-work process screen. Percent changes only when app stages advance; the fill sheen keeps long stages alive. */
+.work-process-screen {
+  position: fixed;
+  z-index: 210;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #070711;
+  animation: process-rise .42s var(--swift) both;
+}
+
+.work-process-inner {
+  width: min(78vw, 1240px);
+  display: grid;
+  gap: clamp(26px, 4vh, 44px);
+}
+
+.work-process-inner h2 {
+  width: min(980px, 100%);
+  color: #f2effb;
+  font: 700 clamp(32px, 3.2vw, 62px)/1.16 "Paperlogy", "Pretendard", sans-serif;
+  letter-spacing: 0;
+}
+
+.work-process-meter {
+  position: relative;
+  width: 100%;
+  height: 2px;
+  overflow: hidden;
+  background: rgba(232, 229, 255, .22);
+}
+
+.work-process-meter span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  min-width: 18px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.8), rgba(255,255,255,0)) 0 0 / 220px 100%,
+    linear-gradient(90deg, #6f5fff, #ff9bdd 72%, #f6f3ff);
+  box-shadow: 0 0 28px rgba(187, 182, 255, .38);
+  animation: glass-progress 1.08s linear infinite;
+  transition: width .62s var(--spring);
+}
+
+.work-process-inner p {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  color: rgba(226, 222, 242, .72);
+  font-size: clamp(14px, 1.05vw, 20px);
+}
+
+.work-process-inner strong {
+  color: #f5f2ff;
+  font-weight: 700;
+}
+
+@keyframes process-rise {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+html[data-theme="light"] .app-shell,
+html[data-theme="light"] .app-shell.is-immersive {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(111, 94, 255, .14), transparent 31%),
+    radial-gradient(circle at 84% 14%, rgba(255, 173, 227, .16), transparent 24%),
+    radial-gradient(circle at 62% 84%, rgba(120, 168, 255, .12), transparent 28%),
+    #f7f7fb;
+}
+
+html[data-theme="light"] .home-geometry::before,
+html[data-theme="light"] .home-geometry::after,
+html[data-theme="light"] .geo-circle {
+  border-color: rgba(30, 26, 48, .12);
+}
+
+html[data-theme="light"] .geo-line {
+  background: linear-gradient(90deg, transparent, rgba(30,26,48,.18), transparent);
+}
+
+html[data-theme="light"] .screen-brief p,
+html[data-theme="light"] .work-process-inner p {
+  color: rgba(36, 31, 54, .64);
+}
+
+html[data-theme="light"] .work-process-screen {
+  background: #f7f7fb;
+}
+
+html[data-theme="light"] .work-process-inner h2,
+html[data-theme="light"] .work-process-inner strong {
+  color: #191622;
+}
+
+@media (max-width: 1180px) {
+  html,
+  body {
+    overflow: auto;
+  }
+
+  .app-shell,
+  .app-shell.is-immersive {
+    height: auto;
+    min-height: 100svh;
+    overflow: visible;
+  }
+
+  .workspace-page,
+  .editor-page,
+  .home-hero,
+  .library-detail-page {
+    height: auto;
+    min-height: 100svh;
+    overflow: visible;
+    padding-bottom: 120px;
+  }
+
+  .screen-brief {
+    position: relative;
+    left: auto;
+    top: auto;
+    margin: 72px 24px 32px;
+  }
+
+  .character-designer,
+  .input-composer,
+  .editor-toolbar,
+  .editor-grid,
+  .timeline,
+  .library-sidebar,
+  .library-content {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    bottom: auto;
+    width: auto;
+    margin: 18px 24px 0;
+  }
+
+  .character-designer,
+  .input-composer,
+  .editor-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .character-settings-panel,
+  .character-preview-panel,
+  .character-results-panel,
+  .effect-settings,
+  .editor-stage-wrap,
+  .layer-properties {
+    grid-column: auto;
+    grid-row: auto;
+    position: relative;
+    width: auto;
+    max-height: none;
+  }
+
+  .input-right-column {
+    grid-template-rows: auto;
+  }
+
+  .sticker-grid,
+  .library-mixed-grid,
+  .character-card-grid {
+    height: auto;
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    overflow: visible;
+  }
+
+  .bottom-dock {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .bottom-dock .primary-nav {
+    width: min(330px, calc(100vw - 142px));
+  }
+}

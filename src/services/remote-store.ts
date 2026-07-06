@@ -1,5 +1,5 @@
 import { EXPORT_SIZE, FRAME_COUNT } from "../constants";
-import type { BehaviorCapture, CharacterToken, EmoticonProject, StickerItem } from "../types";
+import type { AnimationFormat, BehaviorCapture, CharacterToken, EmoticonProject, StickerItem } from "../types";
 
 export interface RemoteSyncResult {
   enabled: boolean;
@@ -21,7 +21,7 @@ type RemoteStickerDoc = {
   gifStoragePath?: unknown;
   gifUrl?: unknown;
   thumbnail?: unknown;
-  metadata?: { averageDelay?: unknown };
+  metadata?: { averageDelay?: unknown; format?: unknown };
   category?: { group?: unknown; emotion?: unknown };
   isDefault?: unknown;
   isPublished?: unknown;
@@ -206,17 +206,19 @@ function createProjectDoc(project: Omit<EmoticonProject, "gifBlob">, ownerId: st
     metadata: {
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
+      format: project.animationFormat ?? project.sticker.animationFormat ?? "APNG",
     },
   };
 }
 
 function createStickerDoc(item: StickerItem, ownerId: string) {
+  const format = item.animationFormat ?? inferAnimationFormat(item.animatedImage) ?? "APNG";
   return {
     id: item.id,
     ownerId,
     name: item.title,
     projectId: item.projectId ?? item.id,
-    gifStoragePath: item.gifStoragePath ?? "",
+    gifStoragePath: item.animationStoragePath ?? item.gifStoragePath ?? "",
     gifUrl: compactAssetUrl(item.animatedImage, ""),
     thumbnail: compactAssetUrl(item.thumbnail ?? item.image, item.animatedImage ?? ""),
     metadata: {
@@ -224,7 +226,7 @@ function createStickerDoc(item: StickerItem, ownerId: string) {
       averageDelay: item.frameDelayMs ?? 120,
       width: EXPORT_SIZE,
       height: EXPORT_SIZE,
-      format: "GIF",
+      format,
     },
     category: {
       group: item.group ?? "이모티콘 그룹",
@@ -252,6 +254,8 @@ function stickerFromRemoteDoc(value: unknown, updatedAt?: string): StickerItem |
     emotion,
     image,
     animatedImage: animatedImage || image,
+    animationFormat: toAnimationFormat(text(doc.metadata?.format), animatedImage),
+    animationStoragePath: text(doc.gifStoragePath) || undefined,
     thumbnail: text(doc.thumbnail) || image,
     gifStoragePath: text(doc.gifStoragePath) || undefined,
     projectId: text(doc.projectId) || id,
@@ -336,6 +340,20 @@ function numberValue(value: unknown): number | undefined {
 function toEmotion(value: string): StickerItem["emotion"] {
   const allowed: StickerItem["emotion"][] = ["angry", "disgusted", "fearful", "happy", "neutral", "other", "sad", "surprised", "unknown"];
   return allowed.includes(value as StickerItem["emotion"]) ? value as StickerItem["emotion"] : "unknown";
+}
+
+function inferAnimationFormat(value: string | null | undefined): AnimationFormat | null {
+  const lower = value?.toLowerCase() ?? "";
+  if (lower.includes(".apng") || lower.includes("image/apng")) return "APNG";
+  if (lower.includes(".webp") || lower.includes("image/webp")) return "WEBP";
+  if (lower.includes(".gif") || lower.includes("image/gif")) return "GIF";
+  return null;
+}
+
+function toAnimationFormat(value: string, url?: string): AnimationFormat {
+  const upper = value.toUpperCase();
+  if (upper === "GIF" || upper === "WEBP" || upper === "APNG") return upper;
+  return inferAnimationFormat(url) ?? "APNG";
 }
 
 function uniqueById<T extends { id: string }>(items: T[]): T[] {
