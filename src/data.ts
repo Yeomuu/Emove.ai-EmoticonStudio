@@ -117,13 +117,16 @@ export const effectPresets = ["팝 스타", "플레임 버스트", "스모그 �
 
 export function createMotionBrief(emotion: Emotion, color: string, sourceText: string, shortText: string, intensity: number, tokenId: string, frameDelayMs = 120, coreEffect?: string, expressionEmotion: Emotion = emotion, pose = "입력된 행동 없음", motionStyle: MotionStyle = "smooth"): import("./types").MotionBrief {
   const meta = emotionMeta[emotion];
+  const clampedIntensity = Math.max(0, Math.min(1, intensity));
+  const tier: import("./types").ExaggerationTier = clampedIntensity < 0.45 ? "minimal" : clampedIntensity < 0.72 ? "emotional" : "full";
   return {
     sourceText: sourceText.trim(),
     shortText: shortText.trim(),
     expressionEmotion,
     emotion,
     confidence: emotion === "other" || emotion === "unknown" ? 0.42 : 0.88,
-    motionIntensity: Math.max(0, Math.min(1, intensity)),
+    motionIntensity: clampedIntensity,
+    exaggerationTier: tier,
     pose,
     coreEffect: coreEffect ?? meta.effect,
     effectColor: color,

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Icon } from "../components/Icon";
+import { Panel } from "../components/Shell";
+import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
 import { syncCharacterToRemote } from "../services/remote-store";
@@ -13,23 +15,26 @@ const palettes = [
   { id: "aurora-pop", label: "Aurora Pop", colors: ["#8CA5FF", "#BBB6FF", "#FFADE3", "#78D6C6", "#FFD36E"] },
   { id: "cosmic-calm", label: "Cosmic Calm", colors: ["#A7A3FF", "#6F83FF", "#B7BDC8", "#E4E0F0", "#78A8FF"] },
 ] as const;
+
 const traits = ["밝은", "다정한", "차분한", "활발한", "귀여운", "장난스러운"];
 const characterTypes = ["사람", "식물", "동물", "음식", "물건"];
 type ProcessState = { title: string; label: string; percent: number };
 
 export function CharacterPage() {
-  const [name, setName] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [currentStep, setCurrentStep] = useState(0);
+  const [name, setName] = useState(characterName.value);
+  const [prompt, setPrompt] = useState(characterPrompt.value);
   const [trait, setTrait] = useState("귀여운");
   const [type, setType] = useState("동물");
-  const [style, setStyle] = useState<"2D" | "3D">("3D");
+  const [style, setStyle] = useState<"2D" | "3D">(characterStyle.value || "3D");
   const [paletteId, setPaletteId] = useState<(typeof palettes)[number]["id"]>("soft-pastel");
-  const [tone, setTone] = useState("#BDB2FF");
-  const [customTone, setCustomTone] = useState("#BDB2FF");
+  const [tone, setTone] = useState(characterTone.value || "#BDB2FF");
+  const [customTone, setCustomTone] = useState(characterTone.value || "#BDB2FF");
   const [generating, setGenerating] = useState(false);
   const [process, setProcess] = useState<ProcessState | null>(null);
   const [generated, setGenerated] = useState<GeneratedCharacterResult | null>(null);
   const [selectedVariationIndex, setSelectedVariationIndex] = useState(0);
+
   const selectedPalette = palettes.find((item) => item.id === paletteId) ?? palettes[0];
   const variationImages = generated?.imageUrls?.length ? generated.imageUrls : generated ? [generated.imageUrl] : [];
 
@@ -137,60 +142,292 @@ export function CharacterPage() {
       ]
     : [];
 
+  // Steps configuration for ScrollSlideContainer
+  const steps = [
+    {
+      id: "char-type-traits",
+      label: "01 · 캐릭터 타입 및 성격",
+      content: (
+        <div className="input-step-layout">
+          <div className="step-left">
+            <Panel title="✦ 캐릭터 타입" className="type-select-panel">
+              <span className="step-desc">만들고 싶은 캐릭터의 핵심 분류를 정해 주세요.</span>
+              <div className="chip-row">
+                {characterTypes.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`chip large ${type === item ? "active" : ""}`}
+                    onClick={() => setType(item)}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+              <div className="detail-type-row" style={{ marginTop: "24px" }}>
+                <label>
+                  <span>세부 명칭 직접 입력 또는 프리셋</span>
+                  <select
+                    aria-label="세부 종류"
+                    value={type === "동물" ? "직접 지정" : type}
+                    onChange={(event) => setType(event.currentTarget.value === "직접 지정" ? "동물" : event.currentTarget.value)}
+                  >
+                    <option>직접 지정</option>
+                    <option>{type}</option>
+                    <option>펭귄</option>
+                    <option>토끼</option>
+                    <option>우주인</option>
+                  </select>
+                </label>
+              </div>
+            </Panel>
+          </div>
+          <div className="step-right">
+            <Panel title="✦ 성격 키워드" className="traits-select-panel">
+              <span className="step-desc">캐릭터의 인상을 결정할 키워드를 선택하세요.</span>
+              <div className="chip-row">
+                {traits.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`chip ${trait === item ? "active" : ""}`}
+                    onClick={() => setTrait(item)}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+              <p className="explain-note" style={{ marginTop: "24px" }}>
+                선택한 성격과 타입에 따라 AI 캐릭터 프롬프트의 기본 실루엣 및 묘사 키워드가 자동 조정됩니다.
+              </p>
+            </Panel>
+          </div>
+        </div>
+      ),
+      validate: () => null
+    },
+    {
+      id: "char-color-style",
+      label: "02 · 색상 및 드로잉 스타일",
+      content: (
+        <div className="input-step-layout">
+          <div className="step-left">
+            <Panel title="✦ 메인 컬러" className="color-select-panel">
+              <label className="palette-dropdown">
+                <span>컬러 팔레트 프리셋</span>
+                <select
+                  value={paletteId}
+                  onChange={(event) => {
+                    const next = event.currentTarget.value as typeof paletteId;
+                    setPaletteId(next);
+                    const palette = palettes.find((item) => item.id === next) ?? palettes[0];
+                    setTone(palette.colors[0]);
+                  }}
+                  aria-label="컬러 팔레트 선택"
+                >
+                  {palettes.map((palette) => (
+                    <option key={palette.id} value={palette.id}>
+                      {palette.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="palette-control point-color-control" style={{ marginTop: "20px" }}>
+                <span>포인트 컬러 선택</span>
+                <div className="swatch-row">
+                  {selectedPalette.colors.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={`color-swatch ${tone.toLowerCase() === color.toLowerCase() ? "active" : ""}`}
+                      style={{ background: color }}
+                      onClick={() => setTone(color)}
+                      aria-label={`${color} 선택`}
+                    />
+                  ))}
+                  <label
+                    className={`custom-color-swatch ${tone.toLowerCase() === customTone.toLowerCase() ? "active" : ""}`}
+                    style={{ background: customTone }}
+                    aria-label="직접 색상 선택"
+                  >
+                    <input type="color" value={customTone} onChange={(event) => chooseCustomTone(event.currentTarget.value)} />
+                    <Icon name="edit" size={12} />
+                  </label>
+                </div>
+              </div>
+            </Panel>
+          </div>
+          <div className="step-right">
+            <Panel title="✦ 스타일 프리셋" className="style-select-panel">
+              <span className="step-desc">이모티콘 디자인의 그림체를 선택하세요.</span>
+              <div className="style-preset-list">
+                {(["2D", "3D"] as const).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`style-card ${style === item ? "active" : ""}`}
+                    onClick={() => setStyle(item)}
+                  >
+                    <span className="preset-cube">
+                      <Icon name={item === "3D" ? "layers" : "image"} size={20} />
+                    </span>
+                    <b>{item} 그림체</b>
+                    <small>
+                      {item === "3D" ? "말랑말랑한 3D 클레이/피규어 질감" : "부드럽고 깔끔한 2D 플랫 벡터 일러스트"}
+                    </small>
+                  </button>
+                ))}
+              </div>
+            </Panel>
+          </div>
+        </div>
+      ),
+      validate: () => null
+    },
+    {
+      id: "char-description",
+      label: "03 · 캐릭터 묘사 및 생성",
+      content: (
+        <div className="input-step-layout final-step">
+          <div className="step-left">
+            <Panel title="✦ 구체적 묘사 설명" className="prompt-panel">
+              <span className="step-desc">캐릭터의 외형이나 소품, 특징을 더 상세히 적어주세요.</span>
+              <textarea
+                className="character-prompt-textarea"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="예: 큰 별을 좋아하는 둥근 아기 펭귄, 파스텔톤 우주 헬멧을 쓰고 있음"
+                maxLength={500}
+              />
+              <span className="char-count">{prompt.length}/500자</span>
+            </Panel>
+          </div>
+          <div className="step-right">
+            <Panel title="✦ 생성 실행" className="execute-panel">
+              <div className="setup-summary-box">
+                <h4>설정 요약</h4>
+                <ul>
+                  <li>타입: {type} ({trait} 인상)</li>
+                  <li>스타일: {style === "3D" ? "Soft 3D 피규어" : "Soft 2D 플랫"}</li>
+                  <li>포인트 컬러: <i className="color-dot" style={{ background: tone }} /> {tone}</li>
+                </ul>
+              </div>
+              <button
+                type="button"
+                className="character-generate-button"
+                onClick={createCharacter}
+                disabled={generating}
+              >
+                <Icon name={generating ? "reload" : "star"} className={generating ? "spin" : ""} />
+                {generating ? "캐릭터 생성 중..." : "AI 캐릭터 생성하기"}
+              </button>
+            </Panel>
+          </div>
+        </div>
+      ),
+      validate: () => {
+        if (!prompt.trim()) {
+          return "구체적인 캐릭터 묘사가 적히지 않았습니다. 빈 상태로 생성 시 기본 설정에 의존하여 형태를 구상하게 됩니다.";
+        }
+        return null;
+      }
+    }
+  ];
+
   return (
     <div className="workspace-page character-page">
-        <header className="screen-brief character-brief">
-          <span>01</span>
-          <h1>이모티콘에 사용할 캐릭터를 만들어보세요.</h1>
-          <p>어떤 캐릭터를 만들고 싶나요?</p>
-        </header>
-        <div className="character-designer">
-          <section className="character-settings-panel glass-panel" aria-labelledby="character-settings-title">
-            <header className="figma-panel-heading"><h1 id="character-settings-title">새 캐릭터 설정</h1><Icon name="settings" /></header>
+      <header className="screen-brief character-brief">
+        <span>01</span>
+        <h1>이모티콘에 사용할 고유한 캐릭터를 생성합니다.</h1>
+        <p>단계별 외형/그림체 프리셋 설정</p>
+      </header>
 
-            <div className="design-setting-group">
-              <h2><i />컬러 팔레트</h2>
-              <label className="palette-dropdown"><span>팔레트 프리셋</span><select value={paletteId} onChange={(event) => { const next = event.currentTarget.value as typeof paletteId; setPaletteId(next); const palette = palettes.find((item) => item.id === next) ?? palettes[0]; setTone(palette.colors[0]); }} aria-label="컬러 팔레트 선택">{palettes.map((palette) => <option key={palette.id} value={palette.id}>{palette.label}</option>)}</select></label>
-              <div className="palette-control point-color-control"><span>포인트 컬러</span><div className="swatch-row">{selectedPalette.colors.map((color) => <button key={color} type="button" className={`color-swatch ${tone.toLowerCase() === color.toLowerCase() ? "active" : ""}`} style={{ background: color }} onClick={() => setTone(color)} aria-label={`${color} 선택`} />)}<label className={`custom-color-swatch ${tone.toLowerCase() === customTone.toLowerCase() ? "active" : ""}`} style={{ background: customTone }} aria-label="직접 색상 선택"><input type="color" value={customTone} onChange={(event) => chooseCustomTone(event.currentTarget.value)} /><Icon name="edit" size={12} /></label></div></div>
-            </div>
+      {generated ? (
+        /* Result View (Figma 113-834 Redesign) */
+        <div className="character-result-layout">
+          <div className="result-left-preview">
+            <Panel title="✦ 생성된 캐릭터 토큰" className="result-preview-panel">
+              <label className="character-name-control">
+                <span>이름 설정</span>
+                <div>
+                  <i style={{ background: tone }} />
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.currentTarget.value)}
+                    maxLength={12}
+                    placeholder="새 캐릭터 이름"
+                  />
+                  <Icon name="edit" />
+                </div>
+              </label>
 
-            <div className="design-setting-group">
-              <h2><i />성격 태그</h2>
-              <div className="chip-row">{traits.map((item) => <button key={item} type="button" className={`chip ${trait === item ? "active" : ""}`} onClick={() => setTrait(item)}>{item}</button>)}</div>
-            </div>
+              <div className="character-preview-figure has-character">
+                <span className="character-preview-glow" style={{ background: tone }} />
+                <img src={variationImages[selectedVariationIndex] || generated.imageUrl} alt="생성 완료 캐릭터" />
+              </div>
+            </Panel>
+          </div>
 
-            <div className="design-setting-group">
-              <h2><i />캐릭터 타입</h2>
-              <div className="chip-row">{characterTypes.map((item) => <button key={item} type="button" className={`chip ${type === item ? "active" : ""}`} onClick={() => setType(item)}>{item}</button>)}</div>
-              <div className="character-select-grid"><label><span>세부 종류</span><select aria-label="세부 종류" value={type === "동물" ? "직접 지정" : type} onChange={(event) => setType(event.currentTarget.value === "직접 지정" ? "동물" : event.currentTarget.value)}><option>직접 지정</option><option>{type}</option><option>펭귄</option><option>토끼</option><option>우주인</option></select></label><label><span>스타일</span><select aria-label="스타일" value={style === "3D" ? "Soft 3D" : "Soft 2D"} onChange={(event) => setStyle(event.currentTarget.value.includes("3D") ? "3D" : "2D")}><option>Soft 3D</option><option>Soft 2D</option></select></label></div>
-            </div>
+          <div className="result-right-details">
+            <Panel title="✦ 베리에이션 및 저장" className="result-actions-panel">
+              <h4>생성 Variations</h4>
+              <span className="select-tip">원하는 형태의 변형 초안 카드를 선택하세요.</span>
+              
+              <div className="character-variation-grid">
+                {variationImages.map((image, index) => (
+                  <button
+                    key={`${image}-${index}`}
+                    type="button"
+                    className={index === selectedVariationIndex ? "active" : ""}
+                    onClick={() => selectVariation(index)}
+                    aria-label={`변형 ${index + 1}`}
+                  >
+                    <img src={image} alt="" />
+                  </button>
+                ))}
+              </div>
 
-            <div className="design-setting-group style-preset-group">
-              <h2><i />스타일 프리셋</h2>
-              <div className="style-preset-list">{(["2D", "3D"] as const).map((item) => <button key={item} type="button" className={style === item ? "active" : ""} onClick={() => setStyle(item)}><span className="preset-cube"><Icon name={item === "3D" ? "layers" : "image"} /></span><b>{item}</b><i /></button>)}</div>
-            </div>
+              <div className="character-summary">
+                <strong>✦ 캐릭터 명세 요약</strong>
+                <p>
+                  {characterSummary.map((line) => (
+                    <span key={line}>
+                      {line}
+                      <br />
+                    </span>
+                  ))}
+                </p>
+              </div>
 
-            <label className="character-prompt-field"><span>캐릭터 설명</span><input type="text" value={prompt} onChange={(event) => setPrompt(event.currentTarget.value)} placeholder="예: 별을 좋아하는 말랑한 아기 펭귄" /></label>
-            <button className="character-generate-button" type="button" onClick={createCharacter} disabled={generating}><Icon name={generating ? "reload" : "star"} className={generating ? "spin" : ""} />{generating ? "캐릭터 생성 중" : "캐릭터 생성하기"}</button>
-          </section>
-
-          <section className="character-preview-panel glass-panel" aria-label="캐릭터 미리보기">
-            <label className="character-name-control"><span>Name</span><div><i style={{ background: tone }} /><input value={name} onChange={(event) => setName(event.currentTarget.value)} maxLength={12} placeholder="새 캐릭터" /><Icon name="edit" /></div></label>
-            <div className={`character-preview-figure ${generated ? "has-character" : "is-empty"}`}>
-              <span className="character-preview-glow" style={{ background: tone }} />
-              {generated ? <img src={generated.imageUrl} alt={`${generated.token.name} 캐릭터`} /> : <div className="character-empty-state"><Icon name="star" size={34} /><strong>아직 캐릭터가 없어요</strong><p>설명과 포인트 컬러를 정한 뒤 새 캐릭터를 생성하세요.</p></div>}
-            </div>
-            <footer className="character-preview-actions"><div><button className="round-tool" type="button" aria-label="실행 취소" disabled={!generated}><Icon name="undo" /></button><button className="round-tool mirror-x" type="button" aria-label="다시 실행" disabled={!generated}><Icon name="undo" /></button></div><div className="character-save-actions"><button className="save-character-button" type="button" onClick={saveAndContinue} disabled={!generated}>캐릭터 저장하기</button><button className="create-with-character-button" type="button" onClick={saveAndCreateEmoticon} disabled={!generated}>이 캐릭터로 이모티콘 생성하기</button></div></footer>
-          </section>
-
-          <aside className="character-results-panel glass-panel" aria-labelledby="character-result-title">
-            <header className="figma-panel-heading"><h2 id="character-result-title">생성 결과</h2><Icon name="settings" /></header>
-            <h3 className="result-subtitle"><i />생성 Variations</h3>
-            <div className={`character-variation-grid ${generated ? "" : "is-empty"}`}>{generated ? variationImages.map((image, index) => <button key={`${image}-${index}`} type="button" className={index === selectedVariationIndex ? "active" : ""} onClick={() => selectVariation(index)} aria-label={`${generated.token.name} ${index + 1}번 변형`}><img src={image} alt="" /></button>) : Array.from({ length: 4 }, (_, index) => <button key={`empty-variation-${index}`} type="button" disabled aria-label={`비어있는 변형 ${index + 1}`}><span className="variation-placeholder"><Icon name="image" /></span></button>)}</div>
-            <div className="character-summary"><strong>✦ 캐릭터 요약</strong>{generated ? <p>{characterSummary.map((line) => <span key={line}>{line}<br /></span>)}</p> : <p>생성 전에는 기존 캐릭터를 보여주지 않습니다.<br />프롬프트와 팔레트 선택 후 새 토큰이 만들어집니다.</p>}</div>
-          </aside>
+              <div className="result-nav-buttons">
+                <button type="button" className="btn-secondary" onClick={() => setGenerated(null)}>
+                  <Icon name="reload" />
+                  다시 만들기
+                </button>
+                <div className="action-group">
+                  <button type="button" className="save-character-button" onClick={saveAndContinue}>
+                    보관함에 저장
+                  </button>
+                  <button type="button" className="create-with-character-button" onClick={saveAndCreateEmoticon}>
+                    이 캐릭터로 이모티콘 만들기
+                  </button>
+                </div>
+              </div>
+            </Panel>
+          </div>
         </div>
-        {process ? <WorkProcessScreen title={process.title} label={process.label} percent={process.percent} /> : null}
+      ) : (
+        /* Designer Steps View */
+        <ScrollSlideContainer
+          steps={steps}
+          currentStep={currentStep}
+          onStepChange={(index) => setCurrentStep(index)}
+          className="character-scroll-slider"
+        />
+      )}
+
+      {process && <WorkProcessScreen title={process.title} label={process.label} percent={process.percent} />}
     </div>
   );
 }

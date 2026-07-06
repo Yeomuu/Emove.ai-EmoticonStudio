@@ -27,6 +27,7 @@ export type TextFont = "Pretendard" | "Paperlogy";
 export type CharacterStyleMode = "2D" | "3D";
 export type MotionStyle = "smooth" | "dynamic" | "bouncy" | "subtle";
 export type AnimationFormat = "APNG" | "GIF" | "WEBP";
+export type ExaggerationTier = "minimal" | "emotional" | "full";
 
 export interface EditorLayer {
   id: LayerKind;
@@ -93,6 +94,7 @@ export interface MotionBrief {
   emotion: Emotion;
   confidence: number;
   motionIntensity: number;
+  exaggerationTier: ExaggerationTier;
   pose: string;
   coreEffect: string;
   effectColor: string;
