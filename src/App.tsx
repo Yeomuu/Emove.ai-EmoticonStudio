@@ -87,10 +87,15 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
     }
   }, [initialPath]);
 
+  const timersRef = useRef<number[]>([]);
+
   // Page/route transition animation: rising curtain with EMOVE logo
   useEffect(() => {
     if (route.value !== activeRoute) {
-      if (routeTimer.current) window.clearTimeout(routeTimer.current);
+      // Clear any pending transition timers
+      timersRef.current.forEach(window.clearTimeout);
+      timersRef.current = [];
+
       setRoutePhase("covering");
       setRouteProgress(12);
 
@@ -105,17 +110,16 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
         setRouteProgress(0);
       }, 1160);
 
-      routeTimer.current = t5;
-
-      return () => {
-        window.clearTimeout(t1);
-        window.clearTimeout(t2);
-        window.clearTimeout(t3);
-        window.clearTimeout(t4);
-        window.clearTimeout(t5);
-      };
+      timersRef.current = [t1, t2, t3, t4, t5];
     }
   }, [route.value, activeRoute]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach(window.clearTimeout);
+    };
+  }, []);
 
   const routeKey = activeRoute.startsWith("/library/") ? "/library/detail" : activeRoute;
   const workRoutes = activeRoute === "/character" || activeRoute === "/input" || activeRoute === "/edit";
