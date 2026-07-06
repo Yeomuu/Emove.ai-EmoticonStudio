@@ -339,8 +339,8 @@ export function InputPage() {
       id: "preview-wait",
       label: "01 · 촬영 대기",
       content: (
-        <div className="input-step-layout">
-          <div className="step-left">
+        <div className="input-composer">
+          <div className="pose-capture-panel">
             <Panel title="✦ 실시간 모니터" className="camera-monitor-panel">
               <div className="pose-media-frame">
                 <video
@@ -348,7 +348,10 @@ export function InputPage() {
                   muted
                   playsInline
                   className={cameraReady ? "visible" : ""}
-                  style={cameraReady && !personDetected && !capturing ? { filter: "blur(8px) brightness(0.68)", transition: "filter 0.5s ease" } : undefined}
+                  style={{
+                    transform: "scaleX(-1)",
+                    ...(cameraReady && !personDetected && !capturing ? { filter: "blur(8px) brightness(0.68)", transition: "filter 0.5s ease" } : {})
+                  }}
                 />
                 {!cameraReady && <img src={imageAssets.pose} alt="포즈 예시" />}
                 <span className="camera-status">
@@ -359,15 +362,15 @@ export function InputPage() {
               <p className="step-tip">상반신과 양손이 화면에 모두 들어오도록 카메라 앞에 서 주세요.</p>
             </Panel>
           </div>
-          <div className="step-right">
+          <div className="input-right-column">
             <Panel title="✦ 촬영 안내" className="step-guide-panel">
               <h3>감정 표현 동작 촬영</h3>
               <p>5초 동안 만들고 싶은 이모티콘의 감정과 어울리는 행동을 몸짓과 목소리로 자유롭게 표현하세요.</p>
-              <ul className="guide-list">
+              <ul className="guide-list" style={{ marginTop: "12px", paddingLeft: "16px", color: "rgba(225, 220, 242, .62)" }}>
                 <li>예: 기쁠 때 만세하기, 슬플 때 얼굴 감싸기</li>
                 <li>목소리 강도에 따라 캐릭터 동작과 연출이 자동 과장됩니다.</li>
               </ul>
-              <button type="button" className="btn-start-capture" onClick={startCaptureFlow} disabled={!cameraReady}>
+              <button type="button" className="btn-start-capture" onClick={startCaptureFlow} disabled={!cameraReady} style={{ marginTop: "24px", width: "100%" }}>
                 <Icon name="camera" />
                 촬영 시작하기
               </button>
@@ -411,8 +414,8 @@ export function InputPage() {
       id: "pose-result",
       label: "03 · 포즈 분석 결과",
       content: (
-        <div className="input-step-layout">
-          <div className="step-left">
+        <div className="input-composer">
+          <div className="pose-capture-panel">
             <Panel title="✦ 촬영 완료 스냅샷" className="snapshot-panel">
               <div className="result-snapshot-placeholder">
                 <Icon name="image" size={48} />
@@ -420,28 +423,28 @@ export function InputPage() {
               </div>
             </Panel>
           </div>
-          <div className="step-right">
+          <div className="input-right-column">
             <Panel title="✦ 포즈 판독" className="pose-analysis-panel">
-              <div className="analysis-card">
+              <div className="analysis-card" style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
                 <Icon name="check" size={24} className="text-emerald" />
                 <div>
                   <h4>판독된 몸짓</h4>
-                  <p className="highlight-text">{poseSummary}</p>
+                  <p className="highlight-text" style={{ fontSize: "16px", fontWeight: "700", color: "#7b69ff" }}>{poseSummary}</p>
                 </div>
               </div>
-              <div className="analysis-card">
+              <div className="analysis-card" style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
                 <Icon name="layers" size={24} />
                 <div>
                   <h4>포즈 상세 정보</h4>
-                  <p>{visionMetrics.value.source === "mediapipe" ? "MediaPipe 기반 관절 랜드마크 분석 완료" : "동작 감지 실패 - 기본 자세로 생성됩니다."}</p>
+                  <p style={{ color: "#aaa6b4", fontSize: "13px" }}>{visionMetrics.value.source === "mediapipe" ? "MediaPipe 기반 관절 랜드마크 분석 완료" : "동작 감지 실패 - 기본 자세로 생성됩니다."}</p>
                 </div>
               </div>
-              <div className="step-nav-actions">
-                <button type="button" className="btn-secondary" onClick={() => returnToPreview()}>
+              <div className="step-nav-actions" style={{ display: "flex", gap: "12px" }}>
+                <button type="button" className="btn-secondary" onClick={() => returnToPreview()} style={{ flex: 1 }}>
                   <Icon name="reload" />
                   다시 촬영하기
                 </button>
-                <button type="button" className="btn-primary" onClick={() => setCurrentStep(3)}>
+                <button type="button" className="btn-primary" onClick={() => setCurrentStep(3)} style={{ flex: 1 }}>
                   다음 단계 이동
                   <Icon name="next" />
                 </button>
@@ -461,8 +464,8 @@ export function InputPage() {
       id: "voice-emotion-result",
       label: "04 · 감정 및 상세 설정",
       content: (
-        <div className="input-step-layout final-step">
-          <div className="step-left">
+        <div className="input-composer">
+          <div className="pose-capture-panel">
             <Panel title="✦ 음성 분석 및 감정" className="voice-analysis-panel">
               <div className="voice-card">
                 <div className="voice-text-badge">
@@ -478,18 +481,18 @@ export function InputPage() {
                 />
               </div>
 
-              <div className="exaggeration-indicator-box">
+              <div className="exaggeration-indicator-box" style={{ marginTop: "18px" }}>
                 <span className="box-title">행동 & 감정 과장 선택 (음성 크기 연동)</span>
-                <div className="exaggeration-btns">
+                <div className="exaggeration-btns" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "8px" }}>
                   {(["minimal", "emotional", "full"] as const).map((tier) => {
-                    const label = tier === "minimal" ? "낮음 (자연스러움)" : tier === "emotional" ? "중간 (감정 효과)" : "높음 (모션 과장)";
+                    const label = tier === "minimal" ? "낮음" : tier === "emotional" ? "중간" : "높음";
                     const isComputed = tier === computedTier && !tierOverride;
                     return (
                       <button
                         key={tier}
                         type="button"
-                        className={`tier-btn ${effectiveTier === tier ? "active" : ""}`}
-                        data-tier={tier}
+                        className={`tier-btn button subtle ${effectiveTier === tier ? "active" : ""}`}
+                        style={{ border: effectiveTier === tier ? "1px solid #7b69ff" : "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", height: "38px" }}
                         onClick={() => setTierOverride(tierOverride === tier ? null : tier)}
                       >
                         {label}{isComputed ? " ✨" : tierOverride === tier ? " ✋" : ""}
@@ -497,30 +500,30 @@ export function InputPage() {
                     );
                   })}
                 </div>
-                <p className="tier-explain">
+                <p className="tier-explain" style={{ marginTop: "8px", fontSize: "12px", color: "#aaa6b4" }}>
                   {effectiveTier === "minimal" && "낮음: 캐릭터의 크기 변화나 뒤틀림을 최소화하고 감정을 깔끔하게 표현합니다."}
                   {effectiveTier === "emotional" && "중간: 분수 눈물, 분노 폭발 등 이모티콘 특유의 극적인 비주얼이 추가됩니다."}
                   {effectiveTier === "full" && "높음: 신체 비율이 팽창하거나 활처럼 휘어지는 등 만화적인 동작이 부여됩니다."}
                 </p>
               </div>
 
-              <div className="selected-char-preview">
-                <span className="char-thumb">
+              <div className="selected-char-preview" style={{ marginTop: "18px", display: "flex", alignItems: "center", gap: "12px", padding: "12px", borderRadius: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", position: "relative" }}>
+                <span className="char-thumb" style={{ width: "40px", height: "40px", borderRadius: "50%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(10,9,18,0.3)" }}>
                   {selectedCharacter.value.sourceAsset ? (
-                    <img src={selectedCharacter.value.sourceAsset} alt="선택된 캐릭터" />
+                    <img src={selectedCharacter.value.sourceAsset} alt="선택된 캐릭터" style={{ width: "90%", height: "90%", objectFit: "contain" }} />
                   ) : (
                     <Icon name="image" size={24} />
                   )}
                 </span>
-                <div className="char-desc">
-                  <strong>{selectedCharacter.value.name || "캐릭터 미선택"}</strong>
-                  <span>{selectedCharacter.value.stylePreset} 스타일</span>
+                <div className="char-desc" style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                  <strong style={{ color: "#fff" }}>{selectedCharacter.value.name || "캐릭터 미선택"}</strong>
+                  <span style={{ fontSize: "11px", color: "#aaa6b4" }}>{selectedCharacter.value.stylePreset} 스타일</span>
                 </div>
-                <button type="button" className="btn-select-char" onClick={() => setCharacterMenu(!characterMenu)}>
+                <button type="button" className="btn-select-char" onClick={() => setCharacterMenu(!characterMenu)} style={{ padding: "4px 10px", borderRadius: "6px", fontSize: "12px" }}>
                   변경
                 </button>
                 {characterMenu && (
-                  <div className="character-popover">
+                  <div className="character-popover" style={{ position: "absolute", bottom: "100%", right: "12px", background: "#171522", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", padding: "6px", zIndex: 10 }}>
                     {characters.value.map((token) => (
                       <button
                         key={token.id}
@@ -530,8 +533,9 @@ export function InputPage() {
                           selectCharacter(token.id);
                           setCharacterMenu(false);
                         }}
+                        style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "6px 12px", border: "none", background: "none", color: "#fff", fontSize: "12px", textAlign: "left" }}
                       >
-                        <img src={token.sourceAsset} alt="" />
+                        <img src={token.sourceAsset} alt="" style={{ width: "24px", height: "24px", borderRadius: "50%" }} />
                         <span>{token.name}</span>
                       </button>
                     ))}
@@ -541,44 +545,47 @@ export function InputPage() {
             </Panel>
           </div>
 
-          <div className="step-right">
+          <div className="input-right-column">
             <Panel title="✦ 감정 & 배경 효과" className="effect-settings-panel">
               <div className="emotion-grid-selector">
                 <span className="grid-label">원하는 감정 프리셋 직접 선택</span>
-                <div className="emotion-buttons">
+                <div className="emotion-buttons" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "8px" }}>
                   {emotionOrder.map((item) => (
                     <button
                       key={item}
                       type="button"
                       className={`emo-btn ${emotion.value === item ? "active" : ""}`}
                       onClick={() => setEmotion(item)}
+                      style={{ display: "flex", alignItems: "center", gap: "6px", height: "36px", padding: "0 8px", fontSize: "12px", borderRadius: "8px" }}
                     >
-                      <i style={{ background: emotionMeta[item].color }} />
+                      <i style={{ background: emotionMeta[item].color, width: "8px", height: "8px", borderRadius: "50%" }} />
                       {emotionMeta[item].label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-effect-card">
-                <h4>배경 이펙트 정보</h4>
-                <p className="effect-detail-name">{emotionMeta[emotion.value].effect}</p>
-                <span className="effect-color-row">
+              <div className="bg-effect-card" style={{ marginTop: "18px", padding: "12px", borderRadius: "12px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <h4 style={{ margin: 0, fontSize: "13px" }}>배경 이펙트 정보</h4>
+                <p className="effect-detail-name" style={{ color: "#ffd2e8", margin: "4px 0" }}>{emotionMeta[emotion.value].effect}</p>
+                <span className="effect-color-row" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#aaa6b4" }}>
                   이펙트 강조 색상:
                   <input
                     type="color"
                     value={effectColor.value}
                     onChange={(event) => (effectColor.value = event.currentTarget.value)}
+                    style={{ border: "none", background: "none", width: "24px", height: "24px" }}
                   />
                 </span>
               </div>
 
-              <div className="generate-action-row">
+              <div className="generate-action-row" style={{ marginTop: "24px" }}>
                 <button
                   type="button"
                   className="btn-generate-emoticon"
                   onClick={proceed}
                   disabled={recording || capturing || analyzing}
+                  style={{ width: "100%" }}
                 >
                   <Icon name={analyzing ? "reload" : "star"} className={analyzing ? "spin" : ""} />
                   {analyzing ? "이모티콘 프레임 제작 중..." : "이모티콘 생성하기"}

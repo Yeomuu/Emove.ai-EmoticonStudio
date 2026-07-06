@@ -2472,6 +2472,20 @@ body {
   border-bottom-color: #7b69ff;
 }
 
+html[data-theme="light"] .text-nav-bar a {
+  color: #5b586e;
+}
+html[data-theme="light"] .text-nav-bar a:hover {
+  color: #7b69ff;
+}
+html[data-theme="light"] .text-nav-bar a.active {
+  color: #201b34 !important;
+  border-bottom-color: #7b69ff;
+}
+html[data-theme="light"] .theme-icon-toggle {
+  color: #5b586e !important;
+}
+
 .text-nav-actions {
   display: inline-flex;
   align-items: center;

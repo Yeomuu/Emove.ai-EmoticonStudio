@@ -340,92 +340,200 @@ export function CharacterPage() {
       <header className="screen-brief character-brief">
         <span>01</span>
         <h1>이모티콘에 사용할 고유한 캐릭터를 생성합니다.</h1>
-        <p>단계별 외형/그림체 프리셋 설정</p>
+        <p>캐릭터 외형 및 그림체 설정</p>
       </header>
 
-      {generated ? (
-        /* Result View (Figma 113-834 Redesign) */
-        <div className="character-result-layout">
-          <div className="result-left-preview">
-            <Panel title="✦ 생성된 캐릭터 토큰" className="result-preview-panel">
-              <label className="character-name-control">
-                <span>이름 설정</span>
-                <div>
-                  <i style={{ background: tone }} />
-                  <input
-                    value={name}
-                    onChange={(event) => setName(event.currentTarget.value)}
-                    maxLength={12}
-                    placeholder="새 캐릭터 이름"
-                  />
-                  <Icon name="edit" />
-                </div>
-              </label>
+      <div className="character-designer">
+        {/* Left Column: Settings Panel */}
+        <Panel title="✦ 캐릭터 설정" className="character-settings-panel">
+          {/* Character Name */}
+          <label className="character-name-control" style={{ marginBottom: "20px", display: "block" }}>
+            <span>캐릭터 이름</span>
+            <div style={{ marginTop: "6px" }}>
+              <input
+                value={name}
+                onChange={(event) => setName(event.currentTarget.value)}
+                maxLength={12}
+                placeholder="펭수"
+                style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(10,9,18,0.22)", color: "#fff" }}
+              />
+            </div>
+          </label>
 
-              <div className="character-preview-figure has-character">
-                <span className="character-preview-glow" style={{ background: tone }} />
-                <img src={variationImages[selectedVariationIndex] || generated.imageUrl} alt="생성 완료 캐릭터" />
-              </div>
-            </Panel>
+          {/* Character Type */}
+          <div className="field-group" style={{ marginBottom: "20px" }}>
+            <span className="field-label" style={{ display: "block", marginBottom: "8px" }}>캐릭터 타입</span>
+            <div className="chip-row" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {characterTypes.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`chip ${type === item ? "active" : ""}`}
+                  onClick={() => setType(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="result-right-details">
-            <Panel title="✦ 베리에이션 및 저장" className="result-actions-panel">
-              <h4>생성 Variations</h4>
-              <span className="select-tip">원하는 형태의 변형 초안 카드를 선택하세요.</span>
-              
-              <div className="character-variation-grid">
+          {/* Character Trait */}
+          <div className="field-group" style={{ marginBottom: "20px" }}>
+            <span className="field-label" style={{ display: "block", marginBottom: "8px" }}>성격 키워드</span>
+            <div className="chip-row" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {traits.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`chip ${trait === item ? "active" : ""}`}
+                  onClick={() => setTrait(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Color Palettes preset */}
+          <div className="field-group" style={{ marginBottom: "20px" }}>
+            <span className="field-label" style={{ display: "block", marginBottom: "8px" }}>메인 컬러 팔레트</span>
+            <select
+              value={paletteId}
+              onChange={(event) => {
+                const nextId = event.currentTarget.value as any;
+                setPaletteId(nextId);
+                const palette = palettes.find((p) => p.id === nextId);
+                if (palette) setTone(palette.colors[0]);
+              }}
+              style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(10,9,18,0.22)", color: "#fff" }}
+            >
+              {palettes.map((p) => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Point Color Slider */}
+          <div className="field-group" style={{ marginBottom: "20px" }}>
+            <span className="field-label" style={{ display: "block", marginBottom: "8px" }}>포인트 컬러 세부 조정</span>
+            <div className="color-swatch-picker" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div className="color-presets" style={{ display: "flex", gap: "8px" }}>
+                {selectedPalette.colors.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`color-dot ${tone === c ? "active" : ""}`}
+                    style={{ background: c, width: "24px", height: "24px", borderRadius: "50%", border: tone === c ? "2px solid #7b69ff" : "1px solid rgba(255,255,255,0.2)", cursor: "pointer" }}
+                    onClick={() => setTone(c)}
+                  />
+                ))}
+              </div>
+              <label className="custom-color-picker" style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+                <input
+                  type="color"
+                  value={customTone}
+                  onChange={(e) => chooseCustomTone(e.target.value)}
+                  style={{ width: "30px", height: "30px", border: "none", borderRadius: "4px", background: "none" }}
+                />
+                <span style={{ fontSize: "12px", color: "#aaa6b4" }}>직접 지정</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Visual Style Preset */}
+          <div className="field-group" style={{ marginBottom: "20px" }}>
+            <span className="field-label" style={{ display: "block", marginBottom: "8px" }}>그림체 스타일</span>
+            <div className="style-preset-list" style={{ display: "flex", gap: "12px" }}>
+              {["2D", "3D"].map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`button subtle ${style === item ? "active" : ""}`}
+                  style={{ flex: 1, height: "42px", borderRadius: "10px", border: style === item ? "1px solid #7b69ff" : "1px solid rgba(255,255,255,0.1)", cursor: "pointer" }}
+                  onClick={() => setStyle(item as "2D" | "3D")}
+                >
+                  <b>{item} 스타일</b>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Detailed Prompt description */}
+          <div className="field-group" style={{ marginBottom: "24px" }}>
+            <span className="field-label" style={{ display: "block", marginBottom: "8px" }}>구체적 묘사 설명</span>
+            <textarea
+              className="character-prompt-textarea"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="예: 파스텔톤 우주 헬멧을 쓰고 있는 아기 펭귄"
+              maxLength={500}
+              style={{ width: "100%", height: "80px", padding: "10px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(10,9,18,0.22)", color: "#fff", resize: "none" }}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="character-generate-button"
+            onClick={createCharacter}
+            disabled={generating}
+            style={{ width: "100%" }}
+          >
+            <Icon name={generating ? "reload" : "star"} className={generating ? "spin" : ""} />
+            {generating ? "캐릭터 생성 중..." : "AI 캐릭터 생성하기"}
+          </button>
+        </Panel>
+
+        {/* Right Column (Top): Main Preview Panel */}
+        <Panel title="✦ 생성된 캐릭터 토큰" className="character-preview-panel">
+          <div className="character-preview-figure has-character" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+            <span className="character-preview-glow" style={{ background: tone, position: "absolute", width: "180px", height: "180px", borderRadius: "50%", filter: "blur(64px)", opacity: 0.3 }} />
+            {generated ? (
+              <img src={variationImages[selectedVariationIndex] || generated.imageUrl} alt="생성된 캐릭터" style={{ zIndex: 1, maxWidth: "80%", maxHeight: "80%", objectFit: "contain" }} />
+            ) : (
+              <div className="preview-placeholder" style={{ zIndex: 1, textAlign: "center", color: "#85869a" }}>
+                <Icon name="image" size={48} />
+                <p style={{ marginTop: "12px", fontSize: "14px" }}>설정을 채우고 왼쪽의 생성하기 버튼을 눌러주세요.</p>
+              </div>
+            )}
+          </div>
+        </Panel>
+
+        {/* Right Column (Bottom): Variations & Save Actions Panel */}
+        <Panel title="✦ 베리에이션 및 저장" className="character-results-panel">
+          {generated ? (
+            <div style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between" }}>
+              <div className="character-variation-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
                 {variationImages.map((image, index) => (
                   <button
                     key={`${image}-${index}`}
                     type="button"
                     className={index === selectedVariationIndex ? "active" : ""}
                     onClick={() => selectVariation(index)}
-                    aria-label={`변형 ${index + 1}`}
+                    style={{ border: index === selectedVariationIndex ? "2px solid #7b69ff" : "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", overflow: "hidden", background: "rgba(10,9,18,0.2)", cursor: "pointer" }}
                   >
-                    <img src={image} alt="" />
+                    <img src={image} alt={`변형 ${index + 1}`} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                   </button>
                 ))}
               </div>
-
-              <div className="character-summary">
-                <strong>✦ 캐릭터 명세 요약</strong>
-                <p>
-                  {characterSummary.map((line) => (
-                    <span key={line}>
-                      {line}
-                      <br />
-                    </span>
-                  ))}
-                </p>
-              </div>
-
-              <div className="result-nav-buttons">
-                <button type="button" className="btn-secondary" onClick={() => setGenerated(null)}>
-                  <Icon name="reload" />
+              <div className="character-save-actions" style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
+                <button type="button" className="btn-secondary" onClick={() => setGenerated(null)} style={{ flex: 1, cursor: "pointer" }}>
                   다시 만들기
                 </button>
-                <div className="action-group">
-                  <button type="button" className="save-character-button" onClick={saveAndContinue}>
-                    보관함에 저장
-                  </button>
-                  <button type="button" className="create-with-character-button" onClick={saveAndCreateEmoticon}>
-                    이 캐릭터로 이모티콘 만들기
-                  </button>
-                </div>
+                <button type="button" className="save-character-button" onClick={saveAndContinue} style={{ flex: 1.2, cursor: "pointer" }}>
+                  보관함에 저장
+                </button>
+                <button type="button" className="create-with-character-button" onClick={saveAndCreateEmoticon} style={{ flex: 2, cursor: "pointer" }}>
+                  이 캐릭터로 이모티콘 만들기
+                </button>
               </div>
-            </Panel>
-          </div>
-        </div>
-      ) : (
-        /* Designer Steps View */
-        <ScrollSlideContainer
-          steps={steps}
-          currentStep={currentStep}
-          onStepChange={(index) => setCurrentStep(index)}
-          className="character-scroll-slider"
-        />
-      )}
+            </div>
+          ) : (
+            <div className="placeholder-info" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#85869a", fontSize: "13px" }}>
+              <p>생성된 캐릭터의 4가지 변형 초안이 여기에 나타납니다.</p>
+            </div>
+          )}
+        </Panel>
+      </div>
 
       {process && <WorkProcessScreen title={process.title} label={process.label} percent={process.percent} />}
     </div>
