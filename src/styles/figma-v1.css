@@ -4641,14 +4641,14 @@ body {
   --library-card-active: min(568px, 29.5833svw);
   --library-title-height: min(34px, 3.1481svh);
   position: absolute;
-  left: 6.25%;
+  left: 0 !important;
   top: 27.4074%;
-  width: calc(100% - 6.25%);
-  height: 62% !important;
+  width: 100% !important;
+  height: calc(var(--library-card-active) + var(--library-title-height) + 24px) !important;
   display: flex;
   align-items: flex-start;
   gap: 0;
-  padding: 10px 0;
+  padding: 12px 0;
   overflow-x: auto;
   overflow-y: visible !important;
   scroll-snap-type: none !important;
