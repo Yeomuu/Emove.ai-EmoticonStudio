@@ -67,6 +67,8 @@ When implementing from a selected generated mock, treat that image as the source
 - Library category/group filters must be distinct. Celebration and gratitude cannot activate together just because both map to happy emotion.
 - Library search belongs above the group/filter list rather than pinned at the bottom of the sidebar.
 - Library group naming uses "이모티콘 그룹"; user-created groups must allow a custom group name and configurable filter conditions.
+- Library keeps the left group/search sidebar even when matching the latest Figma horizontal carousel layout.
+- Library's horizontal item rail must support pointer-hover wheel scrolling, drag-to-scroll, and seamless wraparound so the end of the list naturally continues into the beginning.
 - Library hover effects must end when the pointer leaves a card, even after clicking internal card action buttons.
 - Transparent preview grids must be smaller and lighter; grid/pattern backgrounds should appear only on intended preview surfaces, especially Library detail's `detail-stage`.
 - Edit text layer selection bounds must match the rendered text bubble exactly, including resize behavior.
@@ -96,10 +98,16 @@ When implementing from a selected generated mock, treat that image as the source
 - Treat the Notion Design System page as fixed unless the user explicitly asks to change it; PRD, technical specification, and page/function documentation may be updated around that fixed design system.
 - When transplanting Notion page-function inventories into a technical test app, focus on the actual page functions, states, controls, and route behavior rather than recreating sidebar/navigation layout details.
 - Use the Next.js lab to stress-test accumulated EMOVE features with realistic mock state before wiring paid API calls, remote persistence, or production background jobs.
+- Home footer copy is `© 2026. EMOVE. All rights reserved.` and should sit faintly at the centered bottom of the viewport with about 0.5 opacity.
 - For the current Figma redesign pass, layout fidelity takes priority over decorative style refinement; match each 1920×1080 frame's placement and sizing before polishing visual treatment.
 - Primary app screens should occupy a fixed `100svw` × `100svh` stage with a `1920px` maximum width and hidden viewport overflow so the app behaves as a one-screen flow.
 - The Home geometric circle/line background must follow the current Figma Home frame rather than the earlier decorative pattern.
 - Library browsing keeps the active card pinned to the left-side hero slot; horizontal scrolling changes which item occupies that slot, and only that active card exposes edit, favorite, and delete controls.
+- Loading surfaces, including boot loading, route curtain loading, and generation/analysis progress screens, must follow the active light/dark theme.
+- Light mode shadows should be softer than dark mode shadows so glass surfaces stay clean rather than smudged.
+- Horizontal filter rails should show edge fades only on the sides where additional hidden items are available.
+- Edit save should keep Neon records easy to inspect by upserting the project plus separate sticker, character, and capture metadata rows.
+- Export QR should prefer the hosted animation URL when available and fall back to the saved Library detail URL when direct animation sharing is unavailable.
 
 ## Vercel Storage Data Model
 

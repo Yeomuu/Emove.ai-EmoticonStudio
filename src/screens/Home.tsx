@@ -469,7 +469,7 @@ export function HomePage() {
           <button className="hero-button" type="button" onClick={() => navigate("/character")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 제작하기</span></button>
         </div>
       </div>
-      <footer className="home-footer">© 2026. Capstone Design. All rights reserved.</footer>
+      <footer className="home-footer">© 2026. EMOVE. All rights reserved.</footer>
     </section>
   );
 }

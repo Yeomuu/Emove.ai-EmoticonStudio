@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { Icon } from "../components/Icon";
 import { emotionMeta, emotionOrder } from "../data";
 import { navigate, route } from "../router";
@@ -12,6 +12,7 @@ import type { AnimationFormat, CharacterToken, EmoticonProject, Emotion, Sticker
 type Filter = "all" | "favorite" | Emotion;
 type LibraryMode = "all" | "emoticons" | "characters";
 type MixedLibraryItem = { kind: "emoticon"; item: StickerItem; createdAt: string } | { kind: "character"; item: CharacterToken; createdAt: string };
+type VirtualLibraryItem = { entry: MixedLibraryItem; realIndex: number; virtualIndex: number; copy: number };
 
 const categories: Array<{ id: string; title: string; copy: string; filter: Filter }> = [
   { id: "celebration", title: "축하", copy: "기쁨, 기쁜 순간", filter: "happy" },
@@ -32,6 +33,7 @@ export function LibraryPage() {
   const [projects, setProjects] = useState<EmoticonProject[]>([]);
   const [customGroups, setCustomGroups] = useState<Array<{ id: string; name: string; filter: Filter }>>([]);
   const [selectedCharacterToken, setSelectedCharacterToken] = useState<CharacterToken | null>(null);
+  const [railOverflow, setRailOverflow] = useState({ left: false, right: false });
 
   const detailId = route.value.startsWith("/library/") ? route.value.split("/")[2] : undefined;
 
@@ -94,8 +96,12 @@ export function LibraryPage() {
   };
 
   const [activeIndex, setActiveIndex] = useState(0);
+  const [activeVirtualIndex, setActiveVirtualIndex] = useState(0);
+  const [isListDragging, setIsListDragging] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const isScrollingRef = useRef(false);
+  const carouselDragRef = useRef<{ pointerId: number; startX: number; startY: number; startScroll: number; dragged: boolean } | null>(null);
+  const suppressCardClickRef = useRef(false);
 
   const getCarouselStride = () => {
     const list = listRef.current;
@@ -113,35 +119,152 @@ export function LibraryPage() {
     return mixedItems;
   }, [mode, visible, visibleCharacters, mixedItems]);
 
-  useEffect(() => {
-    setActiveIndex(0);
-    if (listRef.current) {
-      listRef.current.scrollLeft = 0;
-    }
-  }, [mode, filter, query]);
+  const virtualItems = useMemo<VirtualLibraryItem[]>(() => {
+    if (itemsToDisplay.length === 0) return [];
+    const copies = itemsToDisplay.length > 1 ? 3 : 1;
+    return Array.from({ length: itemsToDisplay.length * copies }, (_, virtualIndex) => {
+      const realIndex = virtualIndex % itemsToDisplay.length;
+      return {
+        entry: itemsToDisplay[realIndex],
+        realIndex,
+        virtualIndex,
+        copy: Math.floor(virtualIndex / itemsToDisplay.length),
+      };
+    });
+  }, [itemsToDisplay]);
 
-  const selectItem = (index: number) => {
-    setActiveIndex(index);
+  const scrollToVirtualIndex = (virtualIndex: number, behavior: ScrollBehavior = "smooth") => {
     const list = listRef.current;
     if (!list) return;
+    const card = list.querySelector<HTMLElement>(`[data-virtual-index="${virtualIndex}"]`);
+    list.scrollTo({ left: card?.offsetLeft ?? virtualIndex * getCarouselStride(), behavior });
+  };
+
+  useEffect(() => {
+    setActiveIndex(0);
+    const nextVirtualIndex = itemsToDisplay.length > 1 ? itemsToDisplay.length : 0;
+    setActiveVirtualIndex(nextVirtualIndex);
+    const frame = window.requestAnimationFrame(() => scrollToVirtualIndex(nextVirtualIndex, "auto"));
+    return () => window.cancelAnimationFrame(frame);
+  }, [mode, filter, query, itemsToDisplay.length]);
+
+  const selectVirtualItem = (virtualIndex: number, realIndex: number) => {
+    if (suppressCardClickRef.current) return;
+    setActiveIndex(realIndex);
+    setActiveVirtualIndex(virtualIndex);
     isScrollingRef.current = true;
-    const left = index * getCarouselStride();
-    list.scrollTo({ left, behavior: "smooth" });
+    scrollToVirtualIndex(virtualIndex);
     window.setTimeout(() => {
       isScrollingRef.current = false;
     }, 500);
+  };
+
+  const normalizeVirtualScroll = (virtualIndex: number) => {
+    const list = listRef.current;
+    const length = itemsToDisplay.length;
+    if (!list || length <= 1) return virtualIndex;
+
+    let targetIndex = virtualIndex;
+    if (virtualIndex < length) targetIndex = virtualIndex + length;
+    else if (virtualIndex >= length * 2) targetIndex = virtualIndex - length;
+
+    if (targetIndex !== virtualIndex) {
+      const currentCard = list.querySelector<HTMLElement>(`[data-virtual-index="${virtualIndex}"]`);
+      const targetCard = list.querySelector<HTMLElement>(`[data-virtual-index="${targetIndex}"]`);
+      if (currentCard && targetCard) {
+        list.scrollLeft += targetCard.offsetLeft - currentCard.offsetLeft;
+      }
+    }
+
+    return targetIndex;
+  };
+
+  const getNearestVirtualIndex = () => {
+    const list = listRef.current;
+    if (!list) return activeVirtualIndex;
+    const cards = Array.from(list.querySelectorAll<HTMLElement>(".carousel-card[data-virtual-index]"));
+    if (!cards.length) return activeVirtualIndex;
+
+    let nearestIndex = Number(cards[0].dataset.virtualIndex ?? 0);
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const card of cards) {
+      const distance = Math.abs(card.offsetLeft - list.scrollLeft);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = Number(card.dataset.virtualIndex ?? nearestIndex);
+      }
+    }
+    return nearestIndex;
   };
 
   const handleScroll = () => {
     if (isScrollingRef.current) return;
     const list = listRef.current;
     if (!list) return;
-    const scrollLeft = list.scrollLeft;
-    let targetIndex = Math.round(scrollLeft / getCarouselStride());
-    targetIndex = Math.max(0, Math.min(targetIndex, itemsToDisplay.length - 1));
+    const length = itemsToDisplay.length;
+    if (!length) return;
+    const virtualIndex = normalizeVirtualScroll(getNearestVirtualIndex());
+    const targetIndex = ((virtualIndex % length) + length) % length;
+    if (virtualIndex !== activeVirtualIndex) {
+      setActiveVirtualIndex(virtualIndex);
+    }
     if (targetIndex !== activeIndex) {
       setActiveIndex(targetIndex);
     }
+  };
+
+  const handleCarouselWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    if (itemsToDisplay.length < 2) return;
+    const list = listRef.current;
+    if (!list) return;
+    event.preventDefault();
+    list.scrollLeft += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+  };
+
+  const beginCarouselDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("button, a, input, textarea, select")) return;
+    const list = listRef.current;
+    if (!list) return;
+    carouselDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startScroll: list.scrollLeft,
+      dragged: false,
+    };
+    list.setPointerCapture(event.pointerId);
+  };
+
+  const moveCarouselDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = carouselDragRef.current;
+    const list = listRef.current;
+    if (!drag || !list) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+      drag.dragged = true;
+      setIsListDragging(true);
+    }
+    if (drag.dragged) {
+      event.preventDefault();
+      list.scrollLeft = drag.startScroll - deltaX;
+    }
+  };
+
+  const endCarouselDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = carouselDragRef.current;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (drag?.dragged) {
+      suppressCardClickRef.current = true;
+      window.setTimeout(() => {
+        suppressCardClickRef.current = false;
+      }, 120);
+    }
+    carouselDragRef.current = null;
+    setIsListDragging(false);
   };
 
   const handleDelete = async (id: string, kind: "emoticon" | "character") => {
@@ -190,6 +313,36 @@ export function LibraryPage() {
     window.addEventListener("pointermove", move, { passive: false });
     window.addEventListener("pointerup", up, { once: true });
   };
+
+  const updateRailOverflow = () => {
+    const rail = railRef.current;
+    if (!rail) {
+      setRailOverflow((current) => current.left || current.right ? { left: false, right: false } : current);
+      return;
+    }
+
+    const maxScroll = Math.max(0, rail.scrollWidth - rail.clientWidth);
+    const edgeTolerance = 4;
+    const next = {
+      left: rail.scrollLeft > edgeTolerance,
+      right: rail.scrollLeft < maxScroll - edgeTolerance,
+    };
+    setRailOverflow((current) => (
+      current.left === next.left && current.right === next.right ? current : next
+    ));
+  };
+
+  useEffect(() => {
+    const rail = railRef.current;
+    const frame = window.requestAnimationFrame(updateRailOverflow);
+    rail?.addEventListener("scroll", updateRailOverflow, { passive: true });
+    window.addEventListener("resize", updateRailOverflow);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      rail?.removeEventListener("scroll", updateRailOverflow);
+      window.removeEventListener("resize", updateRailOverflow);
+    };
+  }, [mode, filter, query, activeCategoryId, customGroups.length, itemsToDisplay.length]);
 
   return (
     <>
@@ -346,12 +499,13 @@ export function LibraryPage() {
               </header>
 
               {mode !== "characters" && (
-                <div className="library-category-rail-wrap">
+                <div className={`library-category-rail-wrap${railOverflow.left ? " has-left-overflow" : ""}${railOverflow.right ? " has-right-overflow" : ""}`}>
                   <div
                     ref={railRef}
                     className="library-category-rail"
                     aria-label="이모티콘 상황 분류"
                     onPointerDown={beginRailDrag}
+                    onScroll={updateRailOverflow}
                   >
                     {categories.map((category) => (
                       <button
@@ -378,18 +532,28 @@ export function LibraryPage() {
               )}
 
               {itemsToDisplay.length ? (
-                <div className="library-horizontal-scroll" ref={listRef} onScroll={handleScroll}>
-                  {itemsToDisplay.map((entry, index) => {
-                    const isActive = index === activeIndex;
-                    const key = `${entry.kind}-${entry.item.id}`;
+                <div
+                  className={`library-horizontal-scroll${isListDragging ? " is-dragging" : ""}`}
+                  ref={listRef}
+                  onScroll={handleScroll}
+                  onWheel={handleCarouselWheel}
+                  onPointerDown={beginCarouselDrag}
+                  onPointerMove={moveCarouselDrag}
+                  onPointerUp={endCarouselDrag}
+                  onPointerCancel={endCarouselDrag}
+                >
+                  {virtualItems.map(({ entry, realIndex, virtualIndex, copy }) => {
+                    const isActive = virtualIndex === activeVirtualIndex;
+                    const key = `${copy}-${entry.kind}-${entry.item.id}`;
                     if (entry.kind === "emoticon") {
                       const sticker = entry.item as StickerItem;
                       const project = projects.find((p) => p.id === (sticker.projectId ?? sticker.id));
                       return (
                         <div
                           key={key}
+                          data-virtual-index={virtualIndex}
                           className={`carousel-card emoticon-card ${isActive ? "active" : "inactive"}`}
-                          onClick={() => selectItem(index)}
+                          onClick={() => selectVirtualItem(virtualIndex, realIndex)}
                         >
                           <div className="card-preview">
                             <img src={sticker.animatedImage ?? sticker.image} alt={sticker.title} />
@@ -435,8 +599,9 @@ export function LibraryPage() {
                       return (
                         <div
                           key={key}
+                          data-virtual-index={virtualIndex}
                           className={`carousel-card character-card ${isActive ? "active" : "inactive"}`}
-                          onClick={() => selectItem(index)}
+                          onClick={() => selectVirtualItem(virtualIndex, realIndex)}
                         >
                           <div className="card-preview" style={{ background: character.colors.body ?? "rgba(187, 182, 255, 0.12)" }}>
                             <img src={character.sourceAsset} alt={character.name} />

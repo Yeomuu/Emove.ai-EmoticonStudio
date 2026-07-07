@@ -145,7 +145,7 @@ export function EditPage() {
   };
 
   const save = async () => { setExporting(true); try { await buildAndSave(); } catch (error) { notify(error instanceof Error ? error.message : "저장에 실패했습니다."); } finally { setExporting(false); } };
-  const openExport = async () => { setExporting(true); try { await buildAndSave(); if (exportShareUrl.value) { const { default: QRCode } = await import("qrcode"); setQr(await QRCode.toDataURL(exportShareUrl.value, { width: 260, margin: 1, color: { dark: "#201E28", light: "#FCFCFC" } })); } else setQr(undefined); exportModalOpen.value = true; } catch (error) { notify(error instanceof Error ? error.message : "내보내기에 실패했습니다."); } finally { setExporting(false); } };
+  const openExport = async () => { setExporting(true); try { const project = await buildAndSave(); const qrTarget = exportShareUrl.value ?? new URL(`/library/${project.sticker.id}`, window.location.origin).toString(); const { default: QRCode } = await import("qrcode"); setQr(await QRCode.toDataURL(qrTarget, { width: 260, margin: 1, color: { dark: "#201E28", light: "#FCFCFC" } })); exportModalOpen.value = true; } catch (error) { notify(error instanceof Error ? error.message : "내보내기에 실패했습니다."); } finally { setExporting(false); } };
   const share = async () => {
     const format = exportAnimationFormat.value;
     if (!exportGifBlob.value) return; const file = new File([exportGifBlob.value], `${safeFileName(emoticonTitle.value || `emove-${emotion.value}`)}.${animationExtension(format)}`, { type: animationMimeType(format) });

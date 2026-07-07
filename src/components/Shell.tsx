@@ -14,16 +14,15 @@ const navItems: Array<{ label: string; path: RoutePath }> = [
 type ThemeMode = "dark" | "light";
 
 export function Shell({ children, immersive = false, dockAutoHide = false }: { children: ReactNode; immersive?: boolean; dockAutoHide?: boolean }) {
-  const [theme, setTheme] = useState<ThemeMode>("dark");
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") return "dark";
+    const saved = window.localStorage.getItem("emove-theme");
+    return saved === "light" || saved === "dark" ? saved : "dark";
+  });
   const [dockVisible, setDockVisible] = useState(!dockAutoHide);
   const closeTimer = useRef<number | undefined>(undefined);
   const current = route.value;
   const selectedIndex = current === "/home" ? -1 : navItems.findIndex((item) => current === item.path);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem("emove-theme");
-    if (saved === "light" || saved === "dark") setTheme(saved);
-  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

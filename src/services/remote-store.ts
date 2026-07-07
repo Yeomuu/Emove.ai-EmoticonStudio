@@ -64,8 +64,19 @@ export async function syncProjectToRemote(project: EmoticonProject): Promise<Rem
     character: createCharacterDoc(characterToken, ownerId),
     capture: createCaptureDoc(capture, ownerId),
   };
-  const result = await postRemoteRecord("projects", payload, project.id);
-  return { ...result, ownerId };
+  const syncResults = await Promise.all([
+    postRemoteRecord("projects", payload, project.id),
+    postRemoteRecord("stickers", payload.sticker, sticker.id),
+    postRemoteRecord("characters", payload.character, characterToken.id),
+    postRemoteRecord("captures", payload.capture, capture.id),
+  ]);
+  const [result] = syncResults;
+  const enabled = syncResults.some((item) => item.enabled);
+  const primary = result.enabled ? result : syncResults.find((item) => item.enabled) ?? result;
+  const storageWarning = syncResults
+    .map((item) => item.storageWarning)
+    .find(Boolean);
+  return { ...primary, enabled, ownerId, storageWarning };
 }
 
 export async function loadRemoteStickers(): Promise<{ enabled: boolean; stickers: StickerItem[]; storageWarning?: string }> {
