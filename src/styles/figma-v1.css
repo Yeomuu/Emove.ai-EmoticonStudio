@@ -5161,3 +5161,41 @@ html[data-theme="light"] .library-page .library-sidebar h1 {
   }
 }
 
+/* Light mode overrides for text readability and home page shapes */
+html[data-theme="light"] .geo-circle {
+  background: transparent !important;
+  background-color: transparent !important;
+  fill: none !important;
+}
+
+html[data-theme="light"] .geo-line {
+  background: linear-gradient(90deg, transparent, rgba(91, 73, 255, 0.22), transparent) !important;
+  background-color: transparent !important;
+}
+
+html[data-theme="light"] :where(
+  .screen-brief p, 
+  .work-process-inner p,
+  .explain-note,
+  .step-desc,
+  .char-count,
+  .palette-control span,
+  .field-label,
+  .setup-summary-box li,
+  .guide-list li,
+  .step-tip,
+  .action-hint,
+  .tier-explain,
+  .char-desc span,
+  .result-snapshot-placeholder span,
+  .snapshot-tag,
+  .analysis-readout-grid p,
+  .card-info p,
+  .loop-preview header span,
+  .warning-stay,
+  .warning-continue,
+  .slide-step-label
+) {
+  color: var(--text-soft) !important;
+}
+

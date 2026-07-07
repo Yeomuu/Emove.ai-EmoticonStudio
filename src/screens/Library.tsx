@@ -102,6 +102,7 @@ export function LibraryPage() {
   const isScrollingRef = useRef(false);
   const isUserInteractingRef = useRef(false);
   const normalizeTimerRef = useRef<number | undefined>(undefined);
+  const wheelCooldownRef = useRef(false);
   const carouselDragRef = useRef<{ pointerId: number; startX: number; startY: number; startScroll: number; dragged: boolean } | null>(null);
   const suppressCardClickRef = useRef(false);
 
@@ -179,10 +180,18 @@ export function LibraryPage() {
       if (currentCard && targetCard) {
         // Instant jump with no scroll event feedback loop
         isScrollingRef.current = true;
-        list.scrollLeft += targetCard.offsetLeft - currentCard.offsetLeft;
+        
+        const originalBehavior = list.style.scrollBehavior;
+        list.style.scrollBehavior = "auto";
+        list.scrollLeft = targetCard.offsetLeft;
         setActiveVirtualIndex(targetIndex);
         setActiveIndex(((targetIndex % length) + length) % length);
-        window.setTimeout(() => { isScrollingRef.current = false; }, 50);
+        
+        // Force reflow to apply scroll instantly
+        list.offsetHeight;
+        list.style.scrollBehavior = originalBehavior;
+
+        window.setTimeout(() => { isScrollingRef.current = false; }, 100);
       }
     }
   };
@@ -230,7 +239,23 @@ export function LibraryPage() {
     const list = listRef.current;
     if (!list) return;
     event.preventDefault();
-    list.scrollLeft += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (wheelCooldownRef.current || isScrollingRef.current) return;
+
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (Math.abs(delta) < 15) return; // Ignore small noise
+
+    wheelCooldownRef.current = true;
+    const nextVirtualIndex = delta > 0 ? activeVirtualIndex + 1 : activeVirtualIndex - 1;
+    
+    // Clamp to valid virtualItems range
+    const maxVirtualIndex = virtualItems.length - 1;
+    const clampedIndex = Math.max(0, Math.min(maxVirtualIndex, nextVirtualIndex));
+    
+    scrollToVirtualIndex(clampedIndex, "smooth");
+
+    window.setTimeout(() => {
+      wheelCooldownRef.current = false;
+    }, 600);
   };
 
   const beginCarouselDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -271,16 +296,33 @@ export function LibraryPage() {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    if (drag?.dragged) {
-      suppressCardClickRef.current = true;
+    
+    setIsListDragging(false);
+    isUserInteractingRef.current = false;
+
+    if (drag) {
+      const deltaX = event.clientX - drag.startX;
+      const threshold = 50; // Drag more than 50px to go to next/prev card
+      let targetVirtualIndex = activeVirtualIndex;
+      
+      if (deltaX < -threshold) {
+        targetVirtualIndex = activeVirtualIndex + 1;
+      } else if (deltaX > threshold) {
+        targetVirtualIndex = activeVirtualIndex - 1;
+      }
+      
+      const maxVirtualIndex = virtualItems.length - 1;
+      const clampedIndex = Math.max(0, Math.min(maxVirtualIndex, targetVirtualIndex));
+
+      suppressCardClickRef.current = drag.dragged;
+      scrollToVirtualIndex(clampedIndex, "smooth");
+
       window.setTimeout(() => {
         suppressCardClickRef.current = false;
       }, 120);
     }
+
     carouselDragRef.current = null;
-    setIsListDragging(false);
-    isUserInteractingRef.current = false;
-    // Schedule normalization after drag ends
     window.clearTimeout(normalizeTimerRef.current);
     normalizeTimerRef.current = window.setTimeout(normalizeVirtualScroll, 300);
   };
