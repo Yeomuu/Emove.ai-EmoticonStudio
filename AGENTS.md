@@ -108,6 +108,11 @@ When implementing from a selected generated mock, treat that image as the source
 - Horizontal filter rails should show edge fades only on the sides where additional hidden items are available.
 - Edit save should keep Neon records easy to inspect by upserting the project plus separate sticker, character, and capture metadata rows.
 - Export QR should prefer the hosted animation URL when available and fall back to the saved Library detail URL when direct animation sharing is unavailable.
+- The overall layout reference websites are:
+  - https://startrail.stellive.me/ (stellar dynamic components and animations)
+  - https://sustainability.kakao.com/ko (modern grids and liquid-glass container hierarchies)
+  - https://myz-studio.com/ (clean minimalist dark layout and hover states)
+  - https://towards.co.kr/ (loading sequence, typewriter vertical panels, and real-time ASCII rotating globes)
 
 ## Vercel Storage Data Model
 

@@ -610,6 +610,7 @@ export function InputPage() {
         steps={steps}
         currentStep={currentStep}
         onStepChange={(index) => setCurrentStep(index)}
+        onComplete={proceed}
         className="input-scroll-slider"
       />
 

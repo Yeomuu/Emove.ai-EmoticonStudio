@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Shell";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
@@ -557,18 +557,144 @@ export function CharacterPage() {
   );
 }
 
+function AsciiSphere() {
+  const [frame, setFrame] = useState("");
+
+  useEffect(() => {
+    let angleA = 0;
+    let angleB = 0;
+    let interval: number;
+
+    const render = () => {
+      const width = 50;
+      const height = 24;
+      const buffer = Array.from({ length: width * height }, () => " ");
+      const zBuffer = Array.from({ length: width * height }, () => 0);
+
+      const R = 1.0;
+      for (let theta = 0; theta < Math.PI; theta += 0.07) {
+        const sinTheta = Math.sin(theta);
+        const cosTheta = Math.cos(theta);
+
+        for (let phi = 0; phi < 2 * Math.PI; phi += 0.03) {
+          const sinPhi = Math.sin(phi);
+          const cosPhi = Math.cos(phi);
+
+          const x = R * sinTheta * cosPhi;
+          const y = R * sinTheta * sinPhi;
+          const z = R * cosTheta;
+
+          const cosA = Math.cos(angleA);
+          const sinA = Math.sin(angleA);
+          const y1 = y * cosA - z * sinA;
+          const z1 = y * sinA + z * cosA;
+
+          const cosB = Math.cos(angleB);
+          const sinB = Math.sin(angleB);
+          const x2 = x * cosB + z1 * sinB;
+          const z2 = -x * sinB + z1 * cosB;
+
+          const distance = 2.0;
+          const ooz = 1 / (z2 + distance);
+          const xp = Math.floor(width / 2 + x2 * 20 * ooz * 2.0);
+          const yp = Math.floor(height / 2 + y1 * 10 * ooz);
+
+          const nx = sinTheta * cosPhi;
+          const ny = sinTheta * sinPhi;
+          const nz = cosTheta;
+
+          const ny1 = ny * cosA - nz * sinA;
+          const nz1 = ny * sinA + nz * cosA;
+          const nx2 = nx * cosB + nz1 * sinB;
+
+          const illumination = nx2 * 1.0 + ny1 * 1.0 - nz1 * 0.5;
+
+          if (xp >= 0 && xp < width && yp >= 0 && yp < height) {
+            const idx = xp + yp * width;
+            if (ooz > zBuffer[idx]) {
+              zBuffer[idx] = ooz;
+              const charIndex = Math.max(0, Math.min(11, Math.floor((illumination + 1.5) * 3)));
+              const chars = ".,-~:;=!*#$@";
+              buffer[idx] = chars[charIndex] || " ";
+            }
+          }
+        }
+      }
+
+      let output = "";
+      for (let i = 0; i < height; i++) {
+        output += buffer.slice(i * width, (i + 1) * width).join("") + "\n";
+      }
+
+      setFrame(output);
+      angleA += 0.04;
+      angleB += 0.03;
+    };
+
+    interval = window.setInterval(render, 50);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return (
+    <pre 
+      style={{ 
+        fontFamily: "Courier, monospace", 
+        fontSize: "10px", 
+        lineHeight: "1.1", 
+        color: "#7b69ff", 
+        textShadow: "0 0 10px rgba(123, 109, 255, 0.4)", 
+        background: "transparent", 
+        border: "none", 
+        margin: "0 auto", 
+        padding: "0", 
+        whiteSpace: "pre", 
+        userSelect: "none",
+        pointerEvents: "none"
+      }}
+    >
+      {frame}
+    </pre>
+  );
+}
+
 function WorkProcessScreen({ title, label, percent }: ProcessState) {
   return (
-    <section className="work-process-screen" role="status" aria-live="polite">
-      <div className="work-process-inner">
-        <div className="work-process-logo" style={{ marginBottom: "24px", display: "flex", justifyContent: "center" }}>
-          <img src="/assets/logo.png" alt="EMOVE Logo" style={{ width: "120px", height: "120px", objectFit: "contain" }} onError={(e) => { e.currentTarget.src = "https://emove-emoticonstudio.vercel.app/assets/logo.png"; }} />
+    <section className="work-process-screen towards-style" role="status" aria-live="polite">
+      {/* Left panel: Vertical typewriter text */}
+      <div className="towards-vertical-panel">
+        {"WE ARE CREATING YOUR EMOTICON CHARACTER.".split("").map((char, index) => (
+          <span 
+            key={index} 
+            className="towards-char" 
+            style={{ 
+              animationDelay: `${index * 40}ms`,
+              display: "block",
+              visibility: char === " " ? "hidden" : "visible",
+              height: char === " " ? "12px" : "auto"
+            }}
+          >
+            {char}
+          </span>
+        ))}
+      </div>
+
+      {/* Centerpiece: ASCII Sphere */}
+      <div className="towards-center-container">
+        <AsciiSphere />
+      </div>
+
+      {/* Bottom Area: Status & Progress */}
+      <div className="towards-bottom-panel">
+        <div className="towards-progress-info">
+          <h2>{title}</h2>
+          <p className="towards-label-row">
+            <span className="towards-state-label">{label}</span>
+            <strong className="towards-percent-num">{percent}%</strong>
+          </p>
         </div>
-        <h2>{title}</h2>
-        <div className="work-process-meter" aria-label={`진행률 ${percent}%`}>
-          <span style={{ width: `${percent}%` }} />
+        <div className="towards-progress-bar">
+          <div className="towards-progress-bar-fill" style={{ width: `${percent}%` }} />
         </div>
-        <p><span>{label}</span><strong>{percent}%</strong></p>
       </div>
     </section>
   );

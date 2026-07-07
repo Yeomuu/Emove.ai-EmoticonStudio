@@ -5226,3 +5226,112 @@ html[data-theme="light"] :where(
   color: #191622 !important;
 }
 
+/* towards.co.kr Inspired Loading Screen */
+.work-process-screen.towards-style {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  background: #000000 !important;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.towards-vertical-panel {
+  position: absolute;
+  left: 60px;
+  top: 8vh;
+  bottom: 8vh;
+  width: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+.towards-char {
+  animation: towardsFadeIn 0.5s ease forwards;
+  opacity: 0;
+}
+
+@keyframes towardsFadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+.towards-center-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: scale(1.2);
+}
+
+.towards-bottom-panel {
+  position: absolute;
+  bottom: 8vh;
+  left: 120px;
+  right: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.towards-progress-info h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff !important;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.5px;
+  font-family: sans-serif;
+}
+
+.towards-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+}
+
+.towards-state-label {
+  font-family: sans-serif;
+}
+
+.towards-percent-num {
+  font-size: 24px;
+  font-family: 'Courier New', Courier, monospace;
+  color: #7b69ff;
+  font-weight: 700;
+}
+
+.towards-progress-bar {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.towards-progress-bar-fill {
+  height: 100%;
+  background: #7b69ff;
+  box-shadow: 0 0 10px rgba(123, 109, 255, 0.8);
+  transition: width 0.3s ease;
+}
+

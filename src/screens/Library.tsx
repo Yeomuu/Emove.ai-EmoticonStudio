@@ -103,7 +103,7 @@ export function LibraryPage() {
   const isUserInteractingRef = useRef(false);
   const normalizeTimerRef = useRef<number | undefined>(undefined);
   const wheelCooldownRef = useRef(false);
-  const carouselDragRef = useRef<{ pointerId: number; startX: number; startY: number; startScroll: number; dragged: boolean } | null>(null);
+  const carouselDragRef = useRef<{ pointerId: number; startX: number; startY: number; startScroll: number; dragged: boolean; startIndex: number } | null>(null);
   const suppressCardClickRef = useRef(false);
 
 
@@ -118,17 +118,12 @@ export function LibraryPage() {
   }, [mode, visible, visibleCharacters, mixedItems]);
 
   const virtualItems = useMemo<VirtualLibraryItem[]>(() => {
-    if (itemsToDisplay.length === 0) return [];
-    const copies = itemsToDisplay.length > 1 ? 3 : 1;
-    return Array.from({ length: itemsToDisplay.length * copies }, (_, virtualIndex) => {
-      const realIndex = virtualIndex % itemsToDisplay.length;
-      return {
-        entry: itemsToDisplay[realIndex],
-        realIndex,
-        virtualIndex,
-        copy: 0,
-      };
-    });
+    return itemsToDisplay.map((entry, index) => ({
+      entry,
+      realIndex: index,
+      virtualIndex: index,
+      copy: 0,
+    }));
   }, [itemsToDisplay]);
 
   const getCarouselStride = () => {
@@ -222,18 +217,24 @@ export function LibraryPage() {
     if (!list) return;
     const onWheel = (e: WheelEvent) => {
       if (itemsToDisplay.length < 2) return;
-      if (wheelCooldownRef.current || isScrollingRef.current) return;
 
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (Math.abs(delta) < 15) return; // Ignore small noise
+      if (Math.abs(delta) < 15) {
+        e.preventDefault();
+        return;
+      }
 
       e.preventDefault();
+
+      if (wheelCooldownRef.current || isScrollingRef.current) return;
 
       wheelCooldownRef.current = true;
       const nextVirtualIndex = delta > 0 ? activeVirtualIndex + 1 : activeVirtualIndex - 1;
       const clampedIndex = Math.max(0, Math.min(itemsToDisplay.length - 1, nextVirtualIndex));
       
-      scrollToVirtualIndex(clampedIndex, "smooth");
+      if (clampedIndex !== activeVirtualIndex) {
+        scrollToVirtualIndex(clampedIndex, "smooth");
+      }
 
       window.setTimeout(() => {
         wheelCooldownRef.current = false;
@@ -259,6 +260,7 @@ export function LibraryPage() {
       startY: event.clientY,
       startScroll: list.scrollLeft,
       dragged: false,
+      startIndex: activeVirtualIndex,
     };
     list.setPointerCapture(event.pointerId);
   };
@@ -291,12 +293,12 @@ export function LibraryPage() {
     if (drag) {
       const deltaX = event.clientX - drag.startX;
       const threshold = 50; // Drag more than 50px to go to next/prev card
-      let targetVirtualIndex = activeVirtualIndex;
+      let targetVirtualIndex = drag.startIndex;
       
       if (deltaX < -threshold) {
-        targetVirtualIndex = activeVirtualIndex + 1;
+        targetVirtualIndex = drag.startIndex + 1;
       } else if (deltaX > threshold) {
-        targetVirtualIndex = activeVirtualIndex - 1;
+        targetVirtualIndex = drag.startIndex - 1;
       }
       
       const clampedIndex = Math.max(0, Math.min(itemsToDisplay.length - 1, targetVirtualIndex));
