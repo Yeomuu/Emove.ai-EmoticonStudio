@@ -1,12 +1,16 @@
 import { signal } from "./lib/signals";
 import type { RoutePath } from "./types";
 
-const allowed = new Set(["/home", "/character", "/emoticon", "/emoticon/edit", "/mypage"]);
+const allowed = new Set(["/home", "/character", "/input", "/edit", "/library"]);
 
 export function normalizePath(pathname: string): RoutePath {
   const clean = `/${pathname.split(/[?#]/)[0].split("/").filter(Boolean).join("/")}`;
   if (clean === "/" || clean === "") return "/home";
-  if (allowed.has(clean) || clean.startsWith("/mypage/")) return clean as RoutePath;
+  if (clean === "/emoticon") return "/input";
+  if (clean === "/emoticon/edit") return "/edit";
+  if (clean === "/mypage") return "/library";
+  if (clean.startsWith("/mypage/")) return `/library/${clean.substring(8)}` as RoutePath;
+  if (allowed.has(clean) || clean.startsWith("/library/")) return clean as RoutePath;
   return "/home";
 }
 
@@ -20,7 +24,6 @@ export function navigate(path: RoutePath, replace = false): void {
   }
   window.history[replace ? "replaceState" : "pushState"]({}, "", next);
   route.value = next;
-  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 if (typeof window !== "undefined") {

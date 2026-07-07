@@ -21,6 +21,8 @@ const categories: Array<{ id: string; title: string; copy: string; filter: Filte
   { id: "surprise", title: "놀람", copy: "새로운 소식", filter: "surprised" },
 ];
 
+const carouselInactiveWidth = 442;
+
 export function LibraryPage() {
   const railRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<Filter>("all");
@@ -31,7 +33,7 @@ export function LibraryPage() {
   const [customGroups, setCustomGroups] = useState<Array<{ id: string; name: string; filter: Filter }>>([]);
   const [selectedCharacterToken, setSelectedCharacterToken] = useState<CharacterToken | null>(null);
 
-  const detailId = route.value.startsWith("/mypage/") ? route.value.split("/")[2] : undefined;
+  const detailId = route.value.startsWith("/library/") ? route.value.split("/")[2] : undefined;
 
   useEffect(() => {
     Promise.all([loadStickers(), loadProjects(), loadRemoteStickers(), loadRemoteCharacters()]).then(([saved, savedProjects, remoteStickers, remoteCharacters]) => {
@@ -79,7 +81,7 @@ export function LibraryPage() {
       return;
     }
     loadProjectForEditing(source);
-    navigate("/emoticon/edit");
+    navigate("/edit");
   };
 
   const beginEditCharacter = (token: CharacterToken) => {
@@ -94,6 +96,12 @@ export function LibraryPage() {
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const isScrollingRef = useRef(false);
+
+  const getCarouselStride = () => {
+    const list = listRef.current;
+    const inactiveCard = list?.querySelector<HTMLElement>(".carousel-card.inactive");
+    return inactiveCard?.offsetWidth || carouselInactiveWidth;
+  };
 
   const itemsToDisplay = useMemo(() => {
     if (mode === "emoticons") {
@@ -117,10 +125,7 @@ export function LibraryPage() {
     const list = listRef.current;
     if (!list) return;
     isScrollingRef.current = true;
-    let left = 0;
-    if (index > 0) {
-      left = 380 + 24 + (index - 1) * (200 + 24);
-    }
+    const left = index * getCarouselStride();
     list.scrollTo({ left, behavior: "smooth" });
     window.setTimeout(() => {
       isScrollingRef.current = false;
@@ -132,10 +137,7 @@ export function LibraryPage() {
     const list = listRef.current;
     if (!list) return;
     const scrollLeft = list.scrollLeft;
-    let targetIndex = 0;
-    if (scrollLeft > 90) {
-      targetIndex = 1 + Math.floor((scrollLeft - 90) / 224);
-    }
+    let targetIndex = Math.round(scrollLeft / getCarouselStride());
     targetIndex = Math.max(0, Math.min(targetIndex, itemsToDisplay.length - 1));
     if (targetIndex !== activeIndex) {
       setActiveIndex(targetIndex);
@@ -392,34 +394,36 @@ export function LibraryPage() {
                           <div className="card-preview">
                             <img src={sticker.animatedImage ?? sticker.image} alt={sticker.title} />
                           </div>
+                          <p className="carousel-card-title">{sticker.title}</p>
                           {isActive && (
-                            <div className="card-action-overlay">
-                              <div className="card-info">
-                                <h3>{sticker.title}</h3>
-                                <p>{sticker.phrase}</p>
-                              </div>
+                            <div className="card-action-overlay" aria-label={`${sticker.title} 빠른 작업`}>
+                              <button
+                                type="button"
+                                className={`floating-action btn-favorite ${sticker.favorite ? "active" : ""}`}
+                                onClick={(e) => { e.stopPropagation(); toggleFavorite(sticker.id); }}
+                                aria-label="즐겨찾기"
+                              >
+                                <Icon name="star" size={18} />
+                                <span>즐겨찾기</span>
+                              </button>
                               <div className="action-buttons">
                                 <button
                                   type="button"
                                   className="btn-edit"
                                   onClick={(e) => { e.stopPropagation(); beginEditSticker(sticker, project); }}
+                                  aria-label="수정"
                                 >
-                                  수정
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`btn-favorite ${sticker.favorite ? "active" : ""}`}
-                                  onClick={(e) => { e.stopPropagation(); toggleFavorite(sticker.id); }}
-                                >
-                                  <Icon name="star" size={14} />
-                                  즐겨찾기
+                                  <Icon name="edit" size={18} />
+                                  <span>수정</span>
                                 </button>
                                 <button
                                   type="button"
                                   className="btn-delete"
                                   onClick={(e) => { e.stopPropagation(); handleDelete(sticker.id, "emoticon"); }}
+                                  aria-label="삭제"
                                 >
-                                  삭제
+                                  <Icon name="trash" size={18} />
+                                  <span>삭제</span>
                                 </button>
                               </div>
                             </div>
@@ -437,26 +441,27 @@ export function LibraryPage() {
                           <div className="card-preview" style={{ background: character.colors.body ?? "rgba(187, 182, 255, 0.12)" }}>
                             <img src={character.sourceAsset} alt={character.name} />
                           </div>
+                          <p className="carousel-card-title">{character.name}</p>
                           {isActive && (
-                            <div className="card-action-overlay">
-                              <div className="card-info">
-                                <h3>{character.name}</h3>
-                                <p>{character.prompt}</p>
-                              </div>
+                            <div className="card-action-overlay" aria-label={`${character.name} 빠른 작업`}>
                               <div className="action-buttons">
                                 <button
                                   type="button"
                                   className="btn-edit"
                                   onClick={(e) => { e.stopPropagation(); beginEditCharacter(character); }}
+                                  aria-label="수정"
                                 >
-                                  수정
+                                  <Icon name="edit" size={18} />
+                                  <span>수정</span>
                                 </button>
                                 <button
                                   type="button"
                                   className="btn-delete"
                                   onClick={(e) => { e.stopPropagation(); handleDelete(character.id, "character"); }}
+                                  aria-label="삭제"
                                 >
-                                  삭제
+                                  <Icon name="trash" size={18} />
+                                  <span>삭제</span>
                                 </button>
                               </div>
                             </div>

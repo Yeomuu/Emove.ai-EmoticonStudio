@@ -437,8 +437,19 @@ export function HomePage() {
         <span className="geo-circle geo-a" />
         <span className="geo-circle geo-b" />
         <span className="geo-circle geo-c" />
+        <span className="geo-circle geo-d" />
+        <span className="geo-circle geo-e" />
+        <span className="geo-circle geo-f" />
+        <span className="geo-circle geo-g" />
         <span className="geo-line geo-line-a" />
         <span className="geo-line geo-line-b" />
+        <span className="geo-line geo-line-c" />
+        <span className="geo-line geo-line-d" />
+        <span className="geo-line geo-line-e" />
+        <span className="geo-line geo-line-f" />
+        <span className="geo-line geo-line-g" />
+        <span className="geo-line geo-line-h" />
+        <span className="geo-line geo-line-i" />
       </div>
       <HomeCharacterField />
       <button className="home-logo-mark" type="button" onClick={() => navigate("/home")} aria-label="EMOVE 홈">
@@ -454,7 +465,7 @@ export function HomePage() {
           <span className="hero-arrow" aria-hidden="true">→</span>
         </h1>
         <div className="hero-actions">
-          <button className="hero-button" type="button" onClick={() => navigate("/mypage")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 구경가기</span></button>
+          <button className="hero-button" type="button" onClick={() => navigate("/library")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 구경가기</span></button>
           <button className="hero-button" type="button" onClick={() => navigate("/character")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 제작하기</span></button>
         </div>
       </div>

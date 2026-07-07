@@ -261,7 +261,7 @@ export function InputPage() {
       frameImages.value = frames.slice(0, FRAME_COUNT);
       coreEffectImage.value = null;
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "이모티콘 생성 완료", percent: 100 });
-      navigate("/emoticon/edit");
+      navigate("/edit");
     } catch (error) {
       setProcess(null);
       notify(error instanceof Error ? error.message : "이모티콘 생성에 실패했습니다.");

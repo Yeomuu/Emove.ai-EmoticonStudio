@@ -185,7 +185,7 @@ export function EditPage() {
               </div>
             </div> : null}
             {activeLayerId && active ? <div className="field-group"><span className="field-label">레이어 상태</span><div className="state-buttons"><button type="button" onClick={() => toggleLayer(activeLayerId, "visible")}><Icon name="image" />{active.visible ? "표시 중" : "숨김"}</button><button type="button" onClick={() => toggleLayer(activeLayerId, "locked")}><Icon name={active.locked ? "lock" : "unlock"} />{active.locked ? "잠김" : "편집 가능"}</button></div></div> : null}
-            <button className="button subtle full" type="button" onClick={() => navigate("/emoticon")}><Icon name="previous" />입력 다시 분석</button>
+            <button className="button subtle full" type="button" onClick={() => navigate("/input")}><Icon name="previous" />입력 다시 분석</button>
           </Panel>
         </div>
 

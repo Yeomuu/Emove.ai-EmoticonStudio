@@ -96,6 +96,10 @@ When implementing from a selected generated mock, treat that image as the source
 - Treat the Notion Design System page as fixed unless the user explicitly asks to change it; PRD, technical specification, and page/function documentation may be updated around that fixed design system.
 - When transplanting Notion page-function inventories into a technical test app, focus on the actual page functions, states, controls, and route behavior rather than recreating sidebar/navigation layout details.
 - Use the Next.js lab to stress-test accumulated EMOVE features with realistic mock state before wiring paid API calls, remote persistence, or production background jobs.
+- For the current Figma redesign pass, layout fidelity takes priority over decorative style refinement; match each 1920×1080 frame's placement and sizing before polishing visual treatment.
+- Primary app screens should occupy a fixed `100svw` × `100svh` stage with a `1920px` maximum width and hidden viewport overflow so the app behaves as a one-screen flow.
+- The Home geometric circle/line background must follow the current Figma Home frame rather than the earlier decorative pattern.
+- Library browsing keeps the active card pinned to the left-side hero slot; horizontal scrolling changes which item occupies that slot, and only that active card exposes edit, favorite, and delete controls.
 
 ## Vercel Storage Data Model
 
