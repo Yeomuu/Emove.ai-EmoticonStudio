@@ -100,6 +100,8 @@ export function LibraryPage() {
   const [isListDragging, setIsListDragging] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const isScrollingRef = useRef(false);
+  const isUserInteractingRef = useRef(false);
+  const normalizeTimerRef = useRef<number | undefined>(undefined);
   const carouselDragRef = useRef<{ pointerId: number; startX: number; startY: number; startScroll: number; dragged: boolean } | null>(null);
   const suppressCardClickRef = useRef(false);
 
@@ -136,8 +138,12 @@ export function LibraryPage() {
   const scrollToVirtualIndex = (virtualIndex: number, behavior: ScrollBehavior = "smooth") => {
     const list = listRef.current;
     if (!list) return;
+    isScrollingRef.current = true;
+    window.clearTimeout(normalizeTimerRef.current);
     const card = list.querySelector<HTMLElement>(`[data-virtual-index="${virtualIndex}"]`);
     list.scrollTo({ left: card?.offsetLeft ?? virtualIndex * getCarouselStride(), behavior });
+    // Release lock after animation settles
+    window.setTimeout(() => { isScrollingRef.current = false; }, behavior === "smooth" ? 500 : 60);
   };
 
   useEffect(() => {
@@ -152,18 +158,17 @@ export function LibraryPage() {
     if (suppressCardClickRef.current) return;
     setActiveIndex(realIndex);
     setActiveVirtualIndex(virtualIndex);
-    isScrollingRef.current = true;
     scrollToVirtualIndex(virtualIndex);
-    window.setTimeout(() => {
-      isScrollingRef.current = false;
-    }, 500);
   };
 
-  const normalizeVirtualScroll = (virtualIndex: number) => {
+  const normalizeVirtualScroll = () => {
     const list = listRef.current;
     const length = itemsToDisplay.length;
-    if (!list || length <= 1) return virtualIndex;
+    if (!list || length <= 1) return;
+    // Don't normalize during user interaction or programmatic scrolling
+    if (isScrollingRef.current || isUserInteractingRef.current) return;
 
+    const virtualIndex = getNearestVirtualIndex();
     let targetIndex = virtualIndex;
     if (virtualIndex < length) targetIndex = virtualIndex + length;
     else if (virtualIndex >= length * 2) targetIndex = virtualIndex - length;
@@ -172,11 +177,14 @@ export function LibraryPage() {
       const currentCard = list.querySelector<HTMLElement>(`[data-virtual-index="${virtualIndex}"]`);
       const targetCard = list.querySelector<HTMLElement>(`[data-virtual-index="${targetIndex}"]`);
       if (currentCard && targetCard) {
+        // Instant jump with no scroll event feedback loop
+        isScrollingRef.current = true;
         list.scrollLeft += targetCard.offsetLeft - currentCard.offsetLeft;
+        setActiveVirtualIndex(targetIndex);
+        setActiveIndex(((targetIndex % length) + length) % length);
+        window.setTimeout(() => { isScrollingRef.current = false; }, 50);
       }
     }
-
-    return targetIndex;
   };
 
   const getNearestVirtualIndex = () => {
@@ -203,7 +211,8 @@ export function LibraryPage() {
     if (!list) return;
     const length = itemsToDisplay.length;
     if (!length) return;
-    const virtualIndex = normalizeVirtualScroll(getNearestVirtualIndex());
+    // Update active index based on nearest card
+    const virtualIndex = getNearestVirtualIndex();
     const targetIndex = ((virtualIndex % length) + length) % length;
     if (virtualIndex !== activeVirtualIndex) {
       setActiveVirtualIndex(virtualIndex);
@@ -211,6 +220,9 @@ export function LibraryPage() {
     if (targetIndex !== activeIndex) {
       setActiveIndex(targetIndex);
     }
+    // Schedule normalization after scroll settles (not during)
+    window.clearTimeout(normalizeTimerRef.current);
+    normalizeTimerRef.current = window.setTimeout(normalizeVirtualScroll, 300);
   };
 
   const handleCarouselWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
@@ -226,6 +238,8 @@ export function LibraryPage() {
     if (target.closest("button, a, input, textarea, select")) return;
     const list = listRef.current;
     if (!list) return;
+    isUserInteractingRef.current = true;
+    window.clearTimeout(normalizeTimerRef.current);
     carouselDragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -265,6 +279,10 @@ export function LibraryPage() {
     }
     carouselDragRef.current = null;
     setIsListDragging(false);
+    isUserInteractingRef.current = false;
+    // Schedule normalization after drag ends
+    window.clearTimeout(normalizeTimerRef.current);
+    normalizeTimerRef.current = window.setTimeout(normalizeVirtualScroll, 300);
   };
 
   const handleDelete = async (id: string, kind: "emoticon" | "character") => {

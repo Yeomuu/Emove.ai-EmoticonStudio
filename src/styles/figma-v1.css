@@ -5019,13 +5019,13 @@ html[data-theme="light"] .home-footer {
 
 .library-page {
   --library-sidebar-width: clamp(240px, 14.5833svw, 280px);
-  --library-content-left: calc(6.25% + var(--library-sidebar-width) + clamp(20px, 1.6667svw, 32px));
+  --library-content-right: calc(6.25% + var(--library-sidebar-width) + clamp(20px, 1.6667svw, 32px));
 }
 
 .library-page .library-sidebar {
   position: absolute;
   z-index: 14;
-  left: 6.25%;
+  right: 6.25%;
   top: 23.8889%;
   width: var(--library-sidebar-width);
   height: min(700px, 65svh);
@@ -5074,14 +5074,14 @@ html[data-theme="light"] .home-footer {
 }
 
 .library-page .library-category-rail-wrap {
-  left: var(--library-content-left);
-  width: max(280px, min(860px, calc(100% - var(--library-content-left) - 300px)));
+  left: 6.25%;
+  width: max(280px, min(860px, calc(100% - var(--library-content-right) - 6.25%)));
   height: 24px;
 }
 
 .library-page .library-horizontal-scroll {
-  left: var(--library-content-left);
-  width: calc(100% - var(--library-content-left));
+  left: 6.25%;
+  width: calc(100% - var(--library-content-right));
   cursor: grab;
   overscroll-behavior-inline: contain;
   touch-action: pan-y;
@@ -5108,7 +5108,7 @@ html[data-theme="light"] .home-footer {
 }
 
 .library-page .empty-library {
-  left: var(--library-content-left);
+  left: 6.25%;
 }
 
 html[data-theme="light"] .library-page .library-sidebar {
@@ -5128,27 +5128,27 @@ html[data-theme="light"] .library-page .library-sidebar h1 {
 @media (max-width: 1180px) {
   .library-page {
     --library-sidebar-width: clamp(210px, 22svw, 250px);
-    --library-content-left: calc(4.5% + var(--library-sidebar-width) + 18px);
+    --library-content-right: calc(4.5% + var(--library-sidebar-width) + 18px);
   }
 
   .library-page .library-sidebar {
-    left: 4.5%;
+    right: 4.5%;
   }
 
   .library-page .library-category-rail-wrap {
-    left: var(--library-content-left);
-    width: calc(100% - var(--library-content-left) - 22px);
+    left: 4.5%;
+    width: calc(100% - var(--library-content-right) - 4.5%);
   }
 }
 
 @media (max-width: 820px) {
   .library-page {
     --library-sidebar-width: 190px;
-    --library-content-left: calc(4% + var(--library-sidebar-width) + 12px);
+    --library-content-right: calc(4% + var(--library-sidebar-width) + 12px);
   }
 
   .library-page .library-sidebar {
-    left: 4%;
+    right: 4%;
     top: 23%;
     width: var(--library-sidebar-width);
     height: 60svh;
@@ -5160,3 +5160,4 @@ html[data-theme="light"] .library-page .library-sidebar h1 {
     --library-card-active: min(398px, 50svw);
   }
 }
+

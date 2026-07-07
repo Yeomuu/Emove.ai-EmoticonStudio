@@ -6,6 +6,7 @@ import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
 import { emotionEffectGuides, emotionMeta, emotionOrder, imageAssets } from "../data";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
+
 import { AudioCapture, CameraCapture } from "../services/media";
 import { inferEmotionFromText } from "../services/prompt-builder";
 import { syncCaptureToRemote } from "../services/remote-store";
@@ -35,13 +36,11 @@ export function InputPage() {
   const [cameraReady, setCameraReady] = useState(false);
   const [captureProgress, setCaptureProgress] = useState(0);
   const [capturing, setCapturing] = useState(false);
-  const [lastCaptureLabel, setLastCaptureLabel] = useState("Preview");
   const [recording, setRecording] = useState(false);
   const [voiceProgress, setVoiceProgress] = useState(0);
   const [levels, setLevels] = useState<number[]>([]);
   const [recorded, setRecorded] = useState<Blob>();
   const [analyzing, setAnalyzing] = useState(false);
-  const [generationStep, setGenerationStep] = useState("Ready for Generation");
   const [characterMenu, setCharacterMenu] = useState(false);
   const [process, setProcess] = useState<ProcessState | null>(null);
 
@@ -119,11 +118,9 @@ export function InputPage() {
     
     try {
       setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "MediaPipe 포즈/표정 분석기를 여는 중...", percent: 16 });
-      setGenerationStep("영상 분석 모델 준비 중");
       const liveVision = await createLiveVisionAnalyzer();
       await startAudioMeter();
       setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "5초 입력을 수집하는 중...", percent: 26 });
-      setGenerationStep("카메라+음성 5초 입력 분석 중");
       
       const visionTask = liveVision.analyze(videoRef.current, CAPTURE_DURATION_MS);
       const result = await camera.current.record(videoRef.current, CAPTURE_DURATION_MS, (progress) => {
@@ -143,7 +140,6 @@ export function InputPage() {
       }
       
       setRecorded(voice.blob);
-      setLastCaptureLabel("5초 입력 분석 완료");
       visionMetrics.value = metrics;
       
       if (metrics.source === "mediapipe") {
@@ -238,7 +234,6 @@ export function InputPage() {
       }
       
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "분석 결과를 저장하는 중...", percent: 18 });
-      setGenerationStep("입력 데이터 저장 중");
       
       behaviorCapture.value = {
         ...behaviorCapture.value,
@@ -249,15 +244,12 @@ export function InputPage() {
       if (!persistence.synced) notify(persistence.message);
       
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "5프레임 프로젝트를 초기화하는 중...", percent: 32 });
-      setGenerationStep("캐릭터 행동 프레임 5장 생성 중");
       
       startNewEmoticonProject();
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "캐릭터 행동 프레임 5장을 생성하는 중...", percent: 46 });
       
       const frames = await ai.generateCharacterFrames(motionBrief.value, selectedCharacter.value);
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "편집 화면에서 사용할 프레임을 정렬하는 중...", percent: 88 });
-      setGenerationStep("편집 캔버스 준비 중");
-      
       frameImages.value = frames.slice(0, FRAME_COUNT);
       coreEffectImage.value = null;
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "이모티콘 생성 완료", percent: 100 });
@@ -267,7 +259,6 @@ export function InputPage() {
       notify(error instanceof Error ? error.message : "이모티콘 생성에 실패했습니다.");
     } finally {
       setAnalyzing(false);
-      setGenerationStep("Ready for Generation");
       window.setTimeout(() => setProcess(null), 420);
     }
   };
