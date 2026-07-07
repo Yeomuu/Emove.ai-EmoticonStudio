@@ -44,7 +44,7 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
   const scheduleDockHide = () => {
     if (!dockAutoHide) return;
     window.clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => setDockVisible(false), 3000);
+    closeTimer.current = window.setTimeout(() => setDockVisible(false), 1000);
   };
 
   const navStyle = { "--nav-index": Math.max(0, selectedIndex) } as CSSProperties;

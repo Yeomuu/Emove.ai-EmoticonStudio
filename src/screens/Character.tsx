@@ -59,7 +59,7 @@ type ProcessState = { title: string; label: string; percent: number };
 
 export function CharacterPage() {
   const [currentStep, setCurrentStep] = useState(0);
-  const [name, setName] = useState(characterName.value);
+  const [name, setName] = useState("");
   const [prompt, setPrompt] = useState(characterPrompt.value);
   const [selectedTraits, setSelectedTraits] = useState<string[]>(["귀여운"]);
   const [type, setType] = useState("동물");
@@ -162,6 +162,10 @@ export function CharacterPage() {
 
   const saveGeneratedCharacter = async (target: "/library" | "/input") => {
     if (!generated) return;
+    if (!name.trim()) {
+      notify("캐릭터 이름을 입력해 주세요.");
+      return;
+    }
     const selectedImage = variationImages[selectedVariationIndex] ?? generated.imageUrl;
     let saved = { ...buildToken(selectedImage, generated.token.id), sourceAsset: selectedImage, referenceImages: [selectedImage], updatedAt: new Date().toISOString() };
     let remoteMessage = "원격 DB 설정이 없어 IndexedDB에만 임시 저장했습니다.";
@@ -244,21 +248,10 @@ export function CharacterPage() {
             </Panel>
           </div>
 
-          {/* Right panel: personality traits and name */}
+          {/* Right panel: personality traits */}
           <div className="input-right-column" style={{ height: "100%" }}>
             <Panel title="✦ 성격 및 기본 정보" className="effect-settings-panel">
-              <label className="character-name-control" style={{ marginBottom: "20px", display: "block" }}>
-                <span className="field-label" style={{ display: "block", marginBottom: "8px", fontSize: "13px" }}>캐릭터 이름</span>
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.currentTarget.value)}
-                  maxLength={12}
-                  placeholder="캐릭터의 이름을 지어주세요 (예: 펭수)"
-                  style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(10,9,18,0.22)", color: "#fff" }}
-                />
-              </label>
-
-              <div style={{ marginTop: "18px" }}>
+              <div style={{ marginTop: "6px" }}>
                 <span className="field-label" style={{ display: "block", marginBottom: "8px", fontSize: "13px" }}>성격 키워드 (복수 선택 가능)</span>
                 <div className="chip-row" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   {traits.map((item) => {
@@ -282,7 +275,6 @@ export function CharacterPage() {
         </div>
       ),
       validate: () => {
-        if (!name.trim()) return "캐릭터 이름을 입력해 주세요.";
         if (selectedTraits.length === 0) return "성격 키워드를 최소 한 개 이상 선택해 주세요.";
         return null;
       }
@@ -478,6 +470,7 @@ export function CharacterPage() {
             steps={steps}
             currentStep={currentStep}
             onStepChange={(index) => setCurrentStep(index)}
+            onComplete={createCharacter}
             className="character-scroll-slider"
           />
         </>

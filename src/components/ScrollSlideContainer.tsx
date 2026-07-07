@@ -14,9 +14,10 @@ interface ScrollSlideContainerProps {
   className?: string;
   currentStep?: number;
   onStepChange?: (index: number) => void;
+  onComplete?: () => void;
 }
 
-export function ScrollSlideContainer({ steps, className = "", currentStep: propStep, onStepChange }: ScrollSlideContainerProps) {
+export function ScrollSlideContainer({ steps, className = "", currentStep: propStep, onStepChange, onComplete }: ScrollSlideContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [localStep, setLocalStep] = useState(0);
   const currentStep = propStep !== undefined ? propStep : localStep;
@@ -126,15 +127,26 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
           이전 단계
         </button>
         <span className="slide-step-label">{steps[currentStep]?.label}</span>
-        <button
-          type="button"
-          className="slide-next-button"
-          onClick={() => attemptNavigation(currentStep + 1)}
-          disabled={currentStep === steps.length - 1}
-        >
-          다음 단계
-          <Icon name="next" size={16} />
-        </button>
+        {currentStep === steps.length - 1 ? (
+          <button
+            type="button"
+            className="slide-next-button complete-button"
+            onClick={onComplete}
+            style={{ borderColor: "rgba(123, 109, 255, 0.4)", background: "rgba(123, 109, 255, 0.15)", color: "#fff" }}
+          >
+            생성하기
+            <Icon name="star" size={16} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="slide-next-button"
+            onClick={() => attemptNavigation(currentStep + 1)}
+          >
+            다음 단계
+            <Icon name="next" size={16} />
+          </button>
+        )}
       </div>
 
       {/* Incomplete step warning dialog */}

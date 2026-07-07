@@ -126,7 +126,7 @@ export function LibraryPage() {
         entry: itemsToDisplay[realIndex],
         realIndex,
         virtualIndex,
-        copy: Math.floor(virtualIndex / itemsToDisplay.length),
+        copy: 0,
       };
     });
   }, [itemsToDisplay]);
@@ -159,27 +159,27 @@ export function LibraryPage() {
     // Update active index state immediately!
     const length = itemsToDisplay.length;
     if (length > 0) {
-      setActiveVirtualIndex(virtualIndex);
-      setActiveIndex(((virtualIndex % length) + length) % length);
+      const clampedIndex = Math.max(0, Math.min(length - 1, virtualIndex));
+      setActiveVirtualIndex(clampedIndex);
+      setActiveIndex(clampedIndex);
+      
+      isScrollingRef.current = true;
+      window.clearTimeout(normalizeTimerRef.current);
+      
+      const targetLeft = clampedIndex * getCarouselStride();
+      list.scrollTo({ left: targetLeft, behavior });
+      
+      // Release lock after animation settles
+      window.setTimeout(() => { 
+        isScrollingRef.current = false; 
+      }, behavior === "smooth" ? 500 : 60);
     }
-
-    isScrollingRef.current = true;
-    window.clearTimeout(normalizeTimerRef.current);
-    
-    const targetLeft = virtualIndex * getCarouselStride();
-    list.scrollTo({ left: targetLeft, behavior });
-    
-    // Release lock after animation settles
-    window.setTimeout(() => { 
-      isScrollingRef.current = false; 
-    }, behavior === "smooth" ? 500 : 60);
   };
 
   useEffect(() => {
     setActiveIndex(0);
-    const nextVirtualIndex = itemsToDisplay.length > 1 ? itemsToDisplay.length : 0;
-    setActiveVirtualIndex(nextVirtualIndex);
-    const frame = window.requestAnimationFrame(() => scrollToVirtualIndex(nextVirtualIndex, "auto"));
+    setActiveVirtualIndex(0);
+    const frame = window.requestAnimationFrame(() => scrollToVirtualIndex(0, "auto"));
     return () => window.cancelAnimationFrame(frame);
   }, [mode, filter, query, itemsToDisplay.length]);
 
@@ -190,39 +190,6 @@ export function LibraryPage() {
     scrollToVirtualIndex(virtualIndex);
   };
 
-  const normalizeVirtualScroll = () => {
-    const list = listRef.current;
-    const length = itemsToDisplay.length;
-    if (!list || length <= 1) return;
-    // Don't normalize during user interaction or programmatic scrolling
-    if (isScrollingRef.current || isUserInteractingRef.current) return;
-
-    const virtualIndex = getNearestVirtualIndex();
-    let targetIndex = virtualIndex;
-    if (virtualIndex < length) targetIndex = virtualIndex + length;
-    else if (virtualIndex >= length * 2) targetIndex = virtualIndex - length;
-
-    if (targetIndex !== virtualIndex) {
-      // Instant jump with no scroll event feedback loop
-      isScrollingRef.current = true;
-      
-      const originalBehavior = list.style.scrollBehavior;
-      list.style.scrollBehavior = "auto";
-      
-      const targetLeft = targetIndex * getCarouselStride();
-      list.scrollLeft = targetLeft;
-      
-      setActiveVirtualIndex(targetIndex);
-      setActiveIndex(((targetIndex % length) + length) % length);
-      
-      // Force reflow to apply scroll instantly
-      list.offsetHeight;
-      list.style.scrollBehavior = originalBehavior;
-
-      window.setTimeout(() => { isScrollingRef.current = false; }, 100);
-    }
-  };
-
   const getNearestVirtualIndex = () => {
     const list = listRef.current;
     if (!list) return activeVirtualIndex;
@@ -231,7 +198,7 @@ export function LibraryPage() {
     
     // Nearest index is simply scrollLeft divided by stride!
     const index = Math.round(list.scrollLeft / stride);
-    const maxIndex = virtualItems.length - 1;
+    const maxIndex = itemsToDisplay.length - 1;
     return Math.max(0, Math.min(maxIndex, index));
   };
 
@@ -243,17 +210,11 @@ export function LibraryPage() {
     if (!length) return;
     
     // Update active index based on nearest card
-    const virtualIndex = getNearestVirtualIndex();
-    const targetIndex = ((virtualIndex % length) + length) % length;
-    if (virtualIndex !== activeVirtualIndex) {
-      setActiveVirtualIndex(virtualIndex);
+    const index = getNearestVirtualIndex();
+    if (index !== activeVirtualIndex) {
+      setActiveVirtualIndex(index);
+      setActiveIndex(index);
     }
-    if (targetIndex !== activeIndex) {
-      setActiveIndex(targetIndex);
-    }
-    // Schedule normalization after scroll settles (not during)
-    window.clearTimeout(normalizeTimerRef.current);
-    normalizeTimerRef.current = window.setTimeout(normalizeVirtualScroll, 300);
   };
 
   const handleCarouselWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
@@ -268,10 +229,7 @@ export function LibraryPage() {
 
     wheelCooldownRef.current = true;
     const nextVirtualIndex = delta > 0 ? activeVirtualIndex + 1 : activeVirtualIndex - 1;
-    
-    // Clamp to valid virtualItems range
-    const maxVirtualIndex = virtualItems.length - 1;
-    const clampedIndex = Math.max(0, Math.min(maxVirtualIndex, nextVirtualIndex));
+    const clampedIndex = Math.max(0, Math.min(itemsToDisplay.length - 1, nextVirtualIndex));
     
     scrollToVirtualIndex(clampedIndex, "smooth");
 
@@ -333,8 +291,7 @@ export function LibraryPage() {
         targetVirtualIndex = activeVirtualIndex - 1;
       }
       
-      const maxVirtualIndex = virtualItems.length - 1;
-      const clampedIndex = Math.max(0, Math.min(maxVirtualIndex, targetVirtualIndex));
+      const clampedIndex = Math.max(0, Math.min(itemsToDisplay.length - 1, targetVirtualIndex));
 
       suppressCardClickRef.current = drag.dragged;
       scrollToVirtualIndex(clampedIndex, "smooth");
@@ -345,8 +302,6 @@ export function LibraryPage() {
     }
 
     carouselDragRef.current = null;
-    window.clearTimeout(normalizeTimerRef.current);
-    normalizeTimerRef.current = window.setTimeout(normalizeVirtualScroll, 300);
   };
 
   const handleDelete = async (id: string, kind: "emoticon" | "character") => {
@@ -717,6 +672,17 @@ export function LibraryPage() {
                       );
                     }
                   })}
+                  {virtualItems.length > 0 && (
+                    <div 
+                      style={{ 
+                        flex: "0 0 calc(100% - var(--library-card-active))", 
+                        minWidth: "calc(100% - var(--library-card-active))", 
+                        height: "1px",
+                        pointerEvents: "none"
+                      }} 
+                      aria-hidden="true" 
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="empty-library glass-panel">

@@ -3052,11 +3052,11 @@ html[data-theme="light"] .theme-icon-toggle {
   position: absolute;
   z-index: 8;
   left: var(--screen-pad-x);
-  right: calc(var(--screen-pad-x) + clamp(258px, 17vw, 326px));
+  right: calc(var(--screen-pad-x) + clamp(230px, 13.4vw, 258px) + 24px) !important;
   top: clamp(274px, 27.4vh, 296px);
   bottom: clamp(70px, 8vh, 88px);
   min-width: 0;
-  overflow: hidden;
+  overflow: visible !important;
 }
 
 .library-content-header {
@@ -4644,15 +4644,14 @@ body {
   left: 6.25%;
   top: 27.4074%;
   width: calc(100% - 6.25%);
-  height: 55.7407%;
+  height: 62% !important;
   display: flex;
   align-items: flex-start;
   gap: 0;
-  padding: 0;
+  padding: 10px 0;
   overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  scroll-padding-left: 0;
+  overflow-y: visible !important;
+  scroll-snap-type: none !important;
 }
 
 .carousel-card {
@@ -4666,7 +4665,7 @@ body {
   box-shadow: none;
   filter: none;
   opacity: 1;
-  scroll-snap-align: start;
+  scroll-snap-align: none !important;
 }
 
 .carousel-card.inactive {
