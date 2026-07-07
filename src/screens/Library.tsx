@@ -6,7 +6,7 @@ import { downloadBlob } from "../services/renderer";
 import { deleteCharacter, deleteSticker, loadProjects, loadStickers } from "../services/repository";
 import { loadRemoteCharacters, loadRemoteStickers } from "../services/remote-store";
 import { animationExtension } from "../services/share";
-import { characterName, characterPrompt, characterStyle, characterTone, characters, loadProjectForEditing, notify, selectCharacter, stickers, toggleFavorite } from "../store";
+import { characterName, characterPrompt, characterStyle, characterTone, characters, loadProjectForEditing, notify, sanitizeAssetUrl, selectCharacter, stickers, toggleFavorite } from "../store";
 import type { AnimationFormat, CharacterToken, EmoticonProject, Emotion, StickerItem } from "../types";
 
 type Filter = "all" | "favorite" | Emotion;
@@ -217,26 +217,34 @@ export function LibraryPage() {
     }
   };
 
-  const handleCarouselWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-    if (itemsToDisplay.length < 2) return;
+  useEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    event.preventDefault();
-    if (wheelCooldownRef.current || isScrollingRef.current) return;
+    const onWheel = (e: WheelEvent) => {
+      if (itemsToDisplay.length < 2) return;
+      if (wheelCooldownRef.current || isScrollingRef.current) return;
 
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-    if (Math.abs(delta) < 15) return; // Ignore small noise
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (Math.abs(delta) < 15) return; // Ignore small noise
 
-    wheelCooldownRef.current = true;
-    const nextVirtualIndex = delta > 0 ? activeVirtualIndex + 1 : activeVirtualIndex - 1;
-    const clampedIndex = Math.max(0, Math.min(itemsToDisplay.length - 1, nextVirtualIndex));
-    
-    scrollToVirtualIndex(clampedIndex, "smooth");
+      e.preventDefault();
 
-    window.setTimeout(() => {
-      wheelCooldownRef.current = false;
-    }, 500);
-  };
+      wheelCooldownRef.current = true;
+      const nextVirtualIndex = delta > 0 ? activeVirtualIndex + 1 : activeVirtualIndex - 1;
+      const clampedIndex = Math.max(0, Math.min(itemsToDisplay.length - 1, nextVirtualIndex));
+      
+      scrollToVirtualIndex(clampedIndex, "smooth");
+
+      window.setTimeout(() => {
+        wheelCooldownRef.current = false;
+      }, 500);
+    };
+
+    list.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      list.removeEventListener("wheel", onWheel);
+    };
+  }, [itemsToDisplay.length, activeVirtualIndex]);
 
   const beginCarouselDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
@@ -573,7 +581,6 @@ export function LibraryPage() {
                   className={`library-horizontal-scroll${isListDragging ? " is-dragging" : ""}`}
                   ref={listRef}
                   onScroll={handleScroll}
-                  onWheel={handleCarouselWheel}
                   onPointerDown={beginCarouselDrag}
                   onPointerMove={moveCarouselDrag}
                   onPointerUp={endCarouselDrag}
@@ -641,7 +648,7 @@ export function LibraryPage() {
                           onClick={() => selectVirtualItem(virtualIndex, realIndex)}
                         >
                           <div className="card-preview" style={{ background: character.colors.body ?? "rgba(187, 182, 255, 0.12)" }}>
-                            <img src={character.sourceAsset} alt={character.name} />
+                            <img src={sanitizeAssetUrl(character.sourceAsset)} alt={character.name} />
                           </div>
                           <p className="carousel-card-title">{character.name}</p>
                           {isActive && (
@@ -712,7 +719,7 @@ export function LibraryPage() {
             <div className="character-detail-body">
               <div className="char-detail-preview">
                 <span className="character-preview-glow" style={{ background: selectedCharacterToken.colors.body ?? "#BBB6FF" }} />
-                <img src={selectedCharacterToken.sourceAsset} alt={selectedCharacterToken.name} />
+                <img src={sanitizeAssetUrl(selectedCharacterToken.sourceAsset)} alt={selectedCharacterToken.name} />
               </div>
               <div className="char-detail-info">
                 <div className="info-row">
@@ -772,7 +779,7 @@ function CharacterCard({ item, index, onClick }: CharacterCardProps) {
     <article className="sticker-card character-token-card glass-panel">
       <button className="sticker-preview" type="button" onClick={onClick}>
         <span className="sticker-glow" style={{ background: item.colors.body ?? item.colors.accent ?? "#BBB6FF" }} />
-        <img src={item.sourceAsset} alt={`${item.name} 캐릭터`} loading={index > 2 ? "lazy" : "eager"} decoding="async" />
+        <img src={sanitizeAssetUrl(item.sourceAsset)} alt={`${item.name} 캐릭터`} loading={index > 2 ? "lazy" : "eager"} decoding="async" />
       </button>
       <footer>
         <strong>{item.name}</strong>

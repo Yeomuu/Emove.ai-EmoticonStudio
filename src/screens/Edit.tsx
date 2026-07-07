@@ -10,7 +10,7 @@ import { syncProjectToRemote } from "../services/remote-store";
 import { downloadBlob, exportAnimation, renderFrame, renderFrameDataUrl } from "../services/renderer";
 import { saveProject } from "../services/repository";
 import { animationExtension, animationMimeType, publishAnimationForQr } from "../services/share";
-import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, editingProject, effectColor, emotion, emoticonTitle, exportAnimationFormat, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
+import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, editingProject, effectColor, emotion, emoticonTitle, exportAnimationFormat, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, sanitizeAssetUrl, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
 import type { AnimationFormat, EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
 
 const layerIcons: Record<LayerKind, "image" | "star" | "layers" | "edit"> = { "background-effects": "image", character: "layers", "accent-effects": "star", text: "edit" };
@@ -75,7 +75,7 @@ export function EditPage() {
 
   const buildAndSave = async (): Promise<EmoticonProject> => {
     const original = editingProject.value;
-    const renderOptions = { characterUrl: selectedCharacter.value.sourceAsset, characterFrames: frameImages.value, coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, frameTransforms: frameLayerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: EXPORT_SIZE, height: EXPORT_SIZE };
+    const renderOptions = { characterUrl: sanitizeAssetUrl(selectedCharacter.value.sourceAsset), characterFrames: frameImages.value, coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, frameTransforms: frameLayerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: EXPORT_SIZE, height: EXPORT_SIZE };
     const [animation, thumbnail] = await Promise.all([exportAnimation(renderOptions, "APNG"), renderFrameDataUrl(renderOptions, 0)]);
     const now = new Date().toISOString(); const id = original?.id ?? `emove-${Date.now()}`;
     const originalSticker = original?.sticker;
@@ -232,7 +232,7 @@ function LoopPreview() {
       const canvas = canvasRef.current; const context = canvas?.getContext("2d", { willReadFrequently: true });
       if (!canvas || !context || cancelled) return;
       await renderFrame(context, {
-        characterUrl: selectedCharacter.value.sourceAsset,
+        characterUrl: sanitizeAssetUrl(selectedCharacter.value.sourceAsset),
         characterFrames: frameImages.value,
         coreEffectUrl: coreEffectImage.value,
         brief: motionBrief.value,

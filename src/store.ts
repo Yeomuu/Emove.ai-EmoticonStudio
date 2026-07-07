@@ -1,5 +1,5 @@
 import { computed, signal } from "./lib/signals";
-import { createMotionBrief, defaultCharacterTokens, emotionMeta, initialLayers, starterStickers } from "./data";
+import { createMotionBrief, defaultCharacterTokens, emotionMeta, imageAssets, initialLayers, starterStickers } from "./data";
 import type { AnimationFormat, BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, LayerKind, LayerTransform, MotionStyle, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
 
 const emptyCharacter: CharacterToken = {
@@ -213,4 +213,12 @@ function cloneFrameTransforms(source: Array<Record<LayerKind, LayerTransform>>):
       text: { ...frame.text, ...sourceFrame.text },
     };
   });
+}
+
+export function sanitizeAssetUrl(url: string | null | undefined): string {
+  if (!url) return imageAssets.character;
+  if (url.startsWith("character://") || url.startsWith("character-frame://")) {
+    return imageAssets.character;
+  }
+  return url;
 }

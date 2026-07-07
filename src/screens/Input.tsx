@@ -12,7 +12,7 @@ import { inferEmotionFromText } from "../services/prompt-builder";
 import { syncCaptureToRemote } from "../services/remote-store";
 import { saveCapture } from "../services/repository";
 import { createLiveVisionAnalyzer } from "../services/vision";
-import { audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, effectColor, emotion, expressionEmotion, frameDelayMs, frameImages, motionBrief, motionIntensity, motionStyle, notify, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
+import { audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, effectColor, emotion, expressionEmotion, frameDelayMs, frameImages, motionBrief, motionIntensity, motionStyle, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
 import type { AudioFeatures, BehaviorCapture, Emotion, ExaggerationTier, MotionStyle, VisionMetrics } from "../types";
 
 const ai = getAIProvider();
@@ -501,7 +501,7 @@ export function InputPage() {
               <div className="selected-char-preview" style={{ marginTop: "18px", display: "flex", alignItems: "center", gap: "12px", padding: "12px", borderRadius: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", position: "relative" }}>
                 <span className="char-thumb" style={{ width: "40px", height: "40px", borderRadius: "50%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(10,9,18,0.3)" }}>
                   {selectedCharacter.value.sourceAsset ? (
-                    <img src={selectedCharacter.value.sourceAsset} alt="선택된 캐릭터" style={{ width: "90%", height: "90%", objectFit: "contain" }} />
+                    <img src={sanitizeAssetUrl(selectedCharacter.value.sourceAsset)} alt="선택된 캐릭터" style={{ width: "90%", height: "90%", objectFit: "contain" }} />
                   ) : (
                     <Icon name="image" size={24} />
                   )}
@@ -526,7 +526,7 @@ export function InputPage() {
                         }}
                         style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "6px 12px", border: "none", background: "none", color: "#fff", fontSize: "12px", textAlign: "left" }}
                       >
-                        <img src={token.sourceAsset} alt="" style={{ width: "24px", height: "24px", borderRadius: "50%" }} />
+                        <img src={sanitizeAssetUrl(token.sourceAsset)} alt="" style={{ width: "24px", height: "24px", borderRadius: "50%" }} />
                         <span>{token.name}</span>
                       </button>
                     ))}
