@@ -106,11 +106,6 @@ export function LibraryPage() {
   const carouselDragRef = useRef<{ pointerId: number; startX: number; startY: number; startScroll: number; dragged: boolean } | null>(null);
   const suppressCardClickRef = useRef(false);
 
-  const getCarouselStride = () => {
-    const list = listRef.current;
-    const inactiveCard = list?.querySelector<HTMLElement>(".carousel-card.inactive");
-    return inactiveCard?.offsetWidth || carouselInactiveWidth;
-  };
 
   const itemsToDisplay = useMemo(() => {
     if (mode === "emoticons") {
@@ -136,15 +131,48 @@ export function LibraryPage() {
     });
   }, [itemsToDisplay]);
 
+  const getCarouselStride = () => {
+    const list = listRef.current;
+    if (!list) return carouselInactiveWidth;
+    const cards = list.querySelectorAll<HTMLElement>(".carousel-card");
+    for (const card of Array.from(cards)) {
+      if (card.classList.contains("inactive")) {
+        return card.offsetWidth;
+      }
+    }
+    // Fallback: if all cards are active or we can't find one, measure the first card and scale it
+    const firstCard = cards[0];
+    if (firstCard) {
+      if (firstCard.classList.contains("active")) {
+        // active card is var(--library-card-active) which is 568/442 times larger
+        return Math.round(firstCard.offsetWidth * (442 / 568));
+      }
+      return firstCard.offsetWidth;
+    }
+    return carouselInactiveWidth;
+  };
+
   const scrollToVirtualIndex = (virtualIndex: number, behavior: ScrollBehavior = "smooth") => {
     const list = listRef.current;
     if (!list) return;
+    
+    // Update active index state immediately!
+    const length = itemsToDisplay.length;
+    if (length > 0) {
+      setActiveVirtualIndex(virtualIndex);
+      setActiveIndex(((virtualIndex % length) + length) % length);
+    }
+
     isScrollingRef.current = true;
     window.clearTimeout(normalizeTimerRef.current);
-    const card = list.querySelector<HTMLElement>(`[data-virtual-index="${virtualIndex}"]`);
-    list.scrollTo({ left: card?.offsetLeft ?? virtualIndex * getCarouselStride(), behavior });
+    
+    const targetLeft = virtualIndex * getCarouselStride();
+    list.scrollTo({ left: targetLeft, behavior });
+    
     // Release lock after animation settles
-    window.setTimeout(() => { isScrollingRef.current = false; }, behavior === "smooth" ? 500 : 60);
+    window.setTimeout(() => { 
+      isScrollingRef.current = false; 
+    }, behavior === "smooth" ? 500 : 60);
   };
 
   useEffect(() => {
@@ -175,43 +203,36 @@ export function LibraryPage() {
     else if (virtualIndex >= length * 2) targetIndex = virtualIndex - length;
 
     if (targetIndex !== virtualIndex) {
-      const currentCard = list.querySelector<HTMLElement>(`[data-virtual-index="${virtualIndex}"]`);
-      const targetCard = list.querySelector<HTMLElement>(`[data-virtual-index="${targetIndex}"]`);
-      if (currentCard && targetCard) {
-        // Instant jump with no scroll event feedback loop
-        isScrollingRef.current = true;
-        
-        const originalBehavior = list.style.scrollBehavior;
-        list.style.scrollBehavior = "auto";
-        list.scrollLeft = targetCard.offsetLeft;
-        setActiveVirtualIndex(targetIndex);
-        setActiveIndex(((targetIndex % length) + length) % length);
-        
-        // Force reflow to apply scroll instantly
-        list.offsetHeight;
-        list.style.scrollBehavior = originalBehavior;
+      // Instant jump with no scroll event feedback loop
+      isScrollingRef.current = true;
+      
+      const originalBehavior = list.style.scrollBehavior;
+      list.style.scrollBehavior = "auto";
+      
+      const targetLeft = targetIndex * getCarouselStride();
+      list.scrollLeft = targetLeft;
+      
+      setActiveVirtualIndex(targetIndex);
+      setActiveIndex(((targetIndex % length) + length) % length);
+      
+      // Force reflow to apply scroll instantly
+      list.offsetHeight;
+      list.style.scrollBehavior = originalBehavior;
 
-        window.setTimeout(() => { isScrollingRef.current = false; }, 100);
-      }
+      window.setTimeout(() => { isScrollingRef.current = false; }, 100);
     }
   };
 
   const getNearestVirtualIndex = () => {
     const list = listRef.current;
     if (!list) return activeVirtualIndex;
-    const cards = Array.from(list.querySelectorAll<HTMLElement>(".carousel-card[data-virtual-index]"));
-    if (!cards.length) return activeVirtualIndex;
-
-    let nearestIndex = Number(cards[0].dataset.virtualIndex ?? 0);
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    for (const card of cards) {
-      const distance = Math.abs(card.offsetLeft - list.scrollLeft);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestIndex = Number(card.dataset.virtualIndex ?? nearestIndex);
-      }
-    }
-    return nearestIndex;
+    const stride = getCarouselStride();
+    if (stride <= 0) return activeVirtualIndex;
+    
+    // Nearest index is simply scrollLeft divided by stride!
+    const index = Math.round(list.scrollLeft / stride);
+    const maxIndex = virtualItems.length - 1;
+    return Math.max(0, Math.min(maxIndex, index));
   };
 
   const handleScroll = () => {
@@ -220,6 +241,7 @@ export function LibraryPage() {
     if (!list) return;
     const length = itemsToDisplay.length;
     if (!length) return;
+    
     // Update active index based on nearest card
     const virtualIndex = getNearestVirtualIndex();
     const targetIndex = ((virtualIndex % length) + length) % length;
@@ -255,7 +277,7 @@ export function LibraryPage() {
 
     window.setTimeout(() => {
       wheelCooldownRef.current = false;
-    }, 600);
+    }, 500);
   };
 
   const beginCarouselDrag = (event: ReactPointerEvent<HTMLDivElement>) => {

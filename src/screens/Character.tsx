@@ -131,6 +131,10 @@ export function CharacterPage() {
   };
 
   const createCharacter = async () => {
+    if (!prompt.trim()) {
+      const proceed = window.confirm("구체적인 세부 특징 설명(외형 묘사)을 입력하지 않았습니다. 이대로 캐릭터 생성을 계속하시겠습니까?");
+      if (!proceed) return;
+    }
     setGenerating(true);
     setProcess({ title: "입력한 정보를 바탕으로 캐릭터를 생성하고 있습니다.", label: "캐릭터 설정을 정리하는 중...", percent: 8 });
     try {
@@ -444,10 +448,7 @@ export function CharacterPage() {
           </div>
         </div>
       ),
-      validate: () => {
-        if (!prompt.trim()) return "캐릭터를 묘사하는 구체적인 세부 특징 설명을 작성해 주세요.";
-        return null;
-      }
+      validate: () => null
     }
   ];
 

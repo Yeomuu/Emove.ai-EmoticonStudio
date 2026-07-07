@@ -154,6 +154,19 @@ button:not(:disabled):active { transform: scale(.965); transition-duration: .08s
 .character-settings-panel { padding: 28px 28px 26px; display: flex; flex-direction: column; border-radius: 32px 0 0 32px; }
 .character-preview-panel { position: relative; padding: 26px 20px 24px; display: flex; flex-direction: column; border-left: 0; border-radius: 0 32px 32px 0; overflow: hidden; }
 .character-results-panel { width: calc(100% - 20px); margin-left: 20px; padding: 28px; border-radius: 32px; }
+
+/* Character Composer Wizard layout override */
+.character-composer {
+  grid-template-columns: 1fr 1fr !important;
+  grid-template-rows: 1fr !important;
+  gap: 24px !important;
+}
+.character-composer .input-right-column {
+  grid-template-rows: 1fr !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
 .figma-panel-heading { min-height: 32px; display: flex; align-items: center; justify-content: space-between; }
 .figma-panel-heading h1, .figma-panel-heading h2 { color: var(--theme-heading); font-size: 17px; font-weight: 600; }
 .figma-panel-heading .icon { opacity: .65; }
@@ -5197,5 +5210,20 @@ html[data-theme="light"] :where(
   .slide-step-label
 ) {
   color: var(--text-soft) !important;
+}
+
+/* Dark headings in Light Mode */
+html[data-theme="light"] :where(
+  h1, h2, h3, h4,
+  .panel-header h2,
+  .panel-header h3,
+  .screen-brief h1,
+  .character-result-header h1,
+  .result-panel h3,
+  .slide-warning-dialog h3,
+  .slide-step-label,
+  .work-process-inner h2
+) {
+  color: #191622 !important;
 }
 
