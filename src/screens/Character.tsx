@@ -1,6 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { Icon } from "../components/Icon";
-import { Panel } from "../components/Shell";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
@@ -16,14 +15,14 @@ const palettes = [
   { id: "cosmic-calm", label: "Cosmic Calm", colors: ["#A7A3FF", "#6F83FF", "#B7BDC8", "#E4E0F0", "#78A8FF"] },
 ] as const;
 
-const traits = ["밝은", "다정한", "활발한", "장난꾸러기", "차분한", "용감한", "엉뚱한", "귀여운"];
-const characterTypes = ["사람", "식물", "동물", "음식", "물건"];
+const traits = ["밝은", "친절한", "활발한", "장난꾸러기", "차분한", "용감한", "엉뚱한"];
+const characterTypes = ["인물", "사물", "동물", "식물", "음식"];
 const subCharacterPresets: Record<string, string[]> = {
-  "사람": ["소년", "소녀", "직장인", "학생", "탐험가"],
+  "인물": ["소년", "소녀", "직장인", "학생", "탐험가"],
   "식물": ["선인장", "꽃", "버섯", "새싹", "나무"],
   "동물": ["펭귄", "토끼", "거북이", "고양이", "강아지", "곰"],
   "음식": ["빵", "케이크", "마카롱", "초밥", "아이스크림"],
-  "물건": ["컴퓨터", "우주선", "컵", "로봇", "시계"]
+  "사물": ["컴퓨터", "우주선", "컵", "로봇", "시계"]
 };
 
 const mockRefImages: Record<string, string> = {
@@ -56,14 +55,16 @@ const mockRefImages: Record<string, string> = {
 };
 
 type ProcessState = { title: string; label: string; percent: number };
+type CharacterDropdownId = "type" | "subType";
 
 export function CharacterPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState(characterPrompt.value);
-  const [selectedTraits, setSelectedTraits] = useState<string[]>(["귀여운"]);
+  const [selectedTraits, setSelectedTraits] = useState<string[]>(["친절한"]);
   const [type, setType] = useState("동물");
   const [subType, setSubType] = useState("펭귄");
+  const [openDropdown, setOpenDropdown] = useState<CharacterDropdownId | null>(null);
   const [style, setStyle] = useState<"2D" | "3D">(characterStyle.value || "3D");
   const [detailStyle, setDetailStyle] = useState("미니멀");
   const [paletteId, setPaletteId] = useState<(typeof palettes)[number]["id"]>("soft-pastel");
@@ -196,82 +197,78 @@ export function CharacterPage() {
     setTone(value);
   };
 
-  // Steps configuration for ScrollSlideContainer
   const steps = [
     {
       id: "step1",
-      label: "01 · 캐릭터 형태 및 성격",
+      label: "01 · 캐릭터 형태",
       content: (
-        <div className="input-composer character-composer">
-          {/* Left panel: form dropdown selection & preview */}
-          <div className="pose-capture-panel" style={{ height: "100%" }}>
-            <Panel title="✦ 캐릭터 외형 정의" className="snapshot-panel">
-              <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
-                <div style={{ flex: 1 }}>
-                  <span className="field-label" style={{ display: "block", marginBottom: "8px", fontSize: "13px" }}>캐릭터 타입</span>
-                  <select
-                    value={type}
-                    onChange={(e) => handleTypeChange(e.target.value)}
-                    style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(10,9,18,0.22)", color: "#fff" }}
-                    aria-label="Character Type"
-                  >
-                    {characterTypes.map((t) => (
-                      <option key={t} value={t} style={{ background: "#171522", color: "#fff" }}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <span className="field-label" style={{ display: "block", marginBottom: "8px", fontSize: "13px" }}>세부 분류</span>
-                  <select
-                    value={subType}
-                    onChange={(e) => setSubType(e.target.value)}
-                    style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(10,9,18,0.22)", color: "#fff" }}
-                    aria-label="Detail Character Presets"
-                  >
-                    {(subCharacterPresets[type] || []).map((st) => (
-                      <option key={st} value={st} style={{ background: "#171522", color: "#fff" }}>{st}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+        <div className="character-flow-slide character-step-one">
+          <h1 className="character-flow-title">이모티콘에 사용할<br />캐릭터를 만들어보세요.</h1>
 
-              <div className="character-preview-box-container" style={{ marginTop: "18px", padding: "12px", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "14px", background: "rgba(0,0,0,0.12)" }}>
-                <span className="field-label" style={{ display: "block", marginBottom: "8px", fontSize: "12px", color: "#aaa" }}>캐릭터 미리보기</span>
-                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "140px" }}>
-                  <img 
-                    src={mockRefImages[subType] || mockRefImages["default"]} 
-                    alt="Preview" 
-                    style={{ maxHeight: "100%", objectFit: "contain", borderRadius: "10px" }}
-                  />
-                </div>
+          <section className="character-flow-card character-shape-card glass-panel">
+            <h2>캐릭터는 어떤 모습인가요?</h2>
+            <div className="character-dual-dropdowns">
+              <CharacterDropdown
+                id="type"
+                label="캐릭터 타입 선택"
+                value={type}
+                options={characterTypes}
+                open={openDropdown === "type"}
+                onToggle={() => setOpenDropdown(openDropdown === "type" ? null : "type")}
+                onSelect={(value) => {
+                  handleTypeChange(value);
+                  setOpenDropdown(null);
+                }}
+              />
+              <div className="character-dropdown-arrows" aria-hidden="true">
+                <Icon name="next" size={14} />
+                <Icon name="previous" size={14} />
               </div>
-            </Panel>
-          </div>
+              <CharacterDropdown
+                id="subType"
+                label="세부 캐릭터 선택"
+                value={subType}
+                options={subCharacterPresets[type] || []}
+                open={openDropdown === "subType"}
+                onToggle={() => setOpenDropdown(openDropdown === "subType" ? null : "subType")}
+                onSelect={(value) => {
+                  setSubType(value);
+                  setOpenDropdown(null);
+                }}
+              />
+            </div>
+            <div className="character-mini-preview">
+              <span>캐릭터 미리보기</span>
+              <figure>
+                <img src={mockRefImages[subType] || mockRefImages.default} alt={`${subType} 미리보기`} />
+              </figure>
+            </div>
+          </section>
 
-          {/* Right panel: personality traits */}
-          <div className="input-right-column" style={{ height: "100%" }}>
-            <Panel title="✦ 성격 및 기본 정보" className="effect-settings-panel">
-              <div style={{ marginTop: "6px" }}>
-                <span className="field-label" style={{ display: "block", marginBottom: "8px", fontSize: "13px" }}>성격 키워드 (복수 선택 가능)</span>
-                <div className="chip-row" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  {traits.map((item) => {
-                    const isActive = selectedTraits.includes(item);
-                    return (
-                      <button
-                        key={item}
-                        type="button"
-                        className={`chip ${isActive ? "active" : ""}`}
-                        onClick={() => toggleTrait(item)}
-                        style={{ border: isActive ? "1px solid #7b69ff" : "1px solid rgba(255,255,255,0.1)" }}
-                      >
-                        {item}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </Panel>
-          </div>
+          <section className="character-flow-card character-trait-card glass-panel">
+            <h2>어울리는 성격 키워드를 모두 선택해 주세요.</h2>
+            <span className="character-field-label">성격 키워드(복수 선택 가능)</span>
+            <div className="character-trait-grid">
+              {traits.map((item) => {
+                const isActive = selectedTraits.includes(item);
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    className={isActive ? "active" : ""}
+                    onClick={() => toggleTrait(item)}
+                  >
+                    {item}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="character-flow-card character-step-heading character-step-heading-one glass-panel">
+            <strong>01</strong>
+            <p>어떤 캐릭터를<br />만들고 싶나요?</p>
+          </section>
         </div>
       ),
       validate: () => {
@@ -283,109 +280,174 @@ export function CharacterPage() {
       id: "step2",
       label: "02 · 색상 및 스타일 지정",
       content: (
-        <div className="input-composer character-composer">
-          {/* Left Panel: Main Color & Palette */}
-          <div className="pose-capture-panel" style={{ height: "100%" }}>
-            <Panel title="✦ 메인 컬러 설정" className="snapshot-panel">
-              <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "20px" }}>
-                <div style={{ position: "relative" }}>
+        <div className="character-flow-slide character-step-two">
+          <section className="character-flow-card character-step-heading character-step-heading-two glass-panel">
+            <strong>02</strong>
+            <p>어떤 모습의<br />캐릭터인가요?</p>
+          </section>
+
+          <section className="character-flow-card character-main-color-card glass-panel">
+            <span className="character-field-label">메인 컬러</span>
+            <div className="point-color-control" style={{ position: "absolute", left: "12%", top: "35%", right: "12%", display: "grid", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                {selectedPalette.colors.map((c) => {
+                  const isActive = tone === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      className={`color-swatch ${isActive ? "active" : ""}`}
+                      onClick={() => setTone(c)}
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        background: c,
+                        border: isActive ? "2px solid #7b69ff" : "1px solid rgba(255,255,255,0.12)",
+                        cursor: "pointer",
+                        boxShadow: isActive ? "0 0 10px rgba(123, 109, 255, 0.6)" : "none"
+                      }}
+                      aria-label={`Point color ${c}`}
+                    />
+                  );
+                })}
+                {/* Custom color picker swatch */}
+                <div style={{ position: "relative", width: "32px", height: "32px" }}>
+                  <button
+                    type="button"
+                    className={`custom-color-swatch ${(selectedPalette.colors as readonly string[]).includes(tone) ? "" : "active"}`}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      borderRadius: "50%",
+                      border: (selectedPalette.colors as readonly string[]).includes(tone) ? "1px solid rgba(255,255,255,0.2)" : "2px solid #7b69ff",
+                      background: (selectedPalette.colors as readonly string[]).includes(tone) ? "linear-gradient(135deg, #ff9b9b, #9bff9b, #9b9bff)" : tone,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: (selectedPalette.colors as readonly string[]).includes(tone) ? "none" : "0 0 10px rgba(123, 109, 255, 0.6)"
+                    }}
+                    aria-label="Custom point color"
+                  >
+                    <Icon name="edit" size={12} style={{ filter: "brightness(0) invert(1)" }} />
+                  </button>
                   <input
                     type="color"
                     value={tone}
                     onChange={(e) => chooseCustomTone(e.target.value)}
-                    style={{ width: "42px", height: "42px", border: "none", borderRadius: "50%", cursor: "pointer", background: "none" }}
-                    aria-label="Color Swatch Picker"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      opacity: 0,
+                      cursor: "pointer",
+                      width: "100%",
+                      height: "100%",
+                    }}
+                    aria-label="Custom Point Color Picker"
                   />
                 </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "8px" }}>
+                <span style={{ fontSize: "11px", color: "#8f8b9a" }}>HEX 코드</span>
                 <input
-                  type="text"
                   value={tone.toUpperCase()}
-                  onChange={(e) => {
-                    let val = e.target.value;
-                    if (!val.startsWith("#")) val = "#" + val;
-                    if (val.length <= 7) {
-                      setTone(val);
-                      setCustomTone(val);
+                  onChange={(event) => {
+                    let value = event.currentTarget.value.trim();
+                    if (!value.startsWith("#")) value = `#${value}`;
+                    if (value.length <= 7) {
+                      setTone(value);
+                      setCustomTone(value);
                     }
                   }}
-                  style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(10,9,18,0.22)", color: "#fff", fontFamily: "monospace" }}
-                  aria-label="Hex Color Value"
+                  style={{
+                    width: "100px",
+                    height: "28px",
+                    padding: "0 6px",
+                    fontSize: "12px",
+                    fontFamily: "monospace",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: "6px",
+                    background: "rgba(10,9,18,0.22)",
+                    color: "#fff",
+                    textAlign: "center"
+                  }}
+                  aria-label="Main color hex value input"
                 />
               </div>
+            </div>
+          </section>
 
-              <div className="palette-preset-selector" style={{ marginTop: "18px" }}>
-                <span className="field-label" style={{ display: "block", marginBottom: "8px", fontSize: "13px" }}>컬러 팔레트 프리셋</span>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {palettes.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => {
-                        setPaletteId(p.id);
-                        setTone(p.colors[0]);
-                      }}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: "12px", border: paletteId === p.id ? "1px solid #7b69ff" : "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)", color: "#fff", cursor: "pointer", textAlign: "left" }}
-                    >
-                      <span style={{ fontSize: "12px" }}>{p.label}</span>
-                      <div style={{ display: "flex", gap: "4px" }}>
-                        {p.colors.map((c) => (
-                          <span key={c} style={{ width: "12px", height: "12px", borderRadius: "50%", background: c }} />
-                        ))}
-                      </div>
+          <section className="character-flow-card character-palette-card glass-panel">
+            <span className="character-field-label">컬러 팔레트</span>
+            <div className="palette-dropdown" style={{ position: "absolute", left: "8.169%", top: "35%", right: "8.169%", display: "grid", gap: "8px" }}>
+              <select
+                value={paletteId}
+                onChange={(e) => {
+                  const id = e.target.value as typeof palettes[number]["id"];
+                  setPaletteId(id);
+                  const selected = palettes.find((p) => p.id === id);
+                  if (selected) {
+                    chooseCustomTone(selected.colors[0]);
+                  }
+                }}
+                aria-label="Select color palette preset"
+              >
+                {palettes.map((palette) => (
+                  <option key={palette.id} value={palette.id} style={{ background: "#171522", color: "#fff" }}>
+                    {palette.label}
+                  </option>
+                ))}
+              </select>
+              <div style={{ display: "flex", gap: "6px", marginTop: "16px", background: "rgba(255,255,255,0.02)", padding: "10px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.04)" }}>
+                {selectedPalette.colors.map((color) => (
+                  <span
+                    key={color}
+                    style={{
+                      flex: 1,
+                      height: "16px",
+                      borderRadius: "4px",
+                      background: color,
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1)"
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="character-flow-card character-style-card glass-panel">
+            <span className="character-field-label">생성 그림체 스타일</span>
+            <div className="character-style-layout">
+              <div className="character-style-controls">
+                <div className="character-style-row wide">
+                  {(["2D", "3D"] as const).map((item) => (
+                    <button key={item} type="button" className={style === item ? "active" : ""} onClick={() => setStyle(item)}>
+                      {item}
                     </button>
                   ))}
                 </div>
-              </div>
-            </Panel>
-          </div>
-
-          {/* Right Panel: Style Preset */}
-          <div className="input-right-column" style={{ height: "100%" }}>
-            <Panel title="✦ 그림체 & 질감 스타일" className="effect-settings-panel">
-              <div style={{ marginBottom: "18px" }}>
-                <span className="field-label" style={{ display: "block", marginBottom: "8px", fontSize: "13px" }}>그림체 차원</span>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  {["2D", "3D"].map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      className={`button subtle ${style === item ? "active" : ""}`}
-                      onClick={() => setStyle(item as "2D" | "3D")}
-                      style={{ flex: 1, height: "38px", borderRadius: "10px", border: style === item ? "1px solid #7b69ff" : "1px solid rgba(255,255,255,0.1)", cursor: "pointer" }}
-                    >
-                      {item} 그림체
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span className="field-label" style={{ display: "block", marginBottom: "8px", fontSize: "13px" }}>세부 표현 스타일</span>
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div className="character-style-row">
                   {["미니멀", "손그림", "굵은 라인"].map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      className={`button subtle ${detailStyle === item ? "active" : ""}`}
-                      onClick={() => setDetailStyle(item)}
-                      style={{ flex: 1, height: "38px", borderRadius: "10px", border: detailStyle === item ? "1px solid #7b69ff" : "1px solid rgba(255,255,255,0.1)", cursor: "pointer" }}
-                    >
+                    <button key={item} type="button" className={detailStyle === item ? "active" : ""} onClick={() => setDetailStyle(item)}>
+                      {item}
+                    </button>
+                  ))}
+                </div>
+                <div className="character-style-row">
+                  {["미니멀", "손그림", "굵은 라인"].map((item) => (
+                    <button key={`sub-${item}`} type="button" className={detailStyle === item ? "active" : ""} onClick={() => setDetailStyle(item)}>
                       {item}
                     </button>
                   ))}
                 </div>
               </div>
-
-              <div style={{ marginTop: "18px", padding: "12px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "12px", fontSize: "12px", color: "#858390" }}>
-                <strong>스타일 프리뷰 요약:</strong>
-                <p style={{ margin: "4px 0 0", color: "#fff" }}>
-                  {style === "3D" 
-                    ? `부드러운 클레이 느낌의 3D 입체 캐릭터 (${detailStyle} 기법)` 
-                    : `깔끔한 외곽선이 강조된 플랫 2D 드로잉 (${detailStyle} 기법)`}
-                </p>
+              <div className="character-style-preview">
+                <strong>스타일 미리보기</strong>
+                <p>{style === "3D" ? "부드러운 3D 피규어 질감" : "선명한 2D 플랫 드로잉"}</p>
               </div>
-            </Panel>
-          </div>
+            </div>
+          </section>
         </div>
       ),
       validate: () => null
@@ -394,50 +456,39 @@ export function CharacterPage() {
       id: "step3",
       label: "03 · 구체적 묘사 & 생성",
       content: (
-        <div className="input-composer character-composer">
-          {/* Left Panel: Unsplash Reference Image */}
-          <div className="pose-capture-panel" style={{ height: "100%" }}>
-            <Panel title="✦ 레퍼런스 무드" className="snapshot-panel">
-              <div className="reference-image-container" style={{ textAlign: "center" }}>
-                <img
-                  src={mockRefImages[subType] || mockRefImages["default"]}
-                  alt="Reference Visual Mood"
-                  style={{ width: "100%", maxHeight: "200px", objectFit: "cover", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}
-                />
-                <p style={{ marginTop: "10px", fontSize: "12px", color: "#85869a" }}>
-                  설정한 캐릭터 외형과 어울리는 Unsplash 레퍼런스 무드입니다.
-                </p>
-              </div>
-            </Panel>
-          </div>
+        <div className="character-flow-slide character-step-three">
+          <section className="character-flow-card character-reference-card glass-panel">
+            <span className="character-field-label">레퍼런스 이미지</span>
+            <figure>
+              <img src={mockRefImages[subType] || mockRefImages.default} alt={`${subType} 레퍼런스 이미지`} />
+            </figure>
+            <p>설정한 캐릭터 특징과 어울리는 Unsplash 레퍼런스 무드입니다.</p>
+          </section>
 
-          {/* Right Panel: Detail description and prompt execute */}
-          <div className="input-right-column" style={{ height: "100%" }}>
-            <Panel title="✦ 디테일 외형 묘사" className="effect-settings-panel">
-              <span className="field-label" style={{ display: "block", marginBottom: "8px", fontSize: "13px" }}>세부 특징 설명 (최대 1000자)</span>
+          <section className="character-flow-card character-step-heading character-step-heading-three glass-panel">
+            <strong>03</strong>
+          </section>
+
+          <section className="character-flow-card character-detail-copy-card glass-panel">
+            <h2>캐릭터에 대해<br />더 구체적으로<br />알려주세요!</h2>
+          </section>
+
+          <section className="character-flow-card character-prompt-card glass-panel">
+            <span className="character-field-label">외형 프롬프트 입력</span>
+            <label className="character-prompt-box">
               <textarea
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="예: 파스텔톤 우주 헬멧을 쓰고 있으며, 등에 작은 가방을 멨음. 둥근 안경 착용."
+                onChange={(event) => setPrompt(event.currentTarget.value)}
+                placeholder="캐릭터의 외형, 색상, 의상, 특징 등을 자유롭게 입력해 주세요. 예) 갈색 단발머리, 둥근 얼굴, 큰 눈, 노란 후드티"
                 maxLength={1000}
-                style={{ width: "100%", height: "110px", padding: "12px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(10,9,18,0.22)", color: "#fff", resize: "none", fontSize: "13px" }}
               />
-              <span className="char-count" style={{ display: "block", textAlign: "right", fontSize: "12px", marginTop: "4px" }}>
-                {prompt.length}/1000자
-              </span>
-
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={createCharacter}
-                disabled={generating}
-                style={{ width: "100%", height: "46px", marginTop: "18px" }}
-              >
-                <Icon name="star" />
-                AI 캐릭터 생성 시작하기
-              </button>
-            </Panel>
-          </div>
+              <span>{prompt.length} / 1000</span>
+            </label>
+            <button type="button" className="character-generate-inline" onClick={createCharacter} disabled={generating}>
+              <Icon name="star" size={16} />
+              캐릭터 생성 시작하기
+            </button>
+          </section>
         </div>
       ),
       validate: () => null
@@ -460,12 +511,6 @@ export function CharacterPage() {
     <div className="workspace-page character-page">
       {!generated ? (
         <>
-          <header className="screen-brief character-brief">
-            <span>01</span>
-            <h1>이모티콘에 사용할 고유한 캐릭터를 생성합니다.</h1>
-            <p>캐릭터 외형 및 그림체 설정</p>
-          </header>
-
           <ScrollSlideContainer
             steps={steps}
             currentStep={currentStep}
@@ -475,80 +520,71 @@ export function CharacterPage() {
           />
         </>
       ) : (
-        /* Result dashboard layout (Figma 113-834 aligned) */
-        <div className="character-result-layout" style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: "24px", boxSizing: "border-box" }}>
-          <header className="character-result-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-            <h1 style={{ fontSize: "28px", margin: 0, fontWeight: "800" }}>캐릭터가 성공적으로 생성되었습니다!</h1>
-            <div className="result-actions" style={{ display: "flex", gap: "10px" }}>
-              <button className="btn-secondary" onClick={handleShare} style={{ padding: "10px 18px", borderRadius: "10px" }}>
-                <Icon name="image" size={14} /> 공유
-              </button>
-              <button className="btn-secondary" onClick={saveAndContinue} style={{ padding: "10px 18px", borderRadius: "10px" }}>
-                보관함 이동
-              </button>
-              <button className="btn-primary" onClick={saveAndCreateEmoticon} style={{ padding: "10px 18px", borderRadius: "10px" }}>
-                이 캐릭터로 이모티콘 생성하기
-              </button>
-            </div>
-          </header>
-
-          <div className="character-result-columns" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.2fr", gap: "24px", flex: 1, minHeight: 0 }}>
-            {/* Box 1 (Left): Character Name & Hashtags */}
-            <Panel title="✦ 캐릭터 이름" className="result-panel">
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px", height: "100%" }}>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="캐릭터 이름"
-                  style={{ width: "100%", padding: "12px", fontSize: "16px", fontWeight: "bold", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(10,9,18,0.22)", color: "#fff" }}
-                />
-                <div className="hashtag-grid" style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {selectedTraits.map((t) => (
-                    <span key={t} className="hashtag" style={{ background: "rgba(123,109,255,0.15)", color: "#9b8cff", padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: "600" }}>#{t}</span>
-                  ))}
-                  <span className="hashtag" style={{ background: "rgba(255,255,255,0.06)", color: "#ccc", padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: "600" }}>#{type}</span>
-                  <span className="hashtag" style={{ background: "rgba(255,255,255,0.06)", color: "#ccc", padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: "600" }}>#{subType}</span>
-                </div>
-              </div>
-            </Panel>
-
-            {/* Box 2 (Center): Character Info Natural Language Summary */}
-            <Panel title="✦ 캐릭터 정보" className="result-panel">
-              <div style={{ padding: "4px", fontSize: "14px", lineHeight: "1.6", color: "#aaa6b4" }}>
-                <p style={{ margin: 0 }}>
-                  이 캐릭터는 <strong>{selectedTraits.join(", ")}</strong> 성격의 <strong>{subType}</strong> 캐릭터입니다.
-                </p>
-                <p style={{ marginTop: "12px" }}>
-                  전체적으로 부드러운 <strong>{tone}</strong> 색상과 <strong>{style === "3D" ? "Soft 3D 피규어" : "Soft 2D 플랫"} ({detailStyle})</strong> 그림체 스타일을 적용하여 이모티콘 5프레임 동작 프레임 생성에 적합하게 튜닝된 토큰입니다.
-                </p>
-              </div>
-            </Panel>
-
-            {/* Box 3 (Right): Character Preview & Variations Grid */}
-            <Panel title="✦ 완성된 디자인 (4 Variations)" className="result-panel">
-              <div style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between" }}>
-                <div className="main-preview-square" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0, padding: "10px", background: "rgba(0,0,0,0.18)", borderRadius: "14px", border: "1px solid rgba(255,255,255,0.06)", marginBottom: "14px" }}>
-                  <img
-                    src={variationImages[selectedVariationIndex] || generated.imageUrl}
-                    alt="Result character preview"
-                    style={{ maxWidth: "90%", maxHeight: "90%", objectFit: "contain" }}
-                  />
-                </div>
-                <div className="variation-selection-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
-                  {variationImages.map((image, index) => (
-                    <button
-                      key={index}
-                      className={`var-btn ${index === selectedVariationIndex ? "active" : ""}`}
-                      onClick={() => selectVariation(index)}
-                      style={{ border: index === selectedVariationIndex ? "2px solid #7b69ff" : "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", overflow: "hidden", background: "rgba(10,9,18,0.2)", cursor: "pointer", height: "54px" }}
-                    >
-                      <img src={image} alt={`Variant ${index + 1}`} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </Panel>
+        <div className="character-result-layout">
+          <h1 className="character-result-title">캐릭터가 성공적으로<br />생성되었습니다!</h1>
+          <div className="character-result-actions">
+            <button className="character-share-button" type="button" onClick={handleShare}>
+              <Icon name="image" size={16} />
+              <span>공유</span>
+            </button>
+            <button className="character-library-button" type="button" onClick={saveAndContinue}>
+              보관함 이동
+            </button>
+            <button className="character-create-emoticon-button" type="button" onClick={saveAndCreateEmoticon}>
+              이 캐릭터로 이모티콘 생성하기
+            </button>
           </div>
+
+          <section className="character-result-name-card character-flow-card glass-panel">
+            <span className="character-field-label">캐릭터 이름</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="캐릭터 이름"
+            />
+            <div className="character-result-tags">
+              {selectedTraits.map((t) => (
+                <span key={t}>#{t}</span>
+              ))}
+              <span>#{type}</span>
+              <span>#{subType}</span>
+              <span>#{style}</span>
+            </div>
+          </section>
+
+          <section className="character-result-info-card character-flow-card glass-panel">
+            <span className="character-field-label">캐릭터 정보</span>
+            <div>
+              <p>
+                이 캐릭터는 <strong>{selectedTraits.join(", ")}</strong> 성격의 <strong>{subType}</strong> 캐릭터입니다.
+              </p>
+              <p>
+                전체적으로 부드러운 <strong>{tone}</strong> 색상과 <strong>{style === "3D" ? "Soft 3D 피규어" : "Soft 2D 플랫"} ({detailStyle})</strong> 그림체 스타일을 적용하여 이모티콘 5프레임 동작 프레임 생성에 적합하게 튜닝된 토큰입니다.
+              </p>
+            </div>
+          </section>
+
+          <section className="character-result-preview-card character-flow-card glass-panel">
+            <img
+              src={variationImages[selectedVariationIndex] || generated.imageUrl}
+              alt="Result character preview"
+            />
+            {variationImages.length > 1 ? (
+              <div className="character-result-variation-rail" aria-label="캐릭터 베리에이션 선택">
+                {variationImages.map((image, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    className={index === selectedVariationIndex ? "active" : ""}
+                    onClick={() => selectVariation(index)}
+                    aria-label={`베리에이션 ${index + 1}`}
+                  >
+                    <img src={image} alt="" />
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </section>
         </div>
       )}
 
@@ -557,145 +593,54 @@ export function CharacterPage() {
   );
 }
 
-function AsciiSphere() {
-  const [frame, setFrame] = useState("");
-
-  useEffect(() => {
-    let angleA = 0;
-    let angleB = 0;
-    let interval: number;
-
-    const render = () => {
-      const width = 50;
-      const height = 24;
-      const buffer = Array.from({ length: width * height }, () => " ");
-      const zBuffer = Array.from({ length: width * height }, () => 0);
-
-      const R = 1.0;
-      for (let theta = 0; theta < Math.PI; theta += 0.07) {
-        const sinTheta = Math.sin(theta);
-        const cosTheta = Math.cos(theta);
-
-        for (let phi = 0; phi < 2 * Math.PI; phi += 0.03) {
-          const sinPhi = Math.sin(phi);
-          const cosPhi = Math.cos(phi);
-
-          const x = R * sinTheta * cosPhi;
-          const y = R * sinTheta * sinPhi;
-          const z = R * cosTheta;
-
-          const cosA = Math.cos(angleA);
-          const sinA = Math.sin(angleA);
-          const y1 = y * cosA - z * sinA;
-          const z1 = y * sinA + z * cosA;
-
-          const cosB = Math.cos(angleB);
-          const sinB = Math.sin(angleB);
-          const x2 = x * cosB + z1 * sinB;
-          const z2 = -x * sinB + z1 * cosB;
-
-          const distance = 2.0;
-          const ooz = 1 / (z2 + distance);
-          const xp = Math.floor(width / 2 + x2 * 20 * ooz * 2.0);
-          const yp = Math.floor(height / 2 + y1 * 10 * ooz);
-
-          const nx = sinTheta * cosPhi;
-          const ny = sinTheta * sinPhi;
-          const nz = cosTheta;
-
-          const ny1 = ny * cosA - nz * sinA;
-          const nz1 = ny * sinA + nz * cosA;
-          const nx2 = nx * cosB + nz1 * sinB;
-
-          const illumination = nx2 * 1.0 + ny1 * 1.0 - nz1 * 0.5;
-
-          if (xp >= 0 && xp < width && yp >= 0 && yp < height) {
-            const idx = xp + yp * width;
-            if (ooz > zBuffer[idx]) {
-              zBuffer[idx] = ooz;
-              const charIndex = Math.max(0, Math.min(11, Math.floor((illumination + 1.5) * 3)));
-              const chars = ".,-~:;=!*#$@";
-              buffer[idx] = chars[charIndex] || " ";
-            }
-          }
-        }
-      }
-
-      let output = "";
-      for (let i = 0; i < height; i++) {
-        output += buffer.slice(i * width, (i + 1) * width).join("") + "\n";
-      }
-
-      setFrame(output);
-      angleA += 0.04;
-      angleB += 0.03;
-    };
-
-    interval = window.setInterval(render, 50);
-    return () => window.clearInterval(interval);
-  }, []);
-
+function WorkProcessScreen({ title, label, percent }: ProcessState) {
   return (
-    <pre 
-      style={{ 
-        fontFamily: "Courier, monospace", 
-        fontSize: "10px", 
-        lineHeight: "1.1", 
-        color: "#7b69ff", 
-        textShadow: "0 0 10px rgba(123, 109, 255, 0.4)", 
-        background: "transparent", 
-        border: "none", 
-        margin: "0 auto", 
-        padding: "0", 
-        whiteSpace: "pre", 
-        userSelect: "none",
-        pointerEvents: "none"
-      }}
-    >
-      {frame}
-    </pre>
+    <section className="work-process-screen character-generation-process" role="status" aria-live="polite">
+      <div className="work-process-inner">
+        <h2>{title}</h2>
+        <div className="work-process-meter" aria-label={`진행률 ${percent}%`}>
+          <span style={{ width: `${percent}%` }} />
+        </div>
+        <p>
+          <span>{label}</span>
+          <strong>{percent}%</strong>
+        </p>
+      </div>
+    </section>
   );
 }
 
-function WorkProcessScreen({ title, label, percent }: ProcessState) {
+function CharacterDropdown({
+  id,
+  label,
+  value,
+  options,
+  open,
+  onToggle,
+  onSelect,
+}: {
+  id: CharacterDropdownId;
+  label: string;
+  value: string;
+  options: string[];
+  open: boolean;
+  onToggle: () => void;
+  onSelect: (value: string) => void;
+}) {
   return (
-    <section className="work-process-screen towards-style" role="status" aria-live="polite">
-      {/* Left panel: Vertical typewriter text */}
-      <div className="towards-vertical-panel">
-        {"WE ARE CREATING YOUR EMOTICON CHARACTER.".split("").map((char, index) => (
-          <span 
-            key={index} 
-            className="towards-char" 
-            style={{ 
-              animationDelay: `${index * 40}ms`,
-              display: "block",
-              visibility: char === " " ? "hidden" : "visible",
-              height: char === " " ? "12px" : "auto"
-            }}
-          >
-            {char}
-          </span>
+    <div className={`character-dropdown ${open ? "is-open" : ""}`} data-dropdown={id}>
+      <span className="character-field-label">{label}</span>
+      <button type="button" className="character-dropdown-trigger" onClick={onToggle} aria-expanded={open}>
+        <span>{value}</span>
+        <Icon name={open ? "previous" : "next"} size={14} />
+      </button>
+      <div className="character-dropdown-menu" aria-hidden={!open}>
+        {options.map((option) => (
+          <button key={option} type="button" className={option === value ? "active" : ""} onClick={() => onSelect(option)}>
+            {option}
+          </button>
         ))}
       </div>
-
-      {/* Centerpiece: ASCII Sphere */}
-      <div className="towards-center-container">
-        <AsciiSphere />
-      </div>
-
-      {/* Bottom Area: Status & Progress */}
-      <div className="towards-bottom-panel">
-        <div className="towards-progress-info">
-          <h2>{title}</h2>
-          <p className="towards-label-row">
-            <span className="towards-state-label">{label}</span>
-            <strong className="towards-percent-num">{percent}%</strong>
-          </p>
-        </div>
-        <div className="towards-progress-bar">
-          <div className="towards-progress-bar-fill" style={{ width: `${percent}%` }} />
-        </div>
-      </div>
-    </section>
+    </div>
   );
 }

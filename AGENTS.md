@@ -46,6 +46,9 @@ When implementing from a selected generated mock, treat that image as the source
 - Character creation starts empty: do not show an existing character until the user generates a new draft, then save the resulting token explicitly.
 - Character generation and emoticon generation are separate workflows. Character creation ends in Character/Library unless the user explicitly chooses "이 캐릭터로 이모티콘 생성하기", which saves/selects that character and then routes to Input.
 - Keep the bundled default character set available for users who want to skip character creation, but never use those defaults as fallback output when the user explicitly runs new character generation.
+- The current Character creation layout source is the Figma wireframe set for Step1 `166-810`, Step2 `106-537`, Step3 `107-555`, generation loading `47-801`, and result `113-834`; match the 1920x1080 wireframe coordinates before decorative polish.
+- Character creation Step1 uses fixed-layout dropdown controls for character type and detailed character selection; opening the dropdown must not shift the surrounding card layout.
+- Character creation Step3 uses Unsplash-style reference mood imagery that reflects the selected character features, plus an optional freeform prompt before generation.
 - Character color palette is a dropdown preset; point color remains swatches plus one custom color picker swatch that shows the selected custom color.
 - Library separates emoticon and character views, and item cards flow horizontally first with a 3-column desktop grid rather than masonry columns.
 - Library category filters are horizontally scrollable/draggable and should show an edge fade when overflow is possible.

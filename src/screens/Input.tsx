@@ -110,26 +110,25 @@ export function InputPage() {
     window.clearTimeout(idleTimer.current);
     setCapturing(true);
     setRecording(true);
-    setAnalyzing(true);
+    setAnalyzing(false);
     setCaptureProgress(0);
     setVoiceProgress(0);
     setLevels([]);
-    setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "마이크 입력을 준비하는 중...", percent: 6 });
     
     try {
-      setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "MediaPipe 포즈/표정 분석기를 여는 중...", percent: 16 });
       const liveVision = await createLiveVisionAnalyzer();
       await startAudioMeter();
-      setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "5초 입력을 수집하는 중...", percent: 26 });
       
       const visionTask = liveVision.analyze(videoRef.current, CAPTURE_DURATION_MS);
       const result = await camera.current.record(videoRef.current, CAPTURE_DURATION_MS, (progress) => {
         setCaptureProgress(progress);
         setVoiceProgress(progress);
-        setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "포즈와 목소리 입력을 동기화하는 중...", percent: Math.min(58, Math.round(26 + progress * 32)) });
       });
       
       const voice = await stopAudioCapture();
+      
+      // Recording complete. Now show full-screen analysis overlay
+      setAnalyzing(true);
       setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "사람의 포즈와 표정을 판독하는 중...", percent: 64 });
       
       let metrics: VisionMetrics;
@@ -184,22 +183,23 @@ export function InputPage() {
       window.setTimeout(() => setProcess(null), 420);
     }
   };
-
+ 
   const recordVoiceOnly = async () => {
     if (recording || capturing) return;
     setRecording(true);
-    setAnalyzing(true);
+    setAnalyzing(false);
     setVoiceProgress(0);
     setLevels([]);
-    setProcess({ title: "입력한 목소리를 분석하고 있습니다.", label: "마이크 입력을 준비하는 중...", percent: 8 });
     
     try {
       await startAudioMeter();
       await waitWithProgress(CAPTURE_DURATION_MS, (progress) => {
         setVoiceProgress(progress);
-        setProcess({ title: "입력한 목소리를 분석하고 있습니다.", label: "5초 음성 입력을 수집하는 중...", percent: Math.min(52, Math.round(12 + progress * 40)) });
       });
       const result = await stopAudioCapture();
+      
+      // Voice recording complete. Now show full-screen analysis overlay
+      setAnalyzing(true);
       setProcess({ title: "입력한 목소리를 분석하고 있습니다.", label: "목소리를 전사하고 감정 키를 추출하는 중...", percent: 72 });
       setRecorded(result.blob);
       await applyVoiceAndVision(behaviorCapture.value.videoBlob, result.blob, result.features, visionMetrics.value);
@@ -457,7 +457,7 @@ export function InputPage() {
       content: (
         <div className="input-composer">
           <div className="pose-capture-panel">
-            <Panel title="✦ 음성 분석 및 감정" className="voice-analysis-panel">
+            <Panel title="✦ 음성 분석 및 감정" className="voice-analysis-panel overflow-visible">
               <div className="voice-card">
                 <div className="voice-text-badge">
                   <Icon name="voice" />
