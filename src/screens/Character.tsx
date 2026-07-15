@@ -1,6 +1,7 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useState } from "react";
 import { Icon } from "../components/Icon";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
+import { imageAssets } from "../data";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
 import { syncCharacterToRemote } from "../services/remote-store";
@@ -15,7 +16,7 @@ const palettes = [
   { id: "cosmic-calm", label: "Cosmic Calm", colors: ["#A7A3FF", "#6F83FF", "#B7BDC8", "#E4E0F0", "#78A8FF"] },
 ] as const;
 
-const traits = ["밝은", "친절한", "활발한", "장난꾸러기", "차분한", "용감한", "엉뚱한"];
+const traits = ["밝은", "엉뚱한", "듬직한", "용감한", "차분한", "신중한", "장난스러운", "활발한", "예민한"];
 const characterTypes = ["인물", "사물", "동물", "식물", "음식"];
 const subCharacterPresets: Record<string, string[]> = {
   "인물": ["소년", "소녀", "직장인", "학생", "탐험가"],
@@ -25,35 +26,6 @@ const subCharacterPresets: Record<string, string[]> = {
   "사물": ["컴퓨터", "우주선", "컵", "로봇", "시계"]
 };
 
-const mockRefImages: Record<string, string> = {
-  "펭귄": "https://images.unsplash.com/photo-1598439210625-5067c578f3f6?auto=format&fit=crop&w=400&q=80",
-  "토끼": "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&w=400&q=80",
-  "거북이": "https://images.unsplash.com/photo-1437622368342-7a3d73a34c8f?auto=format&fit=crop&w=400&q=80",
-  "고양이": "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=400&q=80",
-  "강아지": "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=400&q=80",
-  "곰": "https://images.unsplash.com/photo-1589656966895-2f33e7653819?auto=format&fit=crop&w=400&q=80",
-  "소년": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=400&q=80",
-  "소녀": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80",
-  "직장인": "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80",
-  "학생": "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=400&q=80",
-  "선인장": "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80",
-  "꽃": "https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=400&q=80",
-  "버섯": "https://images.unsplash.com/photo-1535254973040-607b474cb50d?auto=format&fit=crop&w=400&q=80",
-  "새싹": "https://images.unsplash.com/photo-1515150144380-bca9f1650ed9?auto=format&fit=crop&w=400&q=80",
-  "나무": "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80",
-  "빵": "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80",
-  "케이크": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=400&q=80",
-  "마카롱": "https://images.unsplash.com/photo-1569864358642-9d1684040f43?auto=format&fit=crop&w=400&q=80",
-  "초밥": "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=400&q=80",
-  "아이스크림": "https://images.unsplash.com/photo-1501443762231-68b1d56f68c3?auto=format&fit=crop&w=400&q=80",
-  "컴퓨터": "https://images.unsplash.com/photo-1587831990711-23ca6441447b?auto=format&fit=crop&w=400&q=80",
-  "우주선": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=400&q=80",
-  "컵": "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=400&q=80",
-  "로봇": "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=400&q=80",
-  "시계": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=400&q=80",
-  "default": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80"
-};
-
 type ProcessState = { title: string; label: string; percent: number };
 type CharacterDropdownId = "type" | "subType";
 
@@ -61,7 +33,7 @@ export function CharacterPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState(characterPrompt.value);
-  const [selectedTraits, setSelectedTraits] = useState<string[]>(["친절한"]);
+  const [selectedTraits, setSelectedTraits] = useState<string[]>(["밝은", "엉뚱한", "듬직한"]);
   const [type, setType] = useState("동물");
   const [subType, setSubType] = useState("펭귄");
   const [openDropdown, setOpenDropdown] = useState<CharacterDropdownId | null>(null);
@@ -69,11 +41,11 @@ export function CharacterPage() {
   const [detailStyle, setDetailStyle] = useState("미니멀");
   const [paletteId, setPaletteId] = useState<(typeof palettes)[number]["id"]>("soft-pastel");
   const [tone, setTone] = useState(characterTone.value || "#5679C0");
-  const [customTone, setCustomTone] = useState(characterTone.value || "#5679C0");
   const [generating, setGenerating] = useState(false);
   const [process, setProcess] = useState<ProcessState | null>(null);
   const [generated, setGenerated] = useState<GeneratedCharacterResult | null>(null);
   const [selectedVariationIndex, setSelectedVariationIndex] = useState(0);
+  const [uploadedReference, setUploadedReference] = useState<string | null>(null);
 
   const selectedPalette = palettes.find((item) => item.id === paletteId) ?? palettes[0];
   const variationImages = generated?.imageUrls?.length ? generated.imageUrls : generated ? [generated.imageUrl] : [];
@@ -105,7 +77,7 @@ export function CharacterPage() {
       ownerId: "local-user",
       isDefault: false,
       sourceAsset: imageUrl,
-      referenceImages: imageUrl ? [imageUrl] : [],
+      referenceImages: imageUrl ? [imageUrl] : uploadedReference ? [uploadedReference] : [],
       styleMode: style,
       stylePreset: style === "3D" ? "Soft 3D" : "Soft 2D",
       styleDescription: style === "3D"
@@ -193,8 +165,16 @@ export function CharacterPage() {
   const saveAndCreateEmoticon = () => saveGeneratedCharacter("/input");
 
   const chooseCustomTone = (value: string) => {
-    setCustomTone(value);
     setTone(value);
+  };
+
+  const chooseReferenceImage = (file?: File) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") setUploadedReference(reader.result);
+    };
+    reader.readAsDataURL(file);
   };
 
   const steps = [
@@ -240,7 +220,7 @@ export function CharacterPage() {
             <div className="character-mini-preview">
               <span>캐릭터 미리보기</span>
               <figure>
-                <img src={mockRefImages[subType] || mockRefImages.default} alt={`${subType} 미리보기`} />
+                <img src={imageAssets.character} alt={`${subType} 미리보기`} />
               </figure>
             </div>
           </section>
@@ -258,6 +238,7 @@ export function CharacterPage() {
                     className={isActive ? "active" : ""}
                     onClick={() => toggleTrait(item)}
                   >
+                    <span aria-hidden="true" />
                     {item}
                   </button>
                 );
@@ -357,7 +338,6 @@ export function CharacterPage() {
                     if (!value.startsWith("#")) value = `#${value}`;
                     if (value.length <= 7) {
                       setTone(value);
-                      setCustomTone(value);
                     }
                   }}
                   style={{
@@ -365,7 +345,7 @@ export function CharacterPage() {
                     height: "28px",
                     padding: "0 6px",
                     fontSize: "12px",
-                    fontFamily: "monospace",
+                    fontFamily: "Pretendard, sans-serif",
                     border: "1px solid rgba(255,255,255,0.12)",
                     borderRadius: "6px",
                     background: "rgba(10,9,18,0.22)",
@@ -459,10 +439,14 @@ export function CharacterPage() {
         <div className="character-flow-slide character-step-three">
           <section className="character-flow-card character-reference-card glass-panel">
             <span className="character-field-label">레퍼런스 이미지</span>
-            <figure>
-              <img src={mockRefImages[subType] || mockRefImages.default} alt={`${subType} 레퍼런스 이미지`} />
-            </figure>
-            <p>설정한 캐릭터 특징과 어울리는 Unsplash 레퍼런스 무드입니다.</p>
+            <label className="character-reference-picker">
+              <figure>
+                <img src={uploadedReference || imageAssets.library[Math.max(0, characterTypes.indexOf(type)) % imageAssets.library.length]} alt={`${subType} 카툰·3D 스타일 레퍼런스 이미지`} />
+                <span>이미지 1장 선택</span>
+              </figure>
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/avif" onChange={(event) => chooseReferenceImage(event.currentTarget.files?.[0])} />
+            </label>
+            <p>선택한 캐릭터와 가까운 카툰·3D 렌더 무드를 우선 참고하며, 원하는 이미지를 직접 올릴 수 있습니다.</p>
           </section>
 
           <section className="character-flow-card character-step-heading character-step-heading-three glass-panel">

@@ -11,6 +11,7 @@ out/
 !.env.example
 
 qa/
+.design-qa/
 *.log
 deploy-*.zip
 

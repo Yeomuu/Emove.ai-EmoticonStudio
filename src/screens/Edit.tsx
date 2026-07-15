@@ -155,7 +155,7 @@ export function EditPage() {
 
   return (
     <>
-      <div className="editor-page">
+      <div className={`editor-page is-layer-${activeLayerId ?? "none"}`}>
         <header className="screen-brief edit-brief">
           <span>03</span>
           <h1>이모티콘의 이펙트와 텍스트를 자유롭게 수정하세요.</h1>

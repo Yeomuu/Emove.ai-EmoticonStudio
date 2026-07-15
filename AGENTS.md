@@ -47,6 +47,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Character generation and emoticon generation are separate workflows. Character creation ends in Character/Library unless the user explicitly chooses "이 캐릭터로 이모티콘 생성하기", which saves/selects that character and then routes to Input.
 - Keep the bundled default character set available for users who want to skip character creation, but never use those defaults as fallback output when the user explicitly runs new character generation.
 - The current Character creation layout source is the Figma wireframe set for Step1 `166-810`, Step2 `106-537`, Step3 `107-555`, generation loading `47-801`, and result `113-834`; match the 1920x1080 wireframe coordinates before decorative polish.
+- The 2026-07-13 canonical Figma `디자인 시안` pass supersedes older page-layout frames. Its implementation nodes are Home `124-1275`, Character steps `124-586`, `124-1013`, `124-1074`, Character loading/result `189-766`, `281-796`, Input capture/loading/results `271-627`, `165-2444`, `264-476`, `265-707`, Emoticon loading `303-1248`, Edit states `175-896`, `281-1235`, `282-660`, `283-989`, Edit save loading `303-1241`, and Library `285-1866`.
 - Character creation Step1 uses fixed-layout dropdown controls for character type and detailed character selection; opening the dropdown must not shift the surrounding card layout.
 - Character creation Step3 uses Unsplash-style reference mood imagery that reflects the selected character features, plus an optional freeform prompt before generation.
 - Character color palette is a dropdown preset; point color remains swatches plus one custom color picker swatch that shows the selected custom color.
@@ -102,6 +103,8 @@ When implementing from a selected generated mock, treat that image as the source
 - When transplanting Notion page-function inventories into a technical test app, focus on the actual page functions, states, controls, and route behavior rather than recreating sidebar/navigation layout details.
 - Use the Next.js lab to stress-test accumulated EMOVE features with realistic mock state before wiring paid API calls, remote persistence, or production background jobs.
 - Home footer copy is `© 2026. EMOVE. All rights reserved.` and should sit faintly at the centered bottom of the viewport with about 0.5 opacity.
+- `/showcase` is the animated-emoticon-only archive. It reads generated APNG/GIF/Animated WebP assets from local projects and remote shared sticker metadata, never substitutes static/default assets, shows at most 12 at once, and advances through a shuffled circular deck every 20 seconds so larger libraries are not skipped.
+- Showcase emoticons should drift and bob like objects floating on water rather than falling; motion must use transform/opacity, pause under reduced-motion preferences, and remain clickable through to Library detail.
 - For the current Figma redesign pass, layout fidelity takes priority over decorative style refinement; match each 1920×1080 frame's placement and sizing before polishing visual treatment.
 - Primary app screens should occupy a fixed `100svw` × `100svh` stage with a `1920px` maximum width and hidden viewport overflow so the app behaves as a one-screen flow.
 - The Home geometric circle/line background must follow the current Figma Home frame rather than the earlier decorative pattern.
@@ -116,6 +119,12 @@ When implementing from a selected generated mock, treat that image as the source
   - https://sustainability.kakao.com/ko (modern grids and liquid-glass container hierarchies)
   - https://myz-studio.com/ (clean minimalist dark layout and hover states)
   - https://towards.co.kr/ (loading sequence, typewriter vertical panels, and real-time ASCII rotating globes)
+- Showcase uses an independently implemented full-viewport pointer-reactive liquid canvas inspired by the supplied Haoqi reference. Keep empty-state copy as part of the background composition rather than a centered card, and split animated emoticons between behind-text and in-front layers.
+- Form and media-panel internals must use containment-safe flex/grid layout. Do not position controls across unrelated parent panels or allow labels, previews, buttons, or upload controls to overflow their owning region.
+- Keep glass treatment selective: use it for navigation, modal, focused controls, and intentional overlay surfaces rather than applying it uniformly to every wireframe cell.
+- The bottom dock must always provide a clickable EMOVE logo for Home and an icon-only Showcase entry; Home uses the same responsive bottom-right dock as the other routes.
+- After a completed Input microphone/camera capture becomes idle for about 10 seconds, Showcase may open automatically. Clicking the Showcase background returns to the immediately previous route.
+- Character reference input prioritizes cartoon or 3D-rendered imagery and accepts one user-uploaded reference image that is included in the character generation token.
 
 ## Vercel Storage Data Model
 

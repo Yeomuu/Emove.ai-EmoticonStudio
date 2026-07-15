@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useState, useRef, useTransition } from "react";
+import { lazy, Suspense, useEffect, useState, useRef } from "react";
 import { Shell } from "./components/Shell";
 import { HomePage } from "./screens/Home";
 import { route } from "./router";
@@ -14,6 +14,7 @@ const CharacterPage = lazy(() => import("./screens/Character").then((module) => 
 const InputPage = lazy(() => import("./screens/Input").then((module) => ({ default: module.InputPage })));
 const EditPage = lazy(() => import("./screens/Edit").then((module) => ({ default: module.EditPage })));
 const LibraryPage = lazy(() => import("./screens/Library").then((module) => ({ default: module.LibraryPage })));
+const ShowcasePage = lazy(() => import("./screens/Showcase").then((module) => ({ default: module.ShowcasePage })));
 
 const BOOT_ASSETS = [
   imageAssets.logo,
@@ -35,7 +36,6 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
   const [activeRoute, setActiveRoute] = useState<RoutePath>("/home");
   const [routePhase, setRoutePhase] = useState<"idle" | "covering" | "revealing">("idle");
   const [routeProgress, setRouteProgress] = useState(0);
-  const routeTimer = useRef<number | null>(null);
 
   // Asset preloading on boot
   useEffect(() => {
@@ -129,6 +129,7 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
   else if (activeRoute === "/input") page = <InputPage />;
   else if (activeRoute === "/edit") page = <EditPage />;
   else if (activeRoute.startsWith("/library")) page = <LibraryPage />;
+  else if (activeRoute === "/showcase") page = <ShowcasePage />;
 
   const routeBusy = routePhase !== "idle";
 
@@ -162,7 +163,7 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
       </div>
 
       {!booting && (
-        <Shell immersive={activeRoute === "/home"} dockAutoHide={workRoutes}>
+        <Shell immersive={activeRoute === "/home" || activeRoute === "/showcase"} dockAutoHide={workRoutes}>
           <Suspense fallback={<div className="route-loader" role="status"><span />화면을 불러오는 중</div>}>
             <div className="route-slide-frame" key={routeKey} data-route-frame={routeKey.replace("/", "") || "home"}>
               {page}

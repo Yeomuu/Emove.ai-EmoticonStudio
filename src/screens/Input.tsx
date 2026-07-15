@@ -3,7 +3,7 @@ import { Icon } from "../components/Icon";
 import { Panel } from "../components/Shell";
 import { Waveform } from "../components/Waveform";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
-import { emotionEffectGuides, emotionMeta, emotionOrder, imageAssets } from "../data";
+import { emotionMeta, emotionOrder, imageAssets } from "../data";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
 
@@ -12,19 +12,13 @@ import { inferEmotionFromText } from "../services/prompt-builder";
 import { syncCaptureToRemote } from "../services/remote-store";
 import { saveCapture } from "../services/repository";
 import { createLiveVisionAnalyzer } from "../services/vision";
-import { audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, effectColor, emotion, expressionEmotion, frameDelayMs, frameImages, motionBrief, motionIntensity, motionStyle, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
-import type { AudioFeatures, BehaviorCapture, Emotion, ExaggerationTier, MotionStyle, VisionMetrics } from "../types";
+import { audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, effectColor, emotion, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
+import type { AudioFeatures, BehaviorCapture, Emotion, ExaggerationTier, VisionMetrics } from "../types";
 
 const ai = getAIProvider();
 const FRAME_COUNT = 5;
 const CAPTURE_DURATION_MS = 5000;
 type ProcessState = { title: string; label: string; percent: number };
-const motionStyleOptions: Array<{ id: MotionStyle; label: string; delay: number; copy: string }> = [
-  { id: "smooth", label: "부드럽게", delay: 140, copy: "완만한 연결" },
-  { id: "dynamic", label: "역동적", delay: 90, copy: "빠른 반응" },
-  { id: "bouncy", label: "통통 튀게", delay: 110, copy: "탄성 있는 루프" },
-  { id: "subtle", label: "은은하게", delay: 170, copy: "작은 움직임" },
-];
 
 export function InputPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -37,15 +31,20 @@ export function InputPage() {
   const [captureProgress, setCaptureProgress] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [voiceProgress, setVoiceProgress] = useState(0);
   const [levels, setLevels] = useState<number[]>([]);
-  const [recorded, setRecorded] = useState<Blob>();
   const [analyzing, setAnalyzing] = useState(false);
   const [characterMenu, setCharacterMenu] = useState(false);
   const [process, setProcess] = useState<ProcessState | null>(null);
 
   const [personDetected, setPersonDetected] = useState(false);
   const [tierOverride, setTierOverride] = useState<ExaggerationTier | null>(null);
+
+  useEffect(() => {
+    window.clearTimeout(idleTimer.current);
+    if (currentStep < 2 || capturing || analyzing || recording || process) return;
+    idleTimer.current = window.setTimeout(() => navigate("/showcase"), 10_000);
+    return () => window.clearTimeout(idleTimer.current);
+  }, [currentStep, capturing, analyzing, recording, process]);
 
   // Always-on camera: start on mount, blur when person not detected
   useEffect(() => {
@@ -95,7 +94,6 @@ export function InputPage() {
     setCapturing(false);
     setRecording(false);
     setCaptureProgress(0);
-    setVoiceProgress(0);
     if (message) notify(message);
     setCurrentStep(0);
   };
@@ -112,7 +110,6 @@ export function InputPage() {
     setRecording(true);
     setAnalyzing(false);
     setCaptureProgress(0);
-    setVoiceProgress(0);
     setLevels([]);
     
     try {
@@ -122,7 +119,6 @@ export function InputPage() {
       const visionTask = liveVision.analyze(videoRef.current, CAPTURE_DURATION_MS);
       const result = await camera.current.record(videoRef.current, CAPTURE_DURATION_MS, (progress) => {
         setCaptureProgress(progress);
-        setVoiceProgress(progress);
       });
       
       const voice = await stopAudioCapture();
@@ -138,7 +134,6 @@ export function InputPage() {
         metrics = { source: "unavailable", gesture: "Analyzer_Error", diagnostics: error instanceof Error ? error.message : String(error) };
       }
       
-      setRecorded(voice.blob);
       visionMetrics.value = metrics;
       
       if (metrics.source === "mediapipe") {
@@ -179,43 +174,10 @@ export function InputPage() {
       setRecording(false);
       setAnalyzing(false);
       setCaptureProgress(0);
-      setVoiceProgress(0);
       window.setTimeout(() => setProcess(null), 420);
     }
   };
  
-  const recordVoiceOnly = async () => {
-    if (recording || capturing) return;
-    setRecording(true);
-    setAnalyzing(false);
-    setVoiceProgress(0);
-    setLevels([]);
-    
-    try {
-      await startAudioMeter();
-      await waitWithProgress(CAPTURE_DURATION_MS, (progress) => {
-        setVoiceProgress(progress);
-      });
-      const result = await stopAudioCapture();
-      
-      // Voice recording complete. Now show full-screen analysis overlay
-      setAnalyzing(true);
-      setProcess({ title: "입력한 목소리를 분석하고 있습니다.", label: "목소리를 전사하고 감정 키를 추출하는 중...", percent: 72 });
-      setRecorded(result.blob);
-      await applyVoiceAndVision(behaviorCapture.value.videoBlob, result.blob, result.features, visionMetrics.value);
-      setProcess({ title: "입력한 목소리를 분석하고 있습니다.", label: "목소리 분석 결과 저장 완료", percent: 100 });
-    } catch (error) {
-      setProcess(null);
-      audio.current.release();
-      notify(error instanceof Error ? error.message : "5초 음성 입력에 실패했습니다.");
-    } finally {
-      setRecording(false);
-      setAnalyzing(false);
-      setVoiceProgress(0);
-      window.setTimeout(() => setProcess(null), 420);
-    }
-  };
-
   const proceed = async () => {
     setAnalyzing(true);
     setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "입력 데이터 조건을 확인하는 중...", percent: 6 });
@@ -309,20 +271,9 @@ export function InputPage() {
       : "카메라에서 행동을 인식하지 못했습니다. 다시 촬영해 주세요.");
   };
 
-  const chooseMotionStyle = (next: MotionStyle) => {
-    const option = motionStyleOptions.find((item) => item.id === next);
-    motionStyle.value = next;
-    if (option) frameDelayMs.value = option.delay;
-  };
-
   const computedTier: ExaggerationTier = motionIntensity.value < .45 ? "minimal" : motionIntensity.value < .72 ? "emotional" : "full";
   const effectiveTier = tierOverride ?? computedTier;
-  const intensityTier = effectiveTier === "minimal" ? "낮음" : effectiveTier === "emotional" ? "중간" : "높음";
   const poseSummary = describePose(visionMetrics.value);
-  const faceSummary = describeFaceUse(expressionEmotion.value, visionMetrics.value);
-  const voiceSummary = describeVoiceUse(sourceTranscript.value, transcript.value, audioRms.value);
-  const effectGuide = emotionEffectGuides[emotion.value];
-  const selectedMotionStyle = motionStyleOptions.find((item) => item.id === motionStyle.value) ?? motionStyleOptions[0];
 
   // Define steps for ScrollSlideContainer
   const steps = [
@@ -333,7 +284,7 @@ export function InputPage() {
         <div className="input-composer">
           <div className="pose-capture-panel">
             <Panel title="✦ 실시간 모니터" className="camera-monitor-panel">
-              <div className="pose-media-frame">
+              <div className={`pose-media-frame${cameraReady && !personDetected && !capturing ? " is-awaiting-person" : ""}`}>
                 <video
                   ref={videoRef}
                   muted
@@ -351,6 +302,10 @@ export function InputPage() {
                 </span>
               </div>
               <p className="step-tip">상반신과 양손이 화면에 모두 들어오도록 카메라 앞에 서 주세요.</p>
+              <button type="button" className="btn-start-capture" onClick={startCaptureFlow} disabled={!cameraReady}>
+                <Icon name="camera" />
+                <span>촬영 시작하기</span>
+              </button>
             </Panel>
           </div>
           <div className="input-right-column">
@@ -361,10 +316,6 @@ export function InputPage() {
                 <li>예: 기쁠 때 만세하기, 슬플 때 얼굴 감싸기</li>
                 <li>목소리 강도에 따라 캐릭터 동작과 연출이 자동 과장됩니다.</li>
               </ul>
-              <button type="button" className="btn-start-capture" onClick={startCaptureFlow} disabled={!cameraReady} style={{ marginTop: "24px", width: "100%" }}>
-                <Icon name="camera" />
-                촬영 시작하기
-              </button>
             </Panel>
           </div>
         </div>
@@ -602,7 +553,7 @@ export function InputPage() {
     <div className="workspace-page input-page">
       <header className="screen-brief input-brief">
         <span>02</span>
-        <h1>목소리와 몸짓으로 이모티콘을 설계해 보세요.</h1>
+        <h1>캐릭터 생성에 필요한<br />목소리와 포즈를 촬영해 주세요.</h1>
         <p>음성 강도 분석과 AI 프롬프트 생성 단계</p>
       </header>
 
@@ -645,25 +596,6 @@ function describeFaceUse(current: Emotion, metrics: VisionMetrics): string {
   if (!metrics.face) return "표정 미분석";
   const meta = emotionMeta[metrics.face.expression ?? current];
   return `${meta.label} 표정 · ${Math.round(metrics.face.confidence * 100)}%`;
-}
-
-function describeVoiceUse(source: string, shortText: string, rms: number): string {
-  const text = shortText.trim() || source.trim();
-  const level = rms < .22 ? "낮은 음량" : rms < .58 ? "중간 음량" : "큰 음량";
-  return text ? `${level} · "${text}"` : `${level} · 음성 대기`;
-}
-
-function waitWithProgress(durationMs: number, onProgress: (progress: number) => void): Promise<void> {
-  const startedAt = performance.now();
-  return new Promise((resolve) => {
-    const tick = () => {
-      const progress = Math.min(1, (performance.now() - startedAt) / durationMs);
-      onProgress(progress);
-      if (progress >= 1) resolve();
-      else requestAnimationFrame(tick);
-    };
-    tick();
-  });
 }
 
 async function saveCaptureRemoteFirst(capture: BehaviorCapture): Promise<{ synced: boolean; message: string }> {

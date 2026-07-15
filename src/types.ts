@@ -9,6 +9,7 @@ export type RoutePath =
   | "/edit"
   | "/library"
   | `/library/${string}`
+  | "/showcase"
   | "/login"
   | "/profile"
   | "/community"

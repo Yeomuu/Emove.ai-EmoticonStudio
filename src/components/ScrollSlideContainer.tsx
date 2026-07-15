@@ -31,7 +31,6 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
     const target = slides[index];
     if (!target) return;
     isScrolling.current = true;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
     if (propStep === undefined) {
       setLocalStep(index);
     }
@@ -87,7 +86,7 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
   };
 
   return (
-    <div className={`scroll-slide-container ${className}`} ref={containerRef}>
+    <div className={`scroll-slide-container ${className}`} ref={containerRef} data-current-step={currentStep}>
       {/* Step indicator */}
       <nav className="scroll-slide-nav" aria-label="단계 탐색">
         {steps.map((step, index) => (
@@ -107,7 +106,7 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
       {steps.map((step, index) => (
         <section
           key={step.id}
-          className={`scroll-slide ${index === currentStep ? "is-active" : ""}`}
+          className={`scroll-slide ${index === currentStep ? "is-active" : index < currentStep ? "is-before" : "is-after"}`}
           data-step={index}
           aria-hidden={index !== currentStep}
         >

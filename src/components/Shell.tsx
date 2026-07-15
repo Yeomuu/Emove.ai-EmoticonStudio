@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Button } from "./ui/button";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Icon } from "./Icon";
 import { imageAssets } from "../data";
 import { navigate, route } from "../router";
 import { toast } from "../store";
 import type { RoutePath } from "../types";
 
 const navItems: Array<{ label: string; path: RoutePath }> = [
-  { label: "HOME", path: "/home" },
-  { label: "CHARACTER", path: "/character" },
-  { label: "EMOTICON", path: "/input" },
+  { label: "캐릭터", path: "/character" },
+  { label: "이모티콘", path: "/input" },
 ];
 
 type ThemeMode = "dark" | "light";
@@ -22,7 +21,6 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
   const [dockVisible, setDockVisible] = useState(!dockAutoHide);
   const closeTimer = useRef<number | undefined>(undefined);
   const current = route.value;
-  const selectedIndex = current === "/home" ? -1 : navItems.findIndex((item) => current === item.path);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -47,10 +45,11 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
     closeTimer.current = window.setTimeout(() => setDockVisible(false), 1000);
   };
 
-  const navStyle = { "--nav-index": Math.max(0, selectedIndex) } as CSSProperties;
-
   return (
-    <div className={`app-shell ${immersive ? "is-immersive" : ""} ${dockAutoHide ? "has-auto-hide-dock" : ""}`}>
+    <div
+      className={`app-shell route-${current.split("/")[1] || "home"} ${immersive ? "is-immersive" : ""} ${dockAutoHide ? "has-auto-hide-dock" : ""}`}
+      data-current-route={current}
+    >
       <main>{children}</main>
       <div className="nav-hover-zone" aria-hidden="true" onPointerEnter={revealDock} />
       <header
@@ -58,7 +57,12 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
         aria-label="주요 메뉴"
         onPointerEnter={revealDock}
         onPointerLeave={scheduleDockHide}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
+        <button className="dock-home-logo" type="button" onClick={() => navigate("/home")} aria-label="EMOVE 홈으로 이동">
+          <img src={imageAssets.logo} alt="" />
+        </button>
         <nav className="text-nav-bar">
           {navItems.map((item) => (
             <a
@@ -76,6 +80,9 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
           ))}
         </nav>
         <div className="text-nav-actions">
+          <button className="showcase-icon-btn" type="button" onClick={() => navigate("/showcase")} aria-label="움직이는 이모티콘 쇼케이스">
+            <Icon name="play" size={16} />
+          </button>
           <button
             className="theme-icon-toggle"
             type="button"

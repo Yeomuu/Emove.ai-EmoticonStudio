@@ -43,20 +43,20 @@ const getFieldScale = (width: number) => {
 };
 
 const placementSlots = [
-  [0.13, 0.46],
-  [0.24, 0.75],
-  [0.36, 0.32],
-  [0.62, 0.28],
-  [0.73, 0.66],
-  [0.86, 0.43],
+  [0.358, 0.305],
+  [0.237, 0.641],
+  [0.796, 0.828],
+  [0.66, 0.18],
+  [0.73, 0.68],
+  [0.88, 0.48],
   [0.54, 0.78],
 ] as const;
 
 function createLandingCharacters(): LandingCharacterSpec[] {
   const sources = [
-    { id: "main", src: imageAssets.character, label: "메인 캐릭터", size: 184, depth: 1.08 },
-    { id: "input", src: imageAssets.inputCharacter, label: "입력 캐릭터", size: 136, depth: 0.94 },
-    { id: "edit", src: imageAssets.editCharacterSheet, label: "편집 캐릭터", size: 158, depth: 1 },
+    { id: "main", src: imageAssets.library[0], label: "인사하는 캐릭터", size: 184, depth: 1.08 },
+    { id: "input", src: imageAssets.character, label: "펭귄 캐릭터", size: 136, depth: 0.94 },
+    { id: "edit", src: imageAssets.library[1], label: "우주 비행사 캐릭터", size: 158, depth: 1 },
     { id: "library-1", src: imageAssets.library[0], label: "라이브러리 캐릭터 1", size: 144, depth: 0.92 },
     { id: "library-2", src: imageAssets.library[1], label: "라이브러리 캐릭터 2", size: 150, depth: 0.98 },
     { id: "library-4", src: imageAssets.library[3], label: "라이브러리 캐릭터 3", size: 128, depth: 0.88 },
@@ -221,7 +221,7 @@ function HomeCharacterField() {
     if (!field) return undefined;
 
     reducedMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    placeCharacters(true);
+    placeCharacters(false);
 
     const resizeObserver = new ResizeObserver(() => placeCharacters());
     resizeObserver.observe(field);
@@ -456,17 +456,11 @@ export function HomePage() {
         <img src={imageAssets.logo} alt="" />
       </button>
       <div className="home-copy">
-        <p className="hero-kicker">MOVE YOUR</p>
-        <h1>
-          <span style={{ position: "relative", display: "inline-block" }}>
-            EMOTION
-            <span className="hero-underline" aria-hidden="true" />
-          </span>
-          <span className="hero-arrow" aria-hidden="true">→</span>
-        </h1>
+        <p className="hero-kicker">Move Your</p>
+        <h1>Emotion</h1>
         <div className="hero-actions">
-          <button className="hero-button" type="button" onClick={() => navigate("/library")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 구경가기</span></button>
-          <button className="hero-button" type="button" onClick={() => navigate("/character")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 제작하기</span></button>
+          <button className="hero-button" type="button" onClick={() => navigate("/library")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 보관함으로 이동하기</span></button>
+          <button className="hero-button" type="button" onClick={() => navigate("/character")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 생성하기</span></button>
         </div>
       </div>
       <footer className="home-footer">© 2026. EMOVE. All rights reserved.</footer>

@@ -1,7 +1,7 @@
 import { signal } from "./lib/signals";
 import type { RoutePath } from "./types";
 
-const allowed = new Set(["/home", "/character", "/input", "/edit", "/library"]);
+const allowed = new Set(["/home", "/character", "/input", "/edit", "/library", "/showcase"]);
 
 export function normalizePath(pathname: string): RoutePath {
   const clean = `/${pathname.split(/[?#]/)[0].split("/").filter(Boolean).join("/")}`;

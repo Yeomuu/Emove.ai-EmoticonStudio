@@ -46,7 +46,7 @@ export const frameDelayMs = signal(120);
 export const motionStyle = signal<MotionStyle>("smooth");
 
 export const selectedFrame = signal(0);
-export const activeLayer = signal<LayerKind | null>("accent-effects");
+export const activeLayer = signal<LayerKind | null>("text");
 export const textBoxShape = signal<TextBoxShape>("pill");
 export const textFont = signal<TextFont>("Pretendard");
 export const layers = signal(initialLayers.map((layer) => ({ ...layer })));

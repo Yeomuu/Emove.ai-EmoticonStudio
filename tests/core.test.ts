@@ -2,14 +2,43 @@ import { describe, expect, it } from "vitest";
 import { createMotionBrief, emotionMeta, initialLayers } from "../src/data";
 import { normalizePath } from "../src/router";
 import { encodeGifFrames } from "../src/services/renderer";
+import { circularBatch, isAnimatedSticker, shuffled } from "../src/services/animated-library";
 import { previewLayerOrder } from "../src/store";
+import type { StickerItem } from "../src/types";
 
 describe("clean route normalization", () => {
   it("keeps public clean paths and never produces a hash route", () => {
     expect(normalizePath("/edit?frame=2")).toBe("/edit");
     expect(normalizePath("/library/joy-pop")).toBe("/library/joy-pop");
+    expect(normalizePath("/showcase")).toBe("/showcase");
     expect(normalizePath("/#home")).toBe("/home");
     expect(normalizePath("/unknown")).toBe("/home");
+  });
+});
+
+describe("animated showcase rotation", () => {
+  it("shows at most twelve items and wraps without skipping the end of the deck", () => {
+    const deck = Array.from({ length: 15 }, (_, index) => index);
+    expect(circularBatch(deck, 0)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(circularBatch(deck, 12)).toEqual([12, 13, 14, 0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("does not mutate the source while shuffling", () => {
+    const source = [1, 2, 3, 4];
+    expect(shuffled(source, () => 0)).toEqual([2, 3, 4, 1]);
+    expect(source).toEqual([1, 2, 3, 4]);
+  });
+
+  it("accepts only non-default animated sticker assets", () => {
+    const base: StickerItem = {
+      id: "animated-1", title: "움직이는 테스트", phrase: "", emotion: "happy", image: "thumb.png",
+      animatedImage: "https://assets.example.test/emove.apng", animationFormat: "APNG", color: "#BBB6FF",
+      favorite: false, ownerId: null, isDefault: false, isPublished: false, characterTokenId: "character-1",
+      createdAt: "2026-07-13T00:00:00.000Z", updatedAt: "2026-07-13T00:00:00.000Z",
+    };
+    expect(isAnimatedSticker(base)).toBe(true);
+    expect(isAnimatedSticker({ ...base, isDefault: true })).toBe(false);
+    expect(isAnimatedSticker({ ...base, animatedImage: undefined, animationFormat: undefined })).toBe(false);
   });
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Icon } from "../components/Icon";
 import { emotionMeta, emotionOrder } from "../data";
 import { navigate, route } from "../router";
@@ -12,7 +12,7 @@ import type { AnimationFormat, CharacterToken, EmoticonProject, Emotion, Sticker
 type Filter = "all" | "favorite" | Emotion;
 type LibraryMode = "all" | "emoticons" | "characters";
 type MixedLibraryItem = { kind: "emoticon"; item: StickerItem; createdAt: string } | { kind: "character"; item: CharacterToken; createdAt: string };
-type VirtualLibraryItem = { entry: MixedLibraryItem; realIndex: number; virtualIndex: number; copy: number };
+type VirtualLibraryItem = { entry: MixedLibraryItem; virtualIndex: number; copy: number };
 
 const categories: Array<{ id: string; title: string; copy: string; filter: Filter }> = [
   { id: "celebration", title: "축하", copy: "기쁨, 기쁜 순간", filter: "happy" },
@@ -95,7 +95,6 @@ export function LibraryPage() {
     navigate("/character");
   };
 
-  const [activeIndex, setActiveIndex] = useState(0);
   const [activeVirtualIndex, setActiveVirtualIndex] = useState(0);
   const [isListDragging, setIsListDragging] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -120,7 +119,6 @@ export function LibraryPage() {
   const virtualItems = useMemo<VirtualLibraryItem[]>(() => {
     return itemsToDisplay.map((entry, index) => ({
       entry,
-      realIndex: index,
       virtualIndex: index,
       copy: 0,
     }));
@@ -156,7 +154,6 @@ export function LibraryPage() {
     if (length > 0) {
       const clampedIndex = Math.max(0, Math.min(length - 1, virtualIndex));
       setActiveVirtualIndex(clampedIndex);
-      setActiveIndex(clampedIndex);
       
       isScrollingRef.current = true;
       window.clearTimeout(normalizeTimerRef.current);
@@ -172,17 +169,22 @@ export function LibraryPage() {
   };
 
   useEffect(() => {
-    setActiveIndex(0);
     setActiveVirtualIndex(0);
     const frame = window.requestAnimationFrame(() => scrollToVirtualIndex(0, "auto"));
     return () => window.cancelAnimationFrame(frame);
   }, [mode, filter, query, itemsToDisplay.length]);
 
-  const selectVirtualItem = (virtualIndex: number, realIndex: number) => {
+  const selectVirtualItem = (virtualIndex: number) => {
     if (suppressCardClickRef.current) return;
-    setActiveIndex(realIndex);
     setActiveVirtualIndex(virtualIndex);
     scrollToVirtualIndex(virtualIndex);
+  };
+
+  const moveCarousel = (direction: -1 | 1) => {
+    const length = itemsToDisplay.length;
+    if (!length) return;
+    const next = (activeVirtualIndex + direction + length) % length;
+    scrollToVirtualIndex(next, "smooth");
   };
 
   const getNearestVirtualIndex = () => {
@@ -208,7 +210,6 @@ export function LibraryPage() {
     const index = getNearestVirtualIndex();
     if (index !== activeVirtualIndex) {
       setActiveVirtualIndex(index);
-      setActiveIndex(index);
     }
   };
 
@@ -456,6 +457,10 @@ export function LibraryPage() {
                   <Icon name="image" />
                   이모티콘 탐색
                 </button>
+                <button type="button" onClick={() => navigate("/showcase")}>
+                  <Icon name="play" />
+                  움직이는 이모티콘
+                </button>
                 <hr />
                 <button
                   type="button"
@@ -579,6 +584,11 @@ export function LibraryPage() {
               )}
 
               {itemsToDisplay.length ? (
+                <>
+                <div className="library-carousel-controls" aria-label="보관함 캐러셀 이동">
+                  <button type="button" onClick={() => moveCarousel(-1)} aria-label="이전 항목"><Icon name="previous" /></button>
+                  <button type="button" onClick={() => moveCarousel(1)} aria-label="다음 항목"><Icon name="next" /></button>
+                </div>
                 <div
                   className={`library-horizontal-scroll${isListDragging ? " is-dragging" : ""}`}
                   ref={listRef}
@@ -588,7 +598,7 @@ export function LibraryPage() {
                   onPointerUp={endCarouselDrag}
                   onPointerCancel={endCarouselDrag}
                 >
-                  {virtualItems.map(({ entry, realIndex, virtualIndex, copy }) => {
+                  {virtualItems.map(({ entry, virtualIndex, copy }) => {
                     const isActive = virtualIndex === activeVirtualIndex;
                     const key = `${copy}-${entry.kind}-${entry.item.id}`;
                     if (entry.kind === "emoticon") {
@@ -599,14 +609,14 @@ export function LibraryPage() {
                           key={key}
                           data-virtual-index={virtualIndex}
                           className={`carousel-card emoticon-card ${isActive ? "active" : "inactive"}`}
-                          onClick={() => selectVirtualItem(virtualIndex, realIndex)}
+                          onClick={() => selectVirtualItem(virtualIndex)}
                         >
                           <div className="card-preview">
                             <img src={sticker.animatedImage ?? sticker.image} alt={sticker.title} />
                           </div>
                           <p className="carousel-card-title">{sticker.title}</p>
-                          {isActive && (
-                            <div className="card-action-overlay" aria-label={`${sticker.title} 빠른 작업`}>
+                          <div className="card-action-overlay" aria-label={`${sticker.title} 빠른 작업`}>
+                              <strong className="card-hover-title">{sticker.title}</strong>
                               <button
                                 type="button"
                                 className={`floating-action btn-favorite ${sticker.favorite ? "active" : ""}`}
@@ -636,8 +646,7 @@ export function LibraryPage() {
                                   <span>삭제</span>
                                 </button>
                               </div>
-                            </div>
-                          )}
+                          </div>
                         </div>
                       );
                     } else {
@@ -647,14 +656,14 @@ export function LibraryPage() {
                           key={key}
                           data-virtual-index={virtualIndex}
                           className={`carousel-card character-card ${isActive ? "active" : "inactive"}`}
-                          onClick={() => selectVirtualItem(virtualIndex, realIndex)}
+                          onClick={() => selectVirtualItem(virtualIndex)}
                         >
                           <div className="card-preview" style={{ background: character.colors.body ?? "rgba(187, 182, 255, 0.12)" }}>
                             <img src={sanitizeAssetUrl(character.sourceAsset)} alt={character.name} />
                           </div>
                           <p className="carousel-card-title">{character.name}</p>
-                          {isActive && (
-                            <div className="card-action-overlay" aria-label={`${character.name} 빠른 작업`}>
+                          <div className="card-action-overlay" aria-label={`${character.name} 빠른 작업`}>
+                              <strong className="card-hover-title">{character.name}</strong>
                               <div className="action-buttons">
                                 <button
                                   type="button"
@@ -675,8 +684,7 @@ export function LibraryPage() {
                                   <span>삭제</span>
                                 </button>
                               </div>
-                            </div>
-                          )}
+                          </div>
                         </div>
                       );
                     }
@@ -693,6 +701,7 @@ export function LibraryPage() {
                     />
                   )}
                 </div>
+                </>
               ) : (
                 <div className="empty-library glass-panel">
                   <Icon name="folder" size={32} />
@@ -767,95 +776,6 @@ export function LibraryPage() {
         </div>
       )}
     </>
-  );
-}
-
-interface CharacterCardProps {
-  item: CharacterToken;
-  index: number;
-  onClick: () => void;
-}
-
-function CharacterCard({ item, index, onClick }: CharacterCardProps) {
-  return (
-    <article className="sticker-card character-token-card glass-panel">
-      <button className="sticker-preview" type="button" onClick={onClick}>
-        <span className="sticker-glow" style={{ background: item.colors.body ?? item.colors.accent ?? "#BBB6FF" }} />
-        <img src={sanitizeAssetUrl(item.sourceAsset)} alt={`${item.name} 캐릭터`} loading={index > 2 ? "lazy" : "eager"} decoding="async" />
-      </button>
-      <footer>
-        <strong>{item.name}</strong>
-        <div>
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              selectCharacter(item.id);
-              navigate("/input");
-            }}
-            aria-label="선택"
-          >
-            <Icon name="check" />
-          </button>
-          <button type="button" onClick={onClick} aria-label="상세 보기">
-            <Icon name="search" />
-          </button>
-        </div>
-      </footer>
-    </article>
-  );
-}
-
-function StickerCard({
-  item,
-  index,
-  project,
-  onEdit,
-}: {
-  item: StickerItem;
-  index: number;
-  project?: EmoticonProject;
-  onEdit: (item: StickerItem, project?: EmoticonProject) => void;
-}) {
-  const stillImage = item.thumbnail ?? item.image;
-  const animatedImage = item.animatedImage && item.animatedImage !== stillImage ? item.animatedImage : null;
-  return (
-    <article className="sticker-card glass-panel">
-      <button className="sticker-preview" type="button" onClick={() => navigate(`/library/${item.id}`)}>
-        <span className="sticker-glow" style={{ background: item.color }} />
-        <img
-          className="sticker-static"
-          src={stillImage}
-          alt={`${item.phrase} 이모티콘`}
-          loading={index > 2 ? "lazy" : "eager"}
-          decoding="async"
-        />
-        {animatedImage ? (
-          <img
-            className="sticker-animated"
-            src={animatedImage}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            aria-hidden="true"
-          />
-        ) : null}
-      </button>
-      <footer>
-        <strong>{item.title}</strong>
-        <div>
-          <button type="button" onClick={() => onEdit(item, project)} aria-label="수정">
-            <Icon name="edit" />
-          </button>
-          <button type="button" onClick={() => navigate(`/library/${item.id}`)} aria-label="상세 보기">
-            <Icon name="download" />
-          </button>
-          <button className={item.favorite ? "active" : ""} type="button" onClick={() => toggleFavorite(item.id)} aria-label="즐겨찾기">
-            <Icon name="star" />
-          </button>
-        </div>
-      </footer>
-    </article>
   );
 }
 
