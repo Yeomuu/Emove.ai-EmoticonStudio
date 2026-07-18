@@ -34,6 +34,25 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
     return () => window.clearTimeout(closeTimer.current);
   }, [dockAutoHide, current]);
 
+  useEffect(() => {
+    if (!dockAutoHide) return;
+    const coarsePointer = window.matchMedia("(hover: none), (pointer: coarse)");
+    if (coarsePointer.matches) {
+      setDockVisible(true);
+      return;
+    }
+    const onPointerMove = (event: PointerEvent) => {
+      const revealWidth = Math.min(window.innerWidth * .38, 560);
+      const inRevealZone = event.clientX >= window.innerWidth - revealWidth && event.clientY >= window.innerHeight - 210;
+      if (inRevealZone) {
+        window.clearTimeout(closeTimer.current);
+        setDockVisible(true);
+      }
+    };
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onPointerMove);
+  }, [dockAutoHide, current]);
+
   const revealDock = () => {
     window.clearTimeout(closeTimer.current);
     setDockVisible(true);
@@ -51,7 +70,7 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
       data-current-route={current}
     >
       <main>{children}</main>
-      <div className="nav-hover-zone" aria-hidden="true" onPointerEnter={revealDock} />
+      {dockAutoHide ? <div className="nav-hover-zone" aria-hidden="true" onPointerEnter={revealDock} /> : null}
       <header
         className={`bottom-dock-text-nav ${dockAutoHide ? "is-work-mode" : ""} ${dockVisible ? "is-visible" : "is-hidden"}`}
         aria-label="주요 메뉴"

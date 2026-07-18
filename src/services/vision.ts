@@ -14,16 +14,49 @@ let faceLandmarker: import("@mediapipe/tasks-vision").FaceLandmarker | undefined
 let faceUnavailable = false;
 let poseDelegate: "GPU" | "CPU" | undefined;
 let faceDelegate: "GPU" | "CPU" | undefined;
+let restoreConsoleTimer: ReturnType<typeof setTimeout> | undefined;
+let originalConsoleError: typeof console.error | undefined;
 
 export async function createLiveVisionAnalyzer(): Promise<LiveVisionAnalyzer> {
-  await ensurePoseLandmarker();
-  await ensureFaceLandmarker();
+  beginBenignTfliteLogFilter();
+  try {
+    await ensurePoseLandmarker();
+    await ensureFaceLandmarker();
+  } finally {
+    scheduleConsoleRestore();
+  }
   return {
     analyze: analyzeVideoStream,
     detectFrame: (video: HTMLVideoElement) => {
       return detectCurrentVideoFrame(video, performance.now());
     }
   };
+}
+
+function beginBenignTfliteLogFilter(): void {
+  if (typeof window === "undefined" || process.env.NODE_ENV !== "development") return;
+  if (!originalConsoleError) {
+    originalConsoleError = console.error;
+    console.error = (...args: unknown[]) => {
+      const message = args.map(String).join(" ");
+      if (message.includes("INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")) {
+        console.info(...args);
+        return;
+      }
+      originalConsoleError?.(...args);
+    };
+  }
+  if (restoreConsoleTimer) clearTimeout(restoreConsoleTimer);
+}
+
+function scheduleConsoleRestore(): void {
+  if (!originalConsoleError) return;
+  if (restoreConsoleTimer) clearTimeout(restoreConsoleTimer);
+  restoreConsoleTimer = setTimeout(() => {
+    if (originalConsoleError) console.error = originalConsoleError;
+    originalConsoleError = undefined;
+    restoreConsoleTimer = undefined;
+  }, 1800);
 }
 
 async function analyzeVideoStream(video: HTMLVideoElement, durationMs: number, onProgress?: (progress: number) => void): Promise<VisionMetrics> {

@@ -2415,7 +2415,7 @@ body {
 
 .nav-hover-zone {
   position: fixed;
-  z-index: 220;
+  z-index: 230;
   right: 0;
   bottom: 0;
   width: min(38vw, 560px);
@@ -6453,12 +6453,10 @@ body::before {
 .home-geometry .geo-g { display: none; }
 
 .home-character-field { z-index: 3; inset: 0; }
-.home-character-token:nth-child(n + 4) { display: none; }
 .home-character-token {
-  --token-size: 208px !important;
-  width: var(--token-size) !important;
-  height: var(--token-size) !important;
-  padding: 18px;
+  width: var(--token-size);
+  height: var(--token-size);
+  padding: 0;
   border: 1px solid rgba(222, 216, 255, .2);
   border-radius: 34px;
   background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.012));
@@ -6466,9 +6464,6 @@ body::before {
   backdrop-filter: blur(22px) saturate(145%);
   -webkit-backdrop-filter: blur(22px) saturate(145%);
 }
-.home-character-token:nth-child(1) { rotate: -9deg; }
-.home-character-token:nth-child(2) { rotate: 8deg; }
-.home-character-token:nth-child(3) { rotate: -7deg; }
 .home-character-token::after { display: none; }
 .home-character-token img { width: 100%; height: 100%; object-fit: contain; }
 
@@ -6879,7 +6874,51 @@ body::before {
   border-right: 1px solid var(--figma-line);
   background: rgba(255,255,255,.012);
 }
-.layer-row { min-height: 30px; padding: 4px 8px; border-radius: 8px; }
+.layer-row {
+  min-height: 62px;
+  padding: 6px 8px;
+  grid-template-columns: 16px 28px minmax(0, 1fr) 18px;
+  grid-template-rows: minmax(28px, auto) 20px;
+  gap: 2px 6px;
+  border-radius: 8px;
+}
+.layer-row .drag-handle-button {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  align-self: center;
+}
+.layer-row .layer-icon {
+  grid-column: 2;
+  grid-row: 1;
+  width: 28px;
+  height: 28px;
+}
+.layer-row .layer-copy {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+}
+.layer-row .layer-copy strong {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.layer-row .layer-copy small { display: none; }
+.layer-row .layer-order {
+  grid-column: 4;
+  grid-row: 1;
+  text-align: center;
+}
+.layer-row .layer-controls {
+  grid-column: 2 / 4;
+  grid-row: 2;
+}
+.layer-row .layer-move {
+  grid-column: 4;
+  grid-row: 2;
+  justify-content: flex-end;
+}
 .layer-row p { display: none; }
 .frame-strip { width: 100%; gap: 18px; }
 .fixed-frame-card { min-width: 100px; border-radius: 12px; }

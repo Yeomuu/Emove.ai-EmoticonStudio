@@ -10,11 +10,17 @@ import { useSignalSnapshot } from "./lib/signals";
 import { imageAssets } from "./data";
 import type { RoutePath } from "./types";
 
-const CharacterPage = lazy(() => import("./screens/Character").then((module) => ({ default: module.CharacterPage })));
-const InputPage = lazy(() => import("./screens/Input").then((module) => ({ default: module.InputPage })));
-const EditPage = lazy(() => import("./screens/Edit").then((module) => ({ default: module.EditPage })));
-const LibraryPage = lazy(() => import("./screens/Library").then((module) => ({ default: module.LibraryPage })));
-const ShowcasePage = lazy(() => import("./screens/Showcase").then((module) => ({ default: module.ShowcasePage })));
+const loadCharacterPage = () => import("./screens/Character").then((module) => ({ default: module.CharacterPage }));
+const loadInputPage = () => import("./screens/Input").then((module) => ({ default: module.InputPage }));
+const loadEditPage = () => import("./screens/Edit").then((module) => ({ default: module.EditPage }));
+const loadLibraryPage = () => import("./screens/Library").then((module) => ({ default: module.LibraryPage }));
+const loadShowcasePage = () => import("./screens/Showcase").then((module) => ({ default: module.ShowcasePage }));
+
+const CharacterPage = lazy(loadCharacterPage);
+const InputPage = lazy(loadInputPage);
+const EditPage = lazy(loadEditPage);
+const LibraryPage = lazy(loadLibraryPage);
+const ShowcasePage = lazy(loadShowcasePage);
 
 const BOOT_ASSETS = [
   imageAssets.logo,
@@ -88,30 +94,38 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
   }, [initialPath]);
 
   const timersRef = useRef<number[]>([]);
+  const transitionIdRef = useRef(0);
 
-  // Page/route transition animation: rising curtain with EMOVE logo
+  // Keep the curtain covered until the next route's client bundle is ready.
   useEffect(() => {
-    if (route.value !== activeRoute) {
-      // Clear any pending transition timers
-      timersRef.current.forEach(window.clearTimeout);
-      timersRef.current = [];
+    if (route.value === activeRoute) return;
 
-      setRoutePhase("covering");
-      setRouteProgress(12);
+    timersRef.current.forEach(window.clearTimeout);
+    timersRef.current = [];
+    const transitionId = ++transitionIdRef.current;
+    const nextRoute = route.value;
 
-      const t1 = window.setTimeout(() => setRouteProgress(56), 180);
-      const t2 = window.setTimeout(() => {
-        setActiveRoute(route.value);
-      }, 420);
-      const t3 = window.setTimeout(() => setRouteProgress(100), 690);
-      const t4 = window.setTimeout(() => setRoutePhase("revealing"), 780);
-      const t5 = window.setTimeout(() => {
+    setRoutePhase("covering");
+    setRouteProgress(12);
+
+    const progressTimer = window.setTimeout(() => setRouteProgress(56), 180);
+    timersRef.current = [progressTimer];
+
+    Promise.all([
+      preloadRoute(nextRoute),
+      delay(420),
+    ]).catch(() => undefined).then(() => {
+      if (transitionIdRef.current !== transitionId) return;
+      setActiveRoute(nextRoute);
+      setRouteProgress(100);
+
+      const revealTimer = window.setTimeout(() => setRoutePhase("revealing"), 90);
+      const finishTimer = window.setTimeout(() => {
         setRoutePhase("idle");
         setRouteProgress(0);
-      }, 1160);
-
-      timersRef.current = [t1, t2, t3, t4, t5];
-    }
+      }, 470);
+      timersRef.current = [revealTimer, finishTimer];
+    });
   }, [route.value, activeRoute]);
 
   // Clean up timers on unmount
@@ -184,4 +198,17 @@ function preloadImage(src: string): Promise<void> {
     image.onerror = () => resolve();
     image.src = src;
   });
+}
+
+function preloadRoute(path: RoutePath): Promise<unknown> {
+  if (path === "/character") return loadCharacterPage();
+  if (path === "/input") return loadInputPage();
+  if (path === "/edit") return loadEditPage();
+  if (path.startsWith("/library")) return loadLibraryPage();
+  if (path === "/showcase") return loadShowcasePage();
+  return Promise.resolve();
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }

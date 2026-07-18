@@ -1,4 +1,4 @@
-import { put } from "@vercel/blob";
+import { isGcsConfigured, uploadGcsAsset } from "./gcs-storage";
 import { sharedAnimationMemoryStore } from "./share-memory";
 
 type ShareFormat = "APNG" | "GIF" | "WEBP";
@@ -34,19 +34,24 @@ export async function handleSharedAnimationPost(request: Request, routeName = "a
   const fileName = safeDownloadName(headerValue(request, "x-emove-file-name", `emove-${id}.${spec.extension}`), spec.extension);
   const key = `animations/${id}.${spec.extension}`;
 
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const blob = await put(key, Buffer.from(data), {
-      access: "public",
+  if (isGcsConfigured()) {
+    const asset = await uploadGcsAsset(Buffer.from(data), {
       contentType: spec.contentType,
+      fileName,
+      kind: "animations",
+      requestUrl: request.url,
     });
-    return json(201, { id, url: blob.url, path: `vercel-blob://${key}`, size: data.byteLength, createdAt, format: spec.format, mimeType: spec.contentType, extension: spec.extension });
+    return json(201, { id, url: asset.url, downloadUrl: asset.downloadUrl, path: asset.path, size: asset.size, createdAt, format: spec.format, mimeType: spec.contentType, extension: spec.extension });
   }
 
   sharedAnimationMemoryStore().set(id, { data: new Uint8Array(data), fileName, contentType: spec.contentType, format: spec.format });
-  return json(201, { id, url: new URL(`/api/share/${routeName}/${id}`, request.url).toString(), path: `dev-memory://emove-shared-animations/${id}.${spec.extension}`, size: data.byteLength, createdAt, format: spec.format, mimeType: spec.contentType, extension: spec.extension });
+  const url = new URL(`/api/share/${routeName}/${id}`, request.url);
+  const downloadUrl = new URL(url);
+  downloadUrl.searchParams.set("download", "1");
+  return json(201, { id, url: url.toString(), downloadUrl: downloadUrl.toString(), path: `dev-memory://emove-shared-animations/${id}.${spec.extension}`, size: data.byteLength, createdAt, format: spec.format, mimeType: spec.contentType, extension: spec.extension });
 }
 
-export async function handleSharedAnimationGet(id: string): Promise<Response> {
+export async function handleSharedAnimationGet(id: string, download = false): Promise<Response> {
   const entry = sharedAnimationMemoryStore().get(id);
   if (!entry) {
     return new Response(JSON.stringify({ error: "공유 애니메이션을 찾지 못했습니다." }), {
@@ -62,7 +67,7 @@ export async function handleSharedAnimationGet(id: string): Promise<Response> {
     status: 200,
     headers: {
       "Cache-Control": "no-store",
-      "Content-Disposition": `inline; filename="${entry.fileName}"`,
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${entry.fileName}"`,
       "Content-Type": entry.contentType || "image/apng",
     },
   });

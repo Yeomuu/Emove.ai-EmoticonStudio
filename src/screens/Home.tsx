@@ -26,15 +26,7 @@ type DragState = {
   offsetY: number;
 } | null;
 
-type AlphaMap = {
-  width: number;
-  height: number;
-  data: Uint8ClampedArray;
-};
-
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-const alphaHitThreshold = 24;
-const alphaMapMaxSize = 220;
 const getFieldScale = (width: number) => {
   if (width < 560) return 0.64;
   if (width < 820) return 0.76;
@@ -69,42 +61,32 @@ function createLandingCharacters(): LandingCharacterSpec[] {
   });
 }
 
-function loadAlphaMap(src: string): Promise<AlphaMap | null> {
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.onload = () => {
-      try {
-        const sourceWidth = image.naturalWidth || image.width;
-        const sourceHeight = image.naturalHeight || image.height;
-        const scale = Math.min(1, alphaMapMaxSize / Math.max(sourceWidth, sourceHeight));
-        const width = Math.max(1, Math.round(sourceWidth * scale));
-        const height = Math.max(1, Math.round(sourceHeight * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d", { willReadFrequently: true });
-        if (!context) {
-          resolve(null);
-          return;
-        }
-        context.clearRect(0, 0, width, height);
-        context.drawImage(image, 0, 0, width, height);
-        resolve({ width, height, data: context.getImageData(0, 0, width, height).data });
-      } catch {
-        resolve(null);
-      }
-    };
-    image.onerror = () => resolve(null);
-    image.src = src;
-  });
+function isPointInsideCard(body: LandingCharacterBody, x: number, y: number, size: number): boolean {
+  const dx = x - body.x;
+  const dy = y - body.y;
+  const rotation = -body.rotation * Math.PI / 180;
+  const localX = dx * Math.cos(rotation) - dy * Math.sin(rotation);
+  const localY = dx * Math.sin(rotation) + dy * Math.cos(rotation);
+  const halfSize = size / 2;
+  return Math.abs(localX) <= halfSize && Math.abs(localY) <= halfSize;
 }
 
-function isOpaqueAlphaPixel(map: AlphaMap, localX: number, localY: number, size: number): boolean {
-  if (localX < 0 || localY < 0 || localX > size || localY > size) return false;
-  const sampleX = clamp(Math.floor((localX / size) * map.width), 0, map.width - 1);
-  const sampleY = clamp(Math.floor((localY / size) * map.height), 0, map.height - 1);
-  return map.data[(sampleY * map.width + sampleX) * 4 + 3] > alphaHitThreshold;
+function getCardCollision(
+  first: LandingCharacterBody,
+  second: LandingCharacterBody,
+  scale: number,
+): { nx: number; ny: number; overlap: number } | null {
+  const halfWidth = (first.size * scale + second.size * scale) * 0.5;
+  const dx = first.x - second.x;
+  const dy = first.y - second.y;
+  const overlapX = halfWidth - Math.abs(dx);
+  const overlapY = halfWidth - Math.abs(dy);
+  if (overlapX <= 0 || overlapY <= 0) return null;
+
+  if (overlapX < overlapY) {
+    return { nx: dx < 0 ? -1 : 1, ny: 0, overlap: overlapX / halfWidth };
+  }
+  return { nx: 0, ny: dy < 0 ? -1 : 1, overlap: overlapY / halfWidth };
 }
 
 function HomeCharacterField() {
@@ -114,7 +96,6 @@ function HomeCharacterField() {
   const bodiesRef = useRef<LandingCharacterBody[]>([]);
   const pointerRef = useRef<{ active: boolean; x: number; y: number; hitId: string | null }>({ active: false, x: 0, y: 0, hitId: null });
   const dragRef = useRef<DragState>(null);
-  const alphaMapsRef = useRef(new Map<string, AlphaMap | null>());
   const randomLayoutRef = useRef<Array<{ x: number; y: number }> | null>(null);
   const reducedMotionRef = useRef(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -128,49 +109,21 @@ function HomeCharacterField() {
       [slots[index], slots[target]] = [slots[target], slots[index]];
     }
 
-    const avoidTextOverlap = (x: number, y: number): { x: number; y: number } => {
-      const minX = 0.18;
-      const maxX = 0.72;
-      const minY = 0.30;
-      const maxY = 0.58;
-      if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
-        const distToLeft = x - minX;
-        const distToRight = maxX - x;
-        const distToTop = y - minY;
-        const distToBottom = maxY - y;
-        const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
-        if (minDist === distToLeft) return { x: minX - 0.05, y };
-        if (minDist === distToRight) return { x: maxX + 0.05, y };
-        if (minDist === distToTop) return { x, y: minY - 0.05 };
-        return { x, y: maxY + 0.05 };
-      }
-      return { x, y };
-    };
-
     randomLayoutRef.current = slots.map((slot) => {
       const rawX = clamp(slot.x + (Math.random() - 0.5) * 0.08, 0.1, 0.9);
       const rawY = clamp(slot.y + (Math.random() - 0.5) * 0.1, 0.24, 0.84);
-      return avoidTextOverlap(rawX, rawY);
+      return { x: rawX, y: rawY };
     });
     return randomLayoutRef.current;
   }, []);
 
-  const findOpaqueBodyAt = useCallback((x: number, y: number, rect: DOMRect): LandingCharacterBody | null => {
+  const findCardBodyAt = useCallback((x: number, y: number, rect: DOMRect): LandingCharacterBody | null => {
     const sizeScale = getFieldScale(rect.width);
 
     for (let index = bodiesRef.current.length - 1; index >= 0; index -= 1) {
       const body = bodiesRef.current[index];
-      const alphaMap = alphaMapsRef.current.get(body.src);
-      if (!alphaMap) continue;
-
       const size = body.size * sizeScale;
-      const dx = x - body.x;
-      const dy = y - body.y;
-      const rotation = -body.rotation * Math.PI / 180;
-      const localX = dx * Math.cos(rotation) - dy * Math.sin(rotation) + size / 2;
-      const localY = dx * Math.sin(rotation) + dy * Math.cos(rotation) + size / 2;
-
-      if (isOpaqueAlphaPixel(alphaMap, localX, localY, size)) return body;
+      if (isPointInsideCard(body, x, y, size)) return body;
     }
 
     return null;
@@ -202,26 +155,11 @@ function HomeCharacterField() {
   }, [characters, getRandomLayout]);
 
   useEffect(() => {
-    let cancelled = false;
-    const uniqueSources = [...new Set(characters.map((character) => character.src))];
-
-    uniqueSources.forEach((src) => {
-      void loadAlphaMap(src).then((alphaMap) => {
-        if (!cancelled) alphaMapsRef.current.set(src, alphaMap);
-      });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [characters]);
-
-  useEffect(() => {
     const field = fieldRef.current;
     if (!field) return undefined;
 
     reducedMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    placeCharacters(false);
+    placeCharacters(true);
 
     const resizeObserver = new ResizeObserver(() => placeCharacters());
     resizeObserver.observe(field);
@@ -238,7 +176,7 @@ function HomeCharacterField() {
       const sizeScale = getFieldScale(rect.width);
 
       if (pointer.active && !drag) {
-        pointer.hitId = findOpaqueBodyAt(pointer.x, pointer.y, rect)?.id ?? null;
+        pointer.hitId = findCardBodyAt(pointer.x, pointer.y, rect)?.id ?? null;
         currentField.style.cursor = pointer.hitId ? "grab" : "default";
       }
 
@@ -278,28 +216,21 @@ function HomeCharacterField() {
         for (let nextIndex = index + 1; nextIndex < bodiesRef.current.length; nextIndex += 1) {
           const first = bodiesRef.current[index];
           const second = bodiesRef.current[nextIndex];
-          const dx = first.x - second.x;
-          const dy = first.y - second.y;
-          const distance = Math.max(1, Math.hypot(dx, dy));
-          const minimumDistance = (first.size * sizeScale + second.size * sizeScale) * 0.44;
+          const collision = getCardCollision(first, second, sizeScale);
+          if (!collision) continue;
 
-          if (distance >= minimumDistance) continue;
-
-          const nx = dx / distance;
-          const ny = dy / distance;
-          const overlap = (minimumDistance - distance) / minimumDistance;
-          const impulse = overlap * 6.6 * motionFactor;
+          const impulse = collision.overlap * 6.6 * motionFactor;
           const firstDragging = drag?.id === first.id;
           const secondDragging = drag?.id === second.id;
 
           if (!firstDragging) {
-            first.vx += nx * impulse * (secondDragging ? 1.7 : 0.78);
-            first.vy += ny * impulse * (secondDragging ? 1.7 : 0.78);
+            first.vx += collision.nx * impulse * (secondDragging ? 1.7 : 0.78);
+            first.vy += collision.ny * impulse * (secondDragging ? 1.7 : 0.78);
           }
 
           if (!secondDragging) {
-            second.vx -= nx * impulse * (firstDragging ? 1.7 : 0.78);
-            second.vy -= ny * impulse * (firstDragging ? 1.7 : 0.78);
+            second.vx -= collision.nx * impulse * (firstDragging ? 1.7 : 0.78);
+            second.vy -= collision.ny * impulse * (firstDragging ? 1.7 : 0.78);
           }
         }
       }
@@ -331,9 +262,9 @@ function HomeCharacterField() {
       resizeObserver.disconnect();
       window.cancelAnimationFrame(frame);
     };
-  }, [findOpaqueBodyAt, placeCharacters]);
+  }, [findCardBodyAt, placeCharacters]);
 
-  const updatePointer = useCallback((clientX: number, clientY: number, active = true) => {
+  const updatePointer = useCallback((clientX: number, clientY: number, active = true, target?: EventTarget | null) => {
     const field = fieldRef.current;
     const rect = field?.getBoundingClientRect();
     if (!rect) return;
@@ -342,20 +273,23 @@ function HomeCharacterField() {
     const y = clientY - rect.top;
     const inside = x >= 0 && y >= 0 && x <= rect.width && y <= rect.height;
     const drag = dragRef.current;
-    const hitBody = drag ? bodiesRef.current.find((body) => body.id === drag.id) ?? null : findOpaqueBodyAt(x, y, rect);
+    const interactiveTarget = target instanceof Element
+      ? target.closest("button, a, input, select, textarea, [role='button'], .bottom-dock-text-nav")
+      : null;
+    const hitBody = drag ? bodiesRef.current.find((body) => body.id === drag.id) ?? null : findCardBodyAt(x, y, rect);
 
     pointerRef.current = {
-      active: active && (inside || Boolean(drag)),
+      active: active && !interactiveTarget && (inside || Boolean(drag)),
       x,
       y,
       hitId: hitBody?.id ?? null,
     };
 
     if (field) field.style.cursor = drag ? "grabbing" : hitBody ? "grab" : "default";
-  }, [findOpaqueBodyAt]);
+  }, [findCardBodyAt]);
 
   useEffect(() => {
-    const handlePointerMove = (event: globalThis.PointerEvent) => updatePointer(event.clientX, event.clientY);
+    const handlePointerMove = (event: globalThis.PointerEvent) => updatePointer(event.clientX, event.clientY, true, event.target);
     const handlePointerUp = () => {
       dragRef.current = null;
       setDraggingId(null);
@@ -374,11 +308,11 @@ function HomeCharacterField() {
   }, [updatePointer]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    updatePointer(event.clientX, event.clientY);
+    updatePointer(event.clientX, event.clientY, true, event.target);
     const rect = fieldRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const body = findOpaqueBodyAt(pointerRef.current.x, pointerRef.current.y, rect);
+    const body = findCardBodyAt(pointerRef.current.x, pointerRef.current.y, rect);
     if (!body) return;
 
     dragRef.current = {

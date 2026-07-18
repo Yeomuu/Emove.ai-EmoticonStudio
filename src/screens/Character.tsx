@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
 import { imageAssets } from "../data";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
+import { persistGeneratedAsset, persistGeneratedAssets } from "../services/asset-storage";
+import { waitForImageAssets } from "../services/asset-readiness";
 import { syncCharacterToRemote } from "../services/remote-store";
 import { saveCharacter } from "../services/repository";
 import { characterName, characterPrompt, characters, characterStyle, characterTone, notify, selectCharacter } from "../store";
@@ -42,10 +44,14 @@ export function CharacterPage() {
   const [paletteId, setPaletteId] = useState<(typeof palettes)[number]["id"]>("soft-pastel");
   const [tone, setTone] = useState(characterTone.value || "#5679C0");
   const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [resultReady, setResultReady] = useState(false);
   const [process, setProcess] = useState<ProcessState | null>(null);
   const [generated, setGenerated] = useState<GeneratedCharacterResult | null>(null);
   const [selectedVariationIndex, setSelectedVariationIndex] = useState(0);
   const [uploadedReference, setUploadedReference] = useState<string | null>(null);
+  const generationLockRef = useRef(false);
+  const saveLockRef = useRef(false);
 
   const selectedPalette = palettes.find((item) => item.id === paletteId) ?? palettes[0];
   const variationImages = generated?.imageUrls?.length ? generated.imageUrls : generated ? [generated.imageUrl] : [];
@@ -104,11 +110,17 @@ export function CharacterPage() {
   };
 
   const createCharacter = async () => {
+    if (generationLockRef.current || saveLockRef.current) return;
+    generationLockRef.current = true;
     if (!prompt.trim()) {
       const proceed = window.confirm("구체적인 세부 특징 설명(외형 묘사)을 입력하지 않았습니다. 이대로 캐릭터 생성을 계속하시겠습니까?");
-      if (!proceed) return;
+      if (!proceed) {
+        generationLockRef.current = false;
+        return;
+      }
     }
     setGenerating(true);
+    setResultReady(false);
     setProcess({ title: "입력한 정보를 바탕으로 캐릭터를 생성하고 있습니다.", label: "캐릭터 설정을 정리하는 중...", percent: 8 });
     try {
       const draft = buildToken("");
@@ -117,48 +129,63 @@ export function CharacterPage() {
       setProcess({ title: "입력한 정보를 바탕으로 캐릭터를 생성하고 있습니다.", label: "캐릭터의 색상을 칠하는 중...", percent: 54 });
       const result = await ai.generateCharacter(draft);
       const images = result.imageUrls?.length ? result.imageUrls : [result.imageUrl];
+      const persisted = await persistGeneratedAssets(images, { filePrefix: draft.id, kind: "characters" });
+      const storedImages = persisted.assets.map((asset) => asset.url);
       setProcess({ title: "입력한 정보를 바탕으로 캐릭터를 생성하고 있습니다.", label: "생성 결과를 투명 캐릭터 토큰으로 정리하는 중...", percent: 85 });
-      const token = buildToken(images[0], draft.id);
-      const next = { ...result, imageUrl: images[0], imageUrls: images, token: { ...token, sourceAsset: images[0], referenceImages: [images[0]] } };
+      await waitForImageAssets(storedImages);
+      const token = buildToken(storedImages[0], draft.id);
+      const next = { ...result, imageUrl: storedImages[0], imageUrls: storedImages, token: { ...token, sourceAsset: storedImages[0], referenceImages: [storedImages[0]] } };
       setGenerated(next);
       setSelectedVariationIndex(0);
       setProcess({ title: "입력한 정보를 바탕으로 캐릭터를 생성하고 있습니다.", label: "캐릭터 완성 단계...", percent: 100 });
-      notify("새 캐릭터 초안이 생성됐어요. 베리에이션을 고른 뒤 저장하세요.");
+      notify(persisted.warning ? `새 캐릭터 초안은 생성됐지만 GCS 저장은 보류됐습니다: ${persisted.warning}` : "새 캐릭터 초안과 이미지 URL을 GCS에 저장했습니다. 베리에이션을 고른 뒤 저장하세요.");
     } catch (error) {
       setProcess(null);
       notify(error instanceof Error ? error.message : "캐릭터 생성에 실패했습니다.");
     } finally {
+      generationLockRef.current = false;
       setGenerating(false);
       window.setTimeout(() => setProcess(null), 420);
     }
   };
 
   const saveGeneratedCharacter = async (target: "/library" | "/input") => {
-    if (!generated) return;
+    if (!generated || !resultReady || generationLockRef.current || saveLockRef.current) return;
     if (!name.trim()) {
       notify("캐릭터 이름을 입력해 주세요.");
       return;
     }
-    const selectedImage = variationImages[selectedVariationIndex] ?? generated.imageUrl;
-    let saved = { ...buildToken(selectedImage, generated.token.id), sourceAsset: selectedImage, referenceImages: [selectedImage], updatedAt: new Date().toISOString() };
-    let remoteMessage = "원격 DB 설정이 없어 IndexedDB에만 임시 저장했습니다.";
+    saveLockRef.current = true;
+    setSaving(true);
     try {
-      const sync = await syncCharacterToRemote(saved);
-      if (sync.ownerId) saved = { ...saved, ownerId: sync.ownerId };
-      if (sync.enabled) remoteMessage = "원격 DB에 저장했습니다.";
-      else if (sync.storageWarning) remoteMessage = `${sync.storageWarning} IndexedDB에만 임시 저장했습니다.`;
+      const selectedImage = variationImages[selectedVariationIndex] ?? generated.imageUrl;
+      const persisted = await persistGeneratedAsset(selectedImage, { fileName: `${generated.token.id}.png`, kind: "characters" });
+      const storedImage = persisted.url;
+      let saved = { ...buildToken(storedImage, generated.token.id), sourceAsset: storedImage, referenceImages: [storedImage], updatedAt: new Date().toISOString() };
+      let remoteMessage = "원격 DB 설정이 없어 IndexedDB에만 임시 저장했습니다.";
+      try {
+        const sync = await syncCharacterToRemote(saved);
+        if (sync.ownerId) saved = { ...saved, ownerId: sync.ownerId };
+        if (sync.enabled) remoteMessage = persisted.enabled ? "GCS 이미지 주소와 캐릭터 메타데이터를 Neon에 저장했습니다." : `캐릭터 메타데이터는 저장했지만 GCS 이미지 저장은 보류됐습니다: ${persisted.error}`;
+        else if (sync.storageWarning) remoteMessage = `${sync.storageWarning} IndexedDB에만 임시 저장했습니다.`;
+      } catch (error) {
+        remoteMessage = `원격 DB 저장 실패로 IndexedDB에만 임시 저장했습니다: ${error instanceof Error ? error.message : String(error)}`;
+      }
+      await saveCharacter(saved);
+      characters.value = [saved, ...characters.value.filter((item) => item.id !== saved.id)];
+      characterName.value = saved.name;
+      characterPrompt.value = saved.prompt;
+      characterTone.value = tone;
+      characterStyle.value = style;
+      selectCharacter(saved.id);
+      notify(target === "/input" ? `새 캐릭터 토큰을 저장하고 이 캐릭터로 이모티콘 제작을 시작합니다. ${remoteMessage}` : `새 캐릭터 토큰을 보관함에 저장했어요. ${remoteMessage}`);
+      navigate(target);
     } catch (error) {
-      remoteMessage = `원격 DB 저장 실패로 IndexedDB에만 임시 저장했습니다: ${error instanceof Error ? error.message : String(error)}`;
+      notify(error instanceof Error ? error.message : "캐릭터 저장에 실패했습니다.");
+    } finally {
+      saveLockRef.current = false;
+      setSaving(false);
     }
-    await saveCharacter(saved);
-    characters.value = [saved, ...characters.value.filter((item) => item.id !== saved.id)];
-    characterName.value = saved.name;
-    characterPrompt.value = saved.prompt;
-    characterTone.value = tone;
-    characterStyle.value = style;
-    selectCharacter(saved.id);
-    notify(target === "/input" ? `새 캐릭터 토큰을 저장하고 이 캐릭터로 이모티콘 제작을 시작합니다. ${remoteMessage}` : `새 캐릭터 토큰을 보관함에 저장했어요. ${remoteMessage}`);
-    navigate(target);
   };
 
   const saveAndContinue = () => saveGeneratedCharacter("/library");
@@ -468,9 +495,9 @@ export function CharacterPage() {
               />
               <span>{prompt.length} / 1000</span>
             </label>
-            <button type="button" className="character-generate-inline" onClick={createCharacter} disabled={generating}>
+            <button type="button" className="character-generate-inline" onClick={createCharacter} disabled={generating || saving}>
               <Icon name="star" size={16} />
-              캐릭터 생성 시작하기
+              {generating ? "캐릭터 생성 중..." : "캐릭터 생성 시작하기"}
             </button>
           </section>
         </div>
@@ -500,6 +527,9 @@ export function CharacterPage() {
             currentStep={currentStep}
             onStepChange={(index) => setCurrentStep(index)}
             onComplete={createCharacter}
+            busy={generating || saving}
+            completeLabel="캐릭터 생성하기"
+            busyLabel="캐릭터 생성 중"
             className="character-scroll-slider"
           />
         </>
@@ -507,15 +537,15 @@ export function CharacterPage() {
         <div className="character-result-layout">
           <h1 className="character-result-title">캐릭터가 성공적으로<br />생성되었습니다!</h1>
           <div className="character-result-actions">
-            <button className="character-share-button" type="button" onClick={handleShare}>
+            <button className="character-share-button" type="button" onClick={handleShare} disabled={!resultReady || saving}>
               <Icon name="image" size={16} />
               <span>공유</span>
             </button>
-            <button className="character-library-button" type="button" onClick={saveAndContinue}>
-              보관함 이동
+            <button className="character-library-button" type="button" onClick={saveAndContinue} disabled={!resultReady || saving}>
+              {saving ? "저장 중..." : "보관함 이동"}
             </button>
-            <button className="character-create-emoticon-button" type="button" onClick={saveAndCreateEmoticon}>
-              이 캐릭터로 이모티콘 생성하기
+            <button className="character-create-emoticon-button" type="button" onClick={saveAndCreateEmoticon} disabled={!resultReady || saving}>
+              {saving ? "저장 중..." : "이 캐릭터로 이모티콘 생성하기"}
             </button>
           </div>
 
@@ -552,6 +582,11 @@ export function CharacterPage() {
             <img
               src={variationImages[selectedVariationIndex] || generated.imageUrl}
               alt="Result character preview"
+              onLoad={() => setResultReady(true)}
+              onError={() => {
+                setResultReady(false);
+                notify("생성된 캐릭터 이미지를 표시하지 못했습니다. 네트워크 상태를 확인해 주세요.");
+              }}
             />
             {variationImages.length > 1 ? (
               <div className="character-result-variation-rail" aria-label="캐릭터 베리에이션 선택">

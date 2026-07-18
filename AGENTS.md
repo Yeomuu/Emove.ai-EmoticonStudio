@@ -60,7 +60,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Home/landing should use randomly placed character tokens as the primary interactive background instead of the previous static ecosystem image.
 - Home/landing should also keep the Figma geometric circle/line pattern behind the random character tokens.
 - Home character tokens should repel from the pointer, remain draggable, and push nearby character tokens away when they collide during drag.
-- Home character pointer interactions must use alpha-hit-testing so transparent image pixels do not trigger drag or repulsion.
+- Home character pointer interactions use the visible `.home-character-token` card bounds, including the glass card outline, for drag, pointer repulsion, and character-to-character collision.
 - Header layout keeps the logo centered, primary nav pinned to the left side of the 1440px frame, and profile/theme controls pinned to the right side.
 - The current Figma redesign uses a bottom-right dock navigation. Home and Library show it by default; Character, Input, and Edit hide it during work and reveal it when the pointer enters the bottom-right dock zone.
 - Glassmorphism buttons should use `backdrop-filter` so the background behind the button blurs while button text/icons remain sharp.
@@ -84,7 +84,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit canvas resize/rotate control handles belong only to the current active layer; inactive selection bounds must not show handles or steal resize/rotate interactions.
 - Edit canvas may temporarily preview the currently selected layer above the other layers for easier adjustment, but this must never mutate the actual layer order or exported order. Clicking empty canvas space clears the active layer selection.
 - Source code, styles, fonts, icons, and used UI images should be referenced from `src/` and `src/assets/` in v1; old root-level source/asset folders are legacy copies only until explicitly removed.
-- Remote persistence uses Vercel Route Handlers. Vercel Blob stores exported APNG-first animation files for QR/mobile viewing through `/api/share/animation` while `/api/share/gif` remains a legacy-compatible route; Neon Postgres via `DATABASE_URL` stores and reads optional shared metadata for `characters`, `captures`, `projects`, and `stickers`; IndexedDB remains the local fallback when remote storage is unavailable.
+- Remote persistence uses Vercel Route Handlers. Google Cloud Storage is the primary binary store for generated characters, frames, effects, thumbnails, and APNG-first animation files; Neon Postgres via `DATABASE_URL` stores stable GCS URLs and compact metadata for `characters`, `captures`, `projects`, and `stickers`; IndexedDB remains the local fallback when remote storage is unavailable.
 - Input analysis must visibly show the understood behavior, expression/emotion key, voice usage, and emotion background-effect guide instead of only showing a completion toast.
 - Input camera analysis uses MediaPipe Pose Landmarker and Face Landmarker for the closest single person; if real landmarks are unavailable, the app must say the analysis failed instead of substituting preset behavior or expression data.
 - Library category UI must keep display category state separate from emotion filtering so same-emotion categories such as celebration and gratitude do not appear selected at the same time.
@@ -98,7 +98,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
 - OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to serverless timeout or response-size limits.
 - Use compressed `webp` image API responses by default before browser chroma-key removal; if this changes, the returned data URL MIME type must match the requested image output format.
-- On Vercel production, long image routes such as `character`, `frame`, `frames`, and `effect` should move to durable background jobs with Blob-backed or DB-backed status/result polling before paid production traffic. Do not make long browser-facing functions risk losing paid OpenAI results to timeout.
+- On Vercel production, long image routes such as `character`, `frame`, `frames`, and `effect` should move to durable background jobs with GCS-backed or DB-backed status/result polling before paid production traffic. Do not make long browser-facing functions risk losing paid OpenAI results to timeout.
 - Treat the Notion Design System page as fixed unless the user explicitly asks to change it; PRD, technical specification, and page/function documentation may be updated around that fixed design system.
 - When transplanting Notion page-function inventories into a technical test app, focus on the actual page functions, states, controls, and route behavior rather than recreating sidebar/navigation layout details.
 - Use the Next.js lab to stress-test accumulated EMOVE features with realistic mock state before wiring paid API calls, remote persistence, or production background jobs.
@@ -119,16 +119,21 @@ When implementing from a selected generated mock, treat that image as the source
   - https://sustainability.kakao.com/ko (modern grids and liquid-glass container hierarchies)
   - https://myz-studio.com/ (clean minimalist dark layout and hover states)
   - https://towards.co.kr/ (loading sequence, typewriter vertical panels, and real-time ASCII rotating globes)
-- Showcase uses an independently implemented full-viewport pointer-reactive liquid canvas inspired by the supplied Haoqi reference. Keep empty-state copy as part of the background composition rather than a centered card, and split animated emoticons between behind-text and in-front layers.
+- Showcase uses an independently implemented full-viewport pointer-reactive liquid canvas inspired by the supplied Haoqi reference. Keep empty-state copy as part of the background composition rather than a centered card, split animated emoticons between behind-text and in-front layers, and let the pointer ripple produce subtle RGB dispersion, fine water noise, and localized backdrop refraction over text and emoticons.
+- Keep all Showcase visual content below one full-screen, pointer-transparent adjustment layer so the water response refracts the background word, copy, and emoticons together. Use one fixed base color per light/dark theme, render the background `EMOVE` word as liquid glass, omit `CREATE EMOTICON` in the empty state, and guarantee a behind/front emoticon split whenever at least two animated items exist.
+- Showcase water should resemble a fast, fine `CC Drizzle`-style moving caustic surface rather than a large accumulated radial blob. Render the transparent WebGL caustic canvas inside the adjustment layer above Showcase content, keep DOM displacement subtle enough to avoid duplicated text outlines, and use darker blue-gray refraction in light mode so the motion remains visible.
+- Keep the Showcase light-mode ambient caustic restrained; pointer movement should temporarily restore the stronger RGB prism/ring dispersion without raising the whole page's water intensity.
 - Form and media-panel internals must use containment-safe flex/grid layout. Do not position controls across unrelated parent panels or allow labels, previews, buttons, or upload controls to overflow their owning region.
 - Keep glass treatment selective: use it for navigation, modal, focused controls, and intentional overlay surfaces rather than applying it uniformly to every wireframe cell.
 - The bottom dock must always provide a clickable EMOVE logo for Home and an icon-only Showcase entry; Home uses the same responsive bottom-right dock as the other routes.
 - After a completed Input microphone/camera capture becomes idle for about 10 seconds, Showcase may open automatically. Clicking the Showcase background returns to the immediately previous route.
 - Character reference input prioritizes cartoon or 3D-rendered imagery and accepts one user-uploaded reference image that is included in the character generation token.
+- Emotion selection follows the explicit product priority voice → action → facial expression. Imentiv audio analysis is server-only through `/api/emotion/audio`; store the chosen source, provider, confidence, and full normalized score map, and label local heuristic fallbacks honestly.
+- Browser microphone capture may remain WebM for OpenAI transcription, but convert the short clip to mono WAV before Imentiv because its direct file upload accepts MP3, WAV, AAC, and M4A rather than WebM.
 
 ## Vercel Storage Data Model
 
-원격 저장은 선택 기능입니다. `DATABASE_URL`이 없으면 IndexedDB 로컬 저장만 사용하고, `BLOB_READ_WRITE_TOKEN`이 없으면 로컬 개발용 메모리 애니메이션 공유 URL만 사용합니다.
+원격 저장은 선택 기능입니다. `DATABASE_URL`이 없으면 IndexedDB 로컬 저장만 사용하고, `GCS_BUCKET_NAME` 또는 Google Cloud 인증정보가 없으면 로컬 개발용 메모리 애니메이션 공유 URL과 로컬 이미지 데이터만 사용하면서 설정 오류를 명확히 알립니다.
 
 ### 1. `emove_library_records`
 **Neon Postgres shared metadata table**
@@ -143,13 +148,14 @@ When implementing from a selected generated mock, treat that image as the source
 }
 ```
 
-### 2. Vercel Blob Animation Objects
+### 2. Google Cloud Storage Objects
 **QR/mobile share file storage**
 
 ```typescript
 {
-  path: `vercel-blob://animations/${shareId}.apng`;
-  url: string;         // public Vercel Blob URL returned by /api/share/animation
+  path: `gcs://${bucket}/assets/animations/${year}/${month}/${shareId}.apng`;
+  url: string;         // stable public GCS or configured CDN URL
+  downloadUrl: string; // /api/assets/download attachment response used by QR
   contentType: "image/apng" | "image/gif" | "image/webp";
   maxSizeBytes: 5750000;
 }
@@ -160,10 +166,10 @@ When implementing from a selected generated mock, treat that image as the source
 1. **Input 페이지**: 사용자 입력 → local `captures` 저장, `DATABASE_URL`이 있으면 `/api/library/captures`에도 compact metadata 저장
 2. **Character 페이지**: OpenAI 생성 → local `characters` 저장, `DATABASE_URL`이 있으면 `/api/library/characters`에도 저장
 3. **Edit 페이지**: 프레임별 편집 상태 → local `projects`, `stickers`, `characters` 저장, `DATABASE_URL`이 있으면 `/api/library/projects`에도 compact metadata 저장
-4. **Export**: APNG 우선 애니메이션 렌더링 → `/api/share/animation` 업로드 → Vercel Blob public URL 또는 local memory URL을 QR로 사용
+4. **Export**: APNG 우선 애니메이션 렌더링 → `/api/share/animation` 업로드 → GCS public URL은 화면 표시/DB에 사용하고 `/api/assets/download` attachment URL은 QR에 사용
 5. **Library**: 현재 구현은 IndexedDB/local state를 우선 표시하며, shared public gallery reads can be added from Neon when the public gallery policy is finalized
 
 ### 권한 및 보안
-- `OPENAI_API_KEY`, `BLOB_READ_WRITE_TOKEN`, `DATABASE_URL`은 서버 환경변수로만 보관합니다.
+- `OPENAI_API_KEY`, `DATABASE_URL`, `GCS_BUCKET_NAME`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_CLIENT_EMAIL`, `GOOGLE_CLOUD_PRIVATE_KEY`는 서버 환경변수로만 보관합니다.
 - 브라우저 공개 환경변수는 `NEXT_PUBLIC_` prefix만 사용합니다.
 - 원격 shared library를 production에 열기 전에는 visibility, moderation, rate limiting, and ownership 정책을 먼저 확정합니다.

@@ -6,6 +6,8 @@ import { EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import { effectPresets, emotionMeta } from "../data";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
+import { waitForImageAssets } from "../services/asset-readiness";
+import { persistGeneratedAsset } from "../services/asset-storage";
 import { syncProjectToRemote } from "../services/remote-store";
 import { downloadBlob, exportAnimation, renderFrame, renderFrameDataUrl } from "../services/renderer";
 import { saveProject } from "../services/repository";
@@ -19,6 +21,8 @@ const ai = getAIProvider();
 export function EditPage() {
   const [exporting, setExporting] = useState(false); const [density, setDensity] = useState(64); const [qr, setQr] = useState<string>();
   const [generatingEffect, setGeneratingEffect] = useState(false);
+  const effectLockRef = useRef(false);
+  const exportLockRef = useRef(false);
   const [dragId, setDragId] = useState<LayerKind>(); const [dragPreview, setDragPreview] = useState<EditorLayer[] | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: LayerKind; position: "before" | "after" } | null>(null); const [dragPoint, setDragPoint] = useState<{ x: number; y: number } | null>(null);
   const activeLayerId = activeLayer.value;
@@ -34,13 +38,18 @@ export function EditPage() {
     coreEffectImage.value = null;
   };
   const generateCoreEffect = async () => {
+    if (effectLockRef.current || exportLockRef.current) return;
+    effectLockRef.current = true;
     setGeneratingEffect(true);
     try {
-      coreEffectImage.value = await ai.generateCoreEffect(motionBrief.value);
-      notify(coreEffectImage.value ? "코어 이펙트 레이어를 새로 생성했어요." : "생성형 코어 이펙트를 만들지 못해 로컬 이펙트로 미리봅니다.");
+      const generatedEffect = await ai.generateCoreEffect(motionBrief.value);
+      if (generatedEffect) await waitForImageAssets([generatedEffect]);
+      coreEffectImage.value = generatedEffect;
+      notify(generatedEffect ? "코어 이펙트 이미지가 화면에 준비되었습니다." : "생성형 코어 이펙트를 만들지 못해 로컬 이펙트로 미리봅니다.");
     } catch (error) {
       notify(error instanceof Error ? error.message : "코어 이펙트 생성에 실패했습니다.");
     } finally {
+      effectLockRef.current = false;
       setGeneratingEffect(false);
     }
   };
@@ -76,7 +85,7 @@ export function EditPage() {
   const buildAndSave = async (): Promise<EmoticonProject> => {
     const original = editingProject.value;
     const renderOptions = { characterUrl: sanitizeAssetUrl(selectedCharacter.value.sourceAsset), characterFrames: frameImages.value, coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, frameTransforms: frameLayerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: EXPORT_SIZE, height: EXPORT_SIZE };
-    const [animation, thumbnail] = await Promise.all([exportAnimation(renderOptions, "APNG"), renderFrameDataUrl(renderOptions, 0)]);
+    const [animation, thumbnailSource] = await Promise.all([exportAnimation(renderOptions, "APNG"), renderFrameDataUrl(renderOptions, 0)]);
     const now = new Date().toISOString(); const id = original?.id ?? `emove-${Date.now()}`;
     const originalSticker = original?.sticker;
     const title = normalizedStickerTitle(originalSticker?.title);
@@ -84,6 +93,8 @@ export function EditPage() {
     exportAnimationFormat.value = animation.format;
     const localAnimationUrl = URL.createObjectURL(animation.blob);
     const sharedAnimation = await publishAnimationForQr(animation.blob, { fileName: `${safeFileName(title)}.${animation.extension}`, format: animation.format, projectId: id, title });
+    const thumbnailAsset = await persistGeneratedAsset(thumbnailSource, { fileName: `${safeFileName(title)}-thumbnail.png`, kind: "thumbnails" });
+    const thumbnail = thumbnailAsset.url;
     const sticker: StickerItem = {
       id: originalSticker?.id ?? id,
       title,
@@ -129,7 +140,7 @@ export function EditPage() {
       : [project.sticker, ...stickers.value];
     editingProject.value = project;
     lastSaved.value = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
-    exportGifBlob.value = animation.blob; exportShareUrl.value = sharedAnimation.url ?? sync.downloadUrl ?? null;
+    exportGifBlob.value = animation.blob; exportShareUrl.value = sharedAnimation.downloadUrl ?? sharedAnimation.url ?? sync.downloadUrl ?? null;
     const savedCopy = original ? "원본 이모티콘을 현재 위치에 덮어 저장했어요." : "이모티콘을 저장했어요.";
     notify(remoteError
       ? `${savedCopy} 원격 DB 동기화 실패: ${remoteError}`
@@ -144,8 +155,31 @@ export function EditPage() {
               : sync.enabled ? `프로젝트와 1024 ${animation.format} 메타데이터를 원격 DB에 저장했어요.` : "이모티콘을 기기에 저장했어요."); return project;
   };
 
-  const save = async () => { setExporting(true); try { await buildAndSave(); } catch (error) { notify(error instanceof Error ? error.message : "저장에 실패했습니다."); } finally { setExporting(false); } };
-  const openExport = async () => { setExporting(true); try { const project = await buildAndSave(); const qrTarget = exportShareUrl.value ?? new URL(`/library/${project.sticker.id}`, window.location.origin).toString(); const { default: QRCode } = await import("qrcode"); setQr(await QRCode.toDataURL(qrTarget, { width: 260, margin: 1, color: { dark: "#201E28", light: "#FCFCFC" } })); exportModalOpen.value = true; } catch (error) { notify(error instanceof Error ? error.message : "내보내기에 실패했습니다."); } finally { setExporting(false); } };
+  const save = async () => {
+    if (exportLockRef.current || effectLockRef.current) return;
+    exportLockRef.current = true;
+    setExporting(true);
+    try { await buildAndSave(); }
+    catch (error) { notify(error instanceof Error ? error.message : "저장에 실패했습니다."); }
+    finally { exportLockRef.current = false; setExporting(false); }
+  };
+  const openExport = async () => {
+    if (exportLockRef.current || effectLockRef.current) return;
+    exportLockRef.current = true;
+    setExporting(true);
+    try {
+      const project = await buildAndSave();
+      const qrTarget = exportShareUrl.value ?? new URL(`/library/${project.sticker.id}`, window.location.origin).toString();
+      const { default: QRCode } = await import("qrcode");
+      setQr(await QRCode.toDataURL(qrTarget, { width: 260, margin: 1, color: { dark: "#201E28", light: "#FCFCFC" } }));
+      exportModalOpen.value = true;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "내보내기에 실패했습니다.");
+    } finally {
+      exportLockRef.current = false;
+      setExporting(false);
+    }
+  };
   const share = async () => {
     const format = exportAnimationFormat.value;
     if (!exportGifBlob.value) return; const file = new File([exportGifBlob.value], `${safeFileName(emoticonTitle.value || `emove-${emotion.value}`)}.${animationExtension(format)}`, { type: animationMimeType(format) });
@@ -161,14 +195,14 @@ export function EditPage() {
           <h1>이모티콘의 이펙트와 텍스트를 자유롭게 수정하세요.</h1>
           <p>1024×1024 export canvas</p>
         </header>
-        <header className="editor-toolbar glass-panel"><div className="editor-title-group"><span className="eyebrow">STEP 03 · EDIT</span><strong>{emotionMeta[emotion.value].label} 모션 편집</strong><label className="emoticon-title-control"><span>NAME</span><input value={emoticonTitle.value} maxLength={28} onChange={(event) => (emoticonTitle.value = event.currentTarget.value)} aria-label="이모티콘 저장 이름" /></label></div><div className="toolbar-actions"><span className="save-state">{lastSaved.value ? `${lastSaved.value} 저장됨` : "저장 전"}</span><button className="button secondary" type="button" onClick={save} disabled={exporting}><Icon name="save" />저장</button><button className="button primary" type="button" onClick={openExport} disabled={exporting}><Icon name="download" />{exporting ? `${exportLabel} 만드는 중` : "내보내기"}</button></div></header>
+        <header className="editor-toolbar glass-panel"><div className="editor-title-group"><span className="eyebrow">STEP 03 · EDIT</span><strong>{emotionMeta[emotion.value].label} 모션 편집</strong><label className="emoticon-title-control"><span>NAME</span><input value={emoticonTitle.value} maxLength={28} onChange={(event) => (emoticonTitle.value = event.currentTarget.value)} aria-label="이모티콘 저장 이름" /></label></div><div className="toolbar-actions"><span className="save-state">{lastSaved.value ? `${lastSaved.value} 저장됨` : "저장 전"}</span><button className="button secondary" type="button" onClick={save} disabled={exporting || generatingEffect}><Icon name="save" />{exporting ? "저장 중" : "저장"}</button><button className="button primary" type="button" onClick={openExport} disabled={exporting || generatingEffect}><Icon name="download" />{exporting ? `${exportLabel} 만드는 중` : "내보내기"}</button></div></header>
         <div className="editor-grid">
           <Panel title="Core effect" meta="VOICE → VISUAL" className="effect-settings">
             <div className="effect-hero"><span style={{ background: `${effectColor.value}24` }}><Icon name="star" size={28} /></span><div><small>RECOMMENDED</small><strong>{coreEffect.value}</strong><p>음성 감정에서 제안된 하나의 핵심 효과예요.</p></div></div>
             <div className="field-group"><span className="field-label">코어 이펙트 생성 세트</span><div className="preset-list">{effectPresets.map((preset) => <button key={preset} type="button" className={coreEffect.value === preset ? "active" : ""} onClick={() => chooseCoreEffect(preset)}><i style={{ background: effectColor.value }} />{preset}</button>)}</div></div>
             <label className="color-field"><span><b>이펙트 컬러</b><em>{effectColor.value.toUpperCase()}</em></span><input type="color" value={effectColor.value} onChange={(event) => (effectColor.value = event.currentTarget.value)} /></label>
             <label className="range-field"><span>부가 이펙트 밀도 <strong>{density}</strong></span><input type="range" min="20" max="100" value={density} onChange={(event) => setDensity(Number(event.currentTarget.value))} /></label>
-            <button className="button subtle full" type="button" onClick={generateCoreEffect} disabled={generatingEffect}><Icon name={generatingEffect ? "reload" : "star"} className={generatingEffect ? "spin" : ""} />{generatingEffect ? "이펙트 생성 중" : "코어 이펙트 생성"}</button>
+            <button className="button subtle full" type="button" onClick={generateCoreEffect} disabled={generatingEffect || exporting}><Icon name={generatingEffect ? "reload" : "star"} className={generatingEffect ? "spin" : ""} />{generatingEffect ? "이펙트 생성 중" : "코어 이펙트 생성"}</button>
             <div className="effect-note"><Icon name="check" /><span>코어 이펙트는 별도 레이어로 생성하고, 부가 이펙트만 고정 별 파츠로 유지합니다.</span></div>
           </Panel>
 

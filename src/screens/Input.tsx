@@ -6,9 +6,10 @@ import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
 import { emotionMeta, emotionOrder, imageAssets } from "../data";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
+import { waitForImageAssets } from "../services/asset-readiness";
 
 import { AudioCapture, CameraCapture } from "../services/media";
-import { inferEmotionFromText } from "../services/prompt-builder";
+import { analyzeEmotionPriority } from "../services/emotion-analysis";
 import { syncCaptureToRemote } from "../services/remote-store";
 import { saveCapture } from "../services/repository";
 import { createLiveVisionAnalyzer } from "../services/vision";
@@ -25,6 +26,8 @@ export function InputPage() {
   const camera = useRef(new CameraCapture());
   const audio = useRef(new AudioCapture());
   const idleTimer = useRef<number | undefined>(undefined);
+  const captureLockRef = useRef(false);
+  const generationLockRef = useRef(false);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [cameraReady, setCameraReady] = useState(false);
@@ -33,6 +36,7 @@ export function InputPage() {
   const [recording, setRecording] = useState(false);
   const [levels, setLevels] = useState<number[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
+  const [generatingFrames, setGeneratingFrames] = useState(false);
   const [characterMenu, setCharacterMenu] = useState(false);
   const [process, setProcess] = useState<ProcessState | null>(null);
 
@@ -41,10 +45,10 @@ export function InputPage() {
 
   useEffect(() => {
     window.clearTimeout(idleTimer.current);
-    if (currentStep < 2 || capturing || analyzing || recording || process) return;
+    if (currentStep < 2 || capturing || analyzing || generatingFrames || recording || process) return;
     idleTimer.current = window.setTimeout(() => navigate("/showcase"), 10_000);
     return () => window.clearTimeout(idleTimer.current);
-  }, [currentStep, capturing, analyzing, recording, process]);
+  }, [currentStep, capturing, analyzing, generatingFrames, recording, process]);
 
   // Always-on camera: start on mount, blur when person not detected
   useEffect(() => {
@@ -104,7 +108,8 @@ export function InputPage() {
   };
 
   const capturePose = async () => {
-    if (!videoRef.current || capturing) return;
+    if (!videoRef.current || captureLockRef.current) return;
+    captureLockRef.current = true;
     window.clearTimeout(idleTimer.current);
     setCapturing(true);
     setRecording(true);
@@ -140,36 +145,19 @@ export function InputPage() {
         setPersonDetected(true);
       }
       
-      if (metrics.source !== "mediapipe") {
-        behaviorCapture.value = {
-          ...behaviorCapture.value,
-          id: `capture-${Date.now()}`,
-          videoBlob: result.blob,
-          audioBlob: voice.blob,
-          poseSummary: describePose(metrics),
-          gesture: metrics.gesture ?? "Not_Detected",
-          expression: metrics.face?.expression ?? "unknown",
-          emotionScores: Object.fromEntries(emotionOrder.map((item) => [item, item === "unknown" ? 1 : 0])) as Record<Emotion, number>,
-          sourceText: "",
-          shortText: "",
-          audio: voice.features,
-          createdAt: new Date().toISOString(),
-        };
-        setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "포즈 분석 실패를 정리하는 중...", percent: 100 });
-        notify(`${metrics.diagnostics ?? "카메라에서 사람의 자세 랜드마크를 찾지 못했습니다."} 상반신과 양손이 화면 안에 들어오도록 다시 촬영해 주세요.`);
-        setCurrentStep(2);
-        return;
-      }
-      
       setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "목소리를 전사하고 감정 키를 정리하는 중...", percent: 78 });
       await applyVoiceAndVision(result.blob, voice.blob, voice.features, metrics);
       setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "분석 결과 저장 완료", percent: 100 });
+      if (metrics.source !== "mediapipe") {
+        notify(`${metrics.diagnostics ?? "카메라에서 사람의 자세 랜드마크를 찾지 못했습니다."} 목소리 감정은 저장했지만 행동 생성을 위해 다시 촬영해 주세요.`);
+      }
       setCurrentStep(2); // Go to results view
     } catch (error) {
       setProcess(null);
       returnToPreview();
       notify(error instanceof Error ? error.message : "자세 촬영에 실패했습니다.");
     } finally {
+      captureLockRef.current = false;
       setCapturing(false);
       setRecording(false);
       setAnalyzing(false);
@@ -179,7 +167,9 @@ export function InputPage() {
   };
  
   const proceed = async () => {
-    setAnalyzing(true);
+    if (generationLockRef.current || captureLockRef.current) return;
+    generationLockRef.current = true;
+    setGeneratingFrames(true);
     setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "입력 데이터 조건을 확인하는 중...", percent: 6 });
     try {
       if (!selectedCharacter.value.sourceAsset) {
@@ -197,11 +187,6 @@ export function InputPage() {
       
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "분석 결과를 저장하는 중...", percent: 18 });
       
-      behaviorCapture.value = {
-        ...behaviorCapture.value,
-        emotionScores: Object.fromEntries(emotionOrder.map((item) => [item, item === emotion.value ? .88 : .015])) as Record<Emotion, number>
-      };
-      
       const persistence = await saveCaptureRemoteFirst(behaviorCapture.value);
       if (!persistence.synced) notify(persistence.message);
       
@@ -211,6 +196,7 @@ export function InputPage() {
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "캐릭터 행동 프레임 5장을 생성하는 중...", percent: 46 });
       
       const frames = await ai.generateCharacterFrames(motionBrief.value, selectedCharacter.value);
+      await waitForImageAssets(frames.slice(0, FRAME_COUNT));
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "편집 화면에서 사용할 프레임을 정렬하는 중...", percent: 88 });
       frameImages.value = frames.slice(0, FRAME_COUNT);
       coreEffectImage.value = null;
@@ -220,7 +206,8 @@ export function InputPage() {
       setProcess(null);
       notify(error instanceof Error ? error.message : "이모티콘 생성에 실패했습니다.");
     } finally {
-      setAnalyzing(false);
+      generationLockRef.current = false;
+      setGeneratingFrames(false);
       window.setTimeout(() => setProcess(null), 420);
     }
   };
@@ -244,11 +231,15 @@ export function InputPage() {
     const resultText = await ai.transcribe(audioBlob);
     sourceTranscript.value = resultText.sourceText;
     transcript.value = resultText.shortText;
-    const nextEmotion = resultText.sourceText.trim() ? inferEmotionFromText(resultText.sourceText, audioFeatures) : "unknown";
     expressionEmotion.value = metrics.face?.expression ?? "unknown";
-    setEmotion(nextEmotion);
-    
-    const emotionScores = Object.fromEntries(emotionOrder.map((item) => [item, item === nextEmotion ? .88 : .015])) as Record<Emotion, number>;
+    const analyzedEmotion = await analyzeEmotionPriority(
+      audioBlob,
+      resultText.sourceText,
+      audioFeatures,
+      metrics,
+      (label, percent) => setProcess({ title: "입력한 목소리와 포즈를 분석하고 있습니다.", label, percent }),
+    );
+    setEmotion(analyzedEmotion.emotion);
     
     behaviorCapture.value = {
       ...behaviorCapture.value,
@@ -258,17 +249,21 @@ export function InputPage() {
       poseSummary: describePose(metrics),
       gesture: metrics.gesture ?? "Not_Detected",
       expression: metrics.face?.expression ?? "unknown",
+      emotionSource: analyzedEmotion.source,
+      emotionProvider: analyzedEmotion.provider,
+      emotionConfidence: analyzedEmotion.confidence,
+      emotionWarning: analyzedEmotion.warning,
       sourceText: resultText.sourceText,
       shortText: resultText.shortText,
       audio: audioFeatures,
-      emotionScores,
+      emotionScores: analyzedEmotion.scores,
       createdAt: new Date().toISOString()
     };
     
     const persistence = await saveCaptureRemoteFirst(behaviorCapture.value);
     notify(metrics.source === "mediapipe"
-      ? `${describePose(metrics)}, ${describeFaceUse(expressionEmotion.value, metrics)}, "${resultText.shortText || resultText.sourceText}" 입력을 분석했어요. ${persistence.synced ? "원격 DB에 저장했습니다." : persistence.message}`
-      : "카메라에서 행동을 인식하지 못했습니다. 다시 촬영해 주세요.");
+      ? `${emotionAnalysisLabel(behaviorCapture.value)}, ${describePose(metrics)}, ${describeFaceUse(expressionEmotion.value, metrics)}을 분석했어요. ${persistence.synced ? "원격 DB에 저장했습니다." : persistence.message}`
+      : `${emotionAnalysisLabel(behaviorCapture.value)}은 저장했습니다. 카메라 행동은 인식하지 못해 다시 촬영해야 합니다.`);
   };
 
   const computedTier: ExaggerationTier = motionIntensity.value < .45 ? "minimal" : motionIntensity.value < .72 ? "emotional" : "full";
@@ -309,20 +304,25 @@ export function InputPage() {
             </Panel>
           </div>
           <div className="input-right-column">
-            <Panel title="✦ 촬영 안내" className="step-guide-panel">
-              <h3>감정 표현 동작 촬영</h3>
-              <p>5초 동안 만들고 싶은 이모티콘의 감정과 어울리는 행동을 몸짓과 목소리로 자유롭게 표현하세요.</p>
-              <ul className="guide-list" style={{ marginTop: "12px", paddingLeft: "16px", color: "rgba(225, 220, 242, .62)" }}>
-                <li>예: 기쁠 때 만세하기, 슬플 때 얼굴 감싸기</li>
-                <li>목소리 강도에 따라 캐릭터 동작과 연출이 자동 과장됩니다.</li>
-              </ul>
-            </Panel>
+            <aside className="input-stage-panel" aria-label="입력 단계">
+              <strong>입력단계</strong>
+              {["촬영", "분석", "포즈 분석 결과", "음성 분석 결과"].map((label, index) => (
+                <div
+                  key={label}
+                  className={index === currentStep ? "active" : index < currentStep ? "complete" : ""}
+                  aria-current={index === currentStep ? "step" : undefined}
+                >
+                  <span aria-hidden="true" />
+                  {label}
+                </div>
+              ))}
+            </aside>
           </div>
         </div>
       ),
       validate: () => {
         if (!cameraReady) return "카메라 장치를 초기화하는 중입니다. 대기하거나 권한을 승인해 주세요.";
-        return null;
+        return "촬영 시작하기 버튼을 눌러 5초 촬영을 먼저 완료해 주세요.";
       }
     },
     {
@@ -421,6 +421,9 @@ export function InputPage() {
                   onChange={(event) => (transcript.value = event.currentTarget.value)}
                   placeholder="예: 정말 기뻐!"
                 />
+                <p className="emotion-analysis-source">
+                  {emotionAnalysisLabel(behaviorCapture.value)}
+                </p>
               </div>
 
               <div className="exaggeration-indicator-box" style={{ marginTop: "18px" }}>
@@ -526,11 +529,11 @@ export function InputPage() {
                   type="button"
                   className="btn-generate-emoticon"
                   onClick={proceed}
-                  disabled={recording || capturing || analyzing}
+                  disabled={recording || capturing || analyzing || generatingFrames}
                   style={{ width: "100%" }}
                 >
-                  <Icon name={analyzing ? "reload" : "star"} className={analyzing ? "spin" : ""} />
-                  {analyzing ? "이모티콘 프레임 제작 중..." : "이모티콘 생성하기"}
+                  <Icon name={generatingFrames ? "reload" : "star"} className={generatingFrames ? "spin" : ""} />
+                  {generatingFrames ? "이모티콘 프레임 제작 중..." : "이모티콘 생성하기"}
                 </button>
               </div>
             </Panel>
@@ -562,6 +565,9 @@ export function InputPage() {
         currentStep={currentStep}
         onStepChange={(index) => setCurrentStep(index)}
         onComplete={proceed}
+        busy={capturing || analyzing || generatingFrames}
+        completeLabel="이모티콘 생성하기"
+        busyLabel={generatingFrames ? "프레임 생성 중" : "분석 중"}
         className="input-scroll-slider"
       />
 
@@ -596,6 +602,13 @@ function describeFaceUse(current: Emotion, metrics: VisionMetrics): string {
   if (!metrics.face) return "표정 미분석";
   const meta = emotionMeta[metrics.face.expression ?? current];
   return `${meta.label} 표정 · ${Math.round(metrics.face.confidence * 100)}%`;
+}
+
+function emotionAnalysisLabel(capture: BehaviorCapture): string {
+  const source = capture.emotionSource === "voice" ? "목소리" : capture.emotionSource === "action" ? "행동" : capture.emotionSource === "expression" ? "표정" : "감정";
+  const provider = capture.emotionProvider === "imentiv" ? "Imentiv" : capture.emotionProvider === "mediapipe" ? "MediaPipe" : "로컬 음성 휴리스틱";
+  const confidence = Math.round((capture.emotionConfidence ?? 0) * 100);
+  return `${source} 우선 분석 · ${provider} · 신뢰도 ${confidence}%`;
 }
 
 async function saveCaptureRemoteFirst(capture: BehaviorCapture): Promise<{ synced: boolean; message: string }> {

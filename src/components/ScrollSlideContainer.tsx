@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type TouchEvent } from "react";
 import { Icon } from "./Icon";
 
 interface StepConfig {
@@ -15,14 +15,27 @@ interface ScrollSlideContainerProps {
   currentStep?: number;
   onStepChange?: (index: number) => void;
   onComplete?: () => void;
+  busy?: boolean;
+  completeLabel?: string;
+  busyLabel?: string;
 }
 
-export function ScrollSlideContainer({ steps, className = "", currentStep: propStep, onStepChange, onComplete }: ScrollSlideContainerProps) {
+export function ScrollSlideContainer({
+  steps,
+  className = "",
+  currentStep: propStep,
+  onStepChange,
+  onComplete,
+  busy = false,
+  completeLabel = "생성하기",
+  busyLabel = "생성 중",
+}: ScrollSlideContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [localStep, setLocalStep] = useState(0);
   const currentStep = propStep !== undefined ? propStep : localStep;
   const [warning, setWarning] = useState<{ message: string; stepIndex: number; targetIndex: number } | null>(null);
   const isScrolling = useRef(false);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   const scrollToStep = useCallback((index: number) => {
     const container = containerRef.current;
@@ -47,6 +60,7 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
   }, [propStep, scrollToStep]);
 
   const attemptNavigation = useCallback((targetIndex: number) => {
+    if (busy) return;
     // Going forward: validate current step
     if (targetIndex > currentStep) {
       const step = steps[currentStep];
@@ -57,10 +71,10 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
       }
     }
     scrollToStep(targetIndex);
-  }, [currentStep, steps, scrollToStep]);
+  }, [busy, currentStep, steps, scrollToStep]);
 
   const handleWheel = useCallback((event: WheelEvent) => {
-    if (isScrolling.current || warning) return;
+    if (busy || isScrolling.current || warning) return;
     const delta = event.deltaY;
     if (Math.abs(delta) < 30) return;
     event.preventDefault();
@@ -69,7 +83,7 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
     } else if (delta < 0 && currentStep > 0) {
       attemptNavigation(currentStep - 1);
     }
-  }, [currentStep, steps.length, attemptNavigation, warning]);
+  }, [busy, currentStep, steps.length, attemptNavigation, warning]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -77,6 +91,40 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
     container.addEventListener("wheel", handleWheel, { passive: false });
     return () => container.removeEventListener("wheel", handleWheel);
   }, [handleWheel]);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (busy || warning) return;
+    if (event.key === "ArrowDown" || event.key === "PageDown") {
+      event.preventDefault();
+      if (currentStep < steps.length - 1) attemptNavigation(currentStep + 1);
+    } else if (event.key === "ArrowUp" || event.key === "PageUp") {
+      event.preventDefault();
+      if (currentStep > 0) attemptNavigation(currentStep - 1);
+    }
+  };
+
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element
+      ? event.target.closest("button, a, input, select, textarea, label, [role='button']")
+      : null;
+    if (target || event.touches.length !== 1) {
+      touchStart.current = null;
+      return;
+    }
+    touchStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start || busy || warning || event.changedTouches.length !== 1) return;
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaY) < 54 || Math.abs(deltaY) < Math.abs(deltaX) * 1.2) return;
+    if (deltaY < 0 && currentStep < steps.length - 1) attemptNavigation(currentStep + 1);
+    else if (deltaY > 0 && currentStep > 0) attemptNavigation(currentStep - 1);
+  };
 
   const dismissWarning = () => setWarning(null);
   const forceAdvance = () => {
@@ -86,7 +134,16 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
   };
 
   return (
-    <div className={`scroll-slide-container ${className}`} ref={containerRef} data-current-step={currentStep}>
+    <div
+      className={`scroll-slide-container ${className}`}
+      ref={containerRef}
+      data-current-step={currentStep}
+      aria-busy={busy}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* Step indicator */}
       <nav className="scroll-slide-nav" aria-label="단계 탐색">
         {steps.map((step, index) => (
@@ -95,6 +152,7 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
             type="button"
             className={`slide-nav-dot ${index === currentStep ? "active" : ""} ${index < currentStep ? "completed" : ""}`}
             onClick={() => attemptNavigation(index)}
+            disabled={busy}
             aria-label={`${step.label} (${index + 1}/${steps.length})`}
           >
             <span>{String(index + 1).padStart(2, "0")}</span>
@@ -120,7 +178,7 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
           type="button"
           className="slide-prev-button"
           onClick={() => attemptNavigation(currentStep - 1)}
-          disabled={currentStep === 0}
+          disabled={busy || currentStep === 0}
         >
           <Icon name="previous" size={16} />
           이전 단계
@@ -131,9 +189,9 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
             type="button"
             className="slide-next-button complete-button"
             onClick={onComplete}
-            style={{ borderColor: "rgba(123, 109, 255, 0.4)", background: "rgba(123, 109, 255, 0.15)", color: "#fff" }}
+            disabled={busy}
           >
-            생성하기
+            {busy ? busyLabel : completeLabel}
             <Icon name="star" size={16} />
           </button>
         ) : (
@@ -141,6 +199,7 @@ export function ScrollSlideContainer({ steps, className = "", currentStep: propS
             type="button"
             className="slide-next-button"
             onClick={() => attemptNavigation(currentStep + 1)}
+            disabled={busy}
           >
             다음 단계
             <Icon name="next" size={16} />

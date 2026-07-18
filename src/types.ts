@@ -33,6 +33,8 @@ export type CharacterStyleMode = "2D" | "3D";
 export type MotionStyle = "smooth" | "dynamic" | "bouncy" | "subtle";
 export type AnimationFormat = "APNG" | "GIF" | "WEBP";
 export type ExaggerationTier = "minimal" | "emotional" | "full";
+export type EmotionSource = "voice" | "action" | "expression";
+export type EmotionProvider = "imentiv" | "local-voice-heuristic" | "mediapipe";
 
 export interface EditorLayer {
   id: LayerKind;
@@ -86,6 +88,10 @@ export interface BehaviorCapture {
   gesture: string;
   expression?: Emotion;
   emotionScores: Record<Emotion, number>;
+  emotionSource?: EmotionSource;
+  emotionProvider?: EmotionProvider;
+  emotionConfidence?: number;
+  emotionWarning?: string;
   sourceText: string;
   shortText: string;
   audio: AudioFeatures;

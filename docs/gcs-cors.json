@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://emove-emoticonstudio.vercel.app",
+      "http://127.0.0.1:3008",
+      "http://localhost:3000"
+    ],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Content-Length", "ETag"],
+    "maxAgeSeconds": 3600
+  }
+]

@@ -79,7 +79,11 @@ export class CameraCapture {
       const ready = () => { cleanup(); resolve(); };
       const error = () => { cleanup(); reject(new Error("카메라 영상을 불러오지 못했습니다.")); };
       const cleanup = () => { video.removeEventListener("canplay", ready); video.removeEventListener("error", error); };
-      video.addEventListener("canplay", ready, { once: true }); video.addEventListener("error", error, { once: true }); void video.play();
+      video.addEventListener("canplay", ready, { once: true });
+      video.addEventListener("error", error, { once: true });
+      void video.play().catch((playError: DOMException) => {
+        if (playError.name !== "AbortError") error();
+      });
       if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) ready();
     });
   }

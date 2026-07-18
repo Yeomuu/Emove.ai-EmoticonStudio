@@ -19,6 +19,7 @@ const ENV_KEYS = [
 ] as const;
 
 export async function POST(request: Request): Promise<Response> {
+  if (!isSameOriginRequest(request)) return json(403, { error: "다른 출처에서는 OpenAI 프록시를 호출할 수 없습니다." });
   const response = await handleOpenAIRequest(request, serverEnv());
   return response ?? json(404, { error: "지원하지 않는 OpenAI 경로입니다." });
 }
@@ -39,4 +40,14 @@ function json(status: number, body: unknown): Response {
       "Content-Type": "application/json; charset=utf-8",
     },
   });
+}
+
+function isSameOriginRequest(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  try {
+    return new URL(origin).origin === new URL(request.url).origin;
+  } catch {
+    return false;
+  }
 }

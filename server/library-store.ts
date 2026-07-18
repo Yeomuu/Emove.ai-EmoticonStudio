@@ -20,7 +20,7 @@ type LibraryRow = {
 };
 
 let sqlClient: ReturnType<typeof neon> | null = null;
-let schemaReady = false;
+let schemaReady: Promise<void> | null = null;
 
 function getSql(): ReturnType<typeof neon> | null {
   const url = process.env.DATABASE_URL;
@@ -37,8 +37,7 @@ export async function saveLibraryRecord(record: LibraryRecord): Promise<{ enable
   await sql`
     insert into emove_library_records (id, kind, payload, updated_at)
     values (${record.id}, ${record.kind}, ${JSON.stringify(record.payload)}::jsonb, ${syncedAt})
-    on conflict (id) do update set
-      kind = excluded.kind,
+    on conflict (kind, id) do update set
       payload = excluded.payload,
       updated_at = excluded.updated_at
   `;
@@ -69,17 +68,27 @@ export async function listLibraryRecords(kind: string): Promise<{ enabled: boole
 }
 
 async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {
-  if (schemaReady) return;
-  await sql`
-    create table if not exists emove_library_records (
-      id text primary key,
-      kind text not null,
-      payload jsonb not null,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    )
-  `;
-  schemaReady = true;
+  schemaReady ??= (async () => {
+    await sql`
+      create table if not exists emove_library_records (
+        id text not null,
+        kind text not null,
+        payload jsonb not null,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    `;
+    // Older EMOVE tables used id alone as the primary key, which allowed
+    // project/sticker records with the same id to overwrite one another.
+    await sql`alter table emove_library_records drop constraint if exists emove_library_records_pkey`;
+    await sql`create unique index if not exists emove_library_records_kind_id_idx on emove_library_records (kind, id)`;
+  })();
+  try {
+    await schemaReady;
+  } catch (error) {
+    schemaReady = null;
+    throw error;
+  }
 }
 
 function toIsoString(value: unknown): string {

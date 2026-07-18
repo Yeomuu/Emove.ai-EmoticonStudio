@@ -42,7 +42,7 @@ const BAYER_4X4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
 async function loadImage(url: string): Promise<HTMLImageElement> {
   const cached = imageCache.get(url); if (cached) return cached;
-  const image = new Image(); image.decoding = "async"; image.src = url; await image.decode(); imageCache.set(url, image); return image;
+  const image = new Image(); image.decoding = "async"; image.crossOrigin = "anonymous"; image.src = url; await image.decode(); imageCache.set(url, image); return image;
 }
 
 export async function renderFrame(context: CanvasRenderingContext2D, options: RenderOptions, frameProgress = 0): Promise<void> {

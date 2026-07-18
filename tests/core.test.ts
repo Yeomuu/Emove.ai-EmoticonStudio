@@ -3,6 +3,8 @@ import { createMotionBrief, emotionMeta, initialLayers } from "../src/data";
 import { normalizePath } from "../src/router";
 import { encodeGifFrames } from "../src/services/renderer";
 import { circularBatch, isAnimatedSticker, shuffled } from "../src/services/animated-library";
+import { persistGeneratedAsset } from "../src/services/asset-storage";
+import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
 import { previewLayerOrder } from "../src/store";
 import type { StickerItem } from "../src/types";
 
@@ -42,6 +44,16 @@ describe("animated showcase rotation", () => {
   });
 });
 
+describe("generated asset persistence", () => {
+  it("keeps an existing remote URL without uploading it again", async () => {
+    const source = "https://storage.googleapis.com/emove-test/assets/characters/example.png";
+    await expect(persistGeneratedAsset(source, { fileName: "example.png", kind: "characters" })).resolves.toEqual({
+      enabled: true,
+      url: source,
+    });
+  });
+});
+
 describe("four layer edit contract", () => {
   it("contains the required layers in top-to-bottom editor order", () => {
     expect(initialLayers.map((layer) => layer.id)).toEqual([
@@ -75,6 +87,21 @@ describe("emotion motion brief", () => {
 
   it("exposes the exact nine emotion2vec+ output labels", () => {
     expect(Object.keys(emotionMeta)).toEqual(["angry", "disgusted", "fearful", "happy", "neutral", "other", "sad", "surprised", "unknown"]);
+  });
+
+  it("normalizes Imentiv nuanced voice labels into the EMOVE emotion contract", () => {
+    const scores = normalizeImentivEmotionScores({
+      joy: 44,
+      excitement: { score: 16 },
+      sadness: 20,
+      surprise: 10,
+      curiosity: 10,
+    });
+    expect(scores).not.toBeNull();
+    expect(scores?.happy).toBeCloseTo(.6);
+    expect(scores?.sad).toBeCloseTo(.2);
+    expect(scores?.surprised).toBeCloseTo(.2);
+    expect(Object.values(scores ?? {}).reduce((sum, value) => sum + value, 0)).toBeCloseTo(1);
   });
 });
 

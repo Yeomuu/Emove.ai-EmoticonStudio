@@ -1,6 +1,7 @@
 import type { CharacterToken, GeneratedCharacterResult, MotionBrief, OpenAIProvider, TranscriptionResult } from "../types";
 import { buildCharacterPrompt, buildCoreEffectPrompt, buildFramePrompts, compactEmoticonText } from "./prompt-builder";
 import { compactReferenceImagesForOpenAI, removeChromaKeyBackground } from "./image-processing";
+import { persistGeneratedAsset } from "./asset-storage";
 
 const CHARACTER_VARIATION_REQUESTS = 1;
 const FRAME_COUNT = 5;
@@ -72,14 +73,18 @@ export class ServerOpenAIProvider implements OpenAIProvider {
         referenceImages,
         chromaKeyBackground: "#00FF00",
       });
-      frameImages.push(await removeChromaKeyBackground(payload.imageUrl));
+      const transparentFrame = await removeChromaKeyBackground(payload.imageUrl);
+      const storedFrame = await persistGeneratedAsset(transparentFrame, { fileName: `${token.id}-frame-${frameIndex + 1}.png`, kind: "frames" });
+      frameImages.push(storedFrame.url);
     }
     return frameImages;
   }
 
   async generateCoreEffect(brief: MotionBrief): Promise<string | null> {
     const payload = await requestJson<{ imageUrl: string | null }>(openAIEndpoint("effect"), { brief, prompt: buildCoreEffectPrompt(brief) });
-    return payload.imageUrl ? removeChromaKeyBackground(payload.imageUrl) : null;
+    if (!payload.imageUrl) return null;
+    const transparentEffect = await removeChromaKeyBackground(payload.imageUrl);
+    return (await persistGeneratedAsset(transparentEffect, { fileName: `${brief.characterTokenId}-effect.png`, kind: "effects" })).url;
   }
 }
 

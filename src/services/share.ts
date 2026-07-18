@@ -1,6 +1,7 @@
 import type { AnimationFormat } from "../types";
 
 export interface SharedAnimationResult {
+  downloadUrl?: string;
   enabled: boolean;
   error?: string;
   id?: string;
@@ -44,7 +45,7 @@ export async function publishAnimationForQr(animation: Blob, options: PublishAni
     if (!response.ok || !result.url) {
       return { enabled: false, error: result.error ?? `공유 애니메이션 저장에 실패했습니다. (${response.status})` };
     }
-    return { enabled: true, extension: result.extension, format: result.format ?? options.format, id: result.id, mimeType: result.mimeType ?? mimeType, path: result.path, size: result.size, url: result.url };
+    return { enabled: true, downloadUrl: result.downloadUrl, extension: result.extension, format: result.format ?? options.format, id: result.id, mimeType: result.mimeType ?? mimeType, path: result.path, size: result.size, url: result.url };
   } catch (error) {
     return { enabled: false, error: error instanceof Error ? error.message : "공유 애니메이션 저장에 실패했습니다." };
   }

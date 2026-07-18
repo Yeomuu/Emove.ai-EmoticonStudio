@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Icon } from "../components/Icon";
+import { LiquidRippleCanvas } from "../components/LiquidRippleCanvas";
 import { imageAssets } from "../data";
 import { navigate } from "../router";
 import {
@@ -19,122 +20,9 @@ const FLOATING_SLOTS = [
 
 type FloatStyle = CSSProperties & Record<`--${string}`, string | number>;
 
-function LiquidBackdrop() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const context = canvas.getContext("2d", { alpha: false });
-    if (!context) return;
-
-    const pointer = { x: .5, y: .5, targetX: .5, targetY: .5 };
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let width = 1;
-    let height = 1;
-    let frame = 0;
-
-    const resize = () => {
-      const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
-      width = Math.max(1, canvas.clientWidth);
-      height = Math.max(1, canvas.clientHeight);
-      canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    };
-
-    const trackPointer = (event: PointerEvent) => {
-      pointer.targetX = Math.min(1, Math.max(0, event.clientX / window.innerWidth));
-      pointer.targetY = Math.min(1, Math.max(0, event.clientY / window.innerHeight));
-    };
-
-    const drawWave = (time: number, y: number, amplitude: number, color: string, phase: number) => {
-      context.beginPath();
-      context.moveTo(-80, height + 80);
-      context.lineTo(-80, y);
-      const segments = 8;
-      for (let index = 0; index <= segments; index += 1) {
-        const x = (width / segments) * index;
-        const distance = Math.abs(x / width - pointer.x);
-        const lens = Math.max(0, 1 - distance * 3.2);
-        const wave = Math.sin(index * .82 + time * .00042 + phase) * amplitude;
-        const displacement = lens * (pointer.y - .5) * height * .19;
-        context.lineTo(x, y + wave + displacement);
-      }
-      context.lineTo(width + 80, height + 80);
-      context.closePath();
-      context.fillStyle = color;
-      context.fill();
-    };
-
-    const render = (time: number) => {
-      pointer.x += (pointer.targetX - pointer.x) * (reducedMotion ? 1 : .065);
-      pointer.y += (pointer.targetY - pointer.y) * (reducedMotion ? 1 : .065);
-      const light = document.documentElement.dataset.theme === "light";
-      context.fillStyle = light ? "#e8f2ff" : "#080914";
-      context.fillRect(0, 0, width, height);
-
-      context.strokeStyle = light ? "rgba(42,72,104,.055)" : "rgba(183,202,255,.045)";
-      context.lineWidth = 1;
-      const grid = Math.max(48, Math.min(76, width / 18));
-      const offsetX = (pointer.x - .5) * 14;
-      const offsetY = (pointer.y - .5) * 14;
-      context.beginPath();
-      for (let x = -grid + offsetX; x < width + grid; x += grid) {
-        context.moveTo(x, 0);
-        context.lineTo(x, height);
-      }
-      for (let y = -grid + offsetY; y < height + grid; y += grid) {
-        context.moveTo(0, y);
-        context.lineTo(width, y);
-      }
-      context.stroke();
-
-      if (light) {
-        drawWave(time, height * .38, height * .055, "rgba(116,185,255,.18)", .3);
-        drawWave(time, height * .57, height * .07, "rgba(151,125,255,.14)", 1.8);
-        drawWave(time, height * .76, height * .045, "rgba(255,174,222,.12)", 3.1);
-      } else {
-        drawWave(time, height * .38, height * .055, "rgba(68,117,181,.16)", .3);
-        drawWave(time, height * .57, height * .07, "rgba(95,74,190,.15)", 1.8);
-        drawWave(time, height * .76, height * .045, "rgba(159,81,139,.1)", 3.1);
-      }
-
-      const lensX = pointer.x * width;
-      const lensY = pointer.y * height;
-      const lens = context.createRadialGradient(lensX, lensY, 0, lensX, lensY, Math.min(width, height) * .28);
-      lens.addColorStop(0, light ? "rgba(255,255,255,.34)" : "rgba(187,203,255,.13)");
-      lens.addColorStop(.28, light ? "rgba(128,188,255,.12)" : "rgba(112,96,230,.1)");
-      lens.addColorStop(1, "rgba(255,255,255,0)");
-      context.fillStyle = lens;
-      context.fillRect(0, 0, width, height);
-
-      context.strokeStyle = light ? "rgba(255,255,255,.5)" : "rgba(226,230,255,.2)";
-      context.lineWidth = 1.2;
-      for (let ring = 0; ring < 3; ring += 1) {
-        context.beginPath();
-        context.ellipse(lensX, lensY, 72 + ring * 46, 28 + ring * 18, 0, 0, Math.PI * 2);
-        context.stroke();
-      }
-
-      if (!reducedMotion) frame = window.requestAnimationFrame(render);
-    };
-
-    resize();
-    window.addEventListener("resize", resize);
-    window.addEventListener("pointermove", trackPointer, { passive: true });
-    render(performance.now());
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("pointermove", trackPointer);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} className="showcase-liquid-canvas" aria-hidden="true" />;
-}
-
 export function ShowcasePage() {
+  const pageRef = useRef<HTMLElement>(null);
+  const displacementRef = useRef<SVGFEDisplacementMapElement>(null);
   const [deck, setDeck] = useState<StickerItem[]>([]);
   const [cursor, setCursor] = useState(0);
   const [cycle, setCycle] = useState(0);
@@ -170,6 +58,78 @@ export function ShowcasePage() {
     return () => window.clearInterval(timer);
   }, [deck.length, paused]);
 
+  useEffect(() => {
+    const page = pageRef.current;
+    if (!page) return;
+
+    let frame = 0;
+    let targetX = window.innerWidth * 0.5;
+    let targetY = window.innerHeight * 0.5;
+    let currentX = targetX;
+    let currentY = targetY;
+    let previousX = currentX;
+    let previousY = currentY;
+    let rippleEnergy = 0;
+    let visible = false;
+    let lastPointerMoveAt = 0;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const bounds = page.getBoundingClientRect();
+      const nextX = Math.min(bounds.width, Math.max(0, event.clientX - bounds.left));
+      const nextY = Math.min(bounds.height, Math.max(0, event.clientY - bounds.top));
+      rippleEnergy = Math.max(
+        rippleEnergy,
+        Math.min(1, Math.hypot(nextX - targetX, nextY - targetY) / 140),
+      );
+      targetX = nextX;
+      targetY = nextY;
+      visible = true;
+      lastPointerMoveAt = performance.now();
+      page.classList.add("has-water-pointer");
+    };
+
+    const renderPointerLens = () => {
+      currentX += (targetX - currentX) * 0.26;
+      currentY += (targetY - currentY) * 0.26;
+      const shiftX = Math.max(-12, Math.min(12, (currentX - previousX) * 0.72));
+      const shiftY = Math.max(-12, Math.min(12, (currentY - previousY) * 0.72));
+      const speed = Math.max(
+        Math.min(1, Math.hypot(shiftX, shiftY) / 12),
+        rippleEnergy,
+      );
+      rippleEnergy *= 0.985;
+      previousX = currentX;
+      previousY = currentY;
+
+      page.style.setProperty("--water-x", `${currentX}px`);
+      page.style.setProperty("--water-y", `${currentY}px`);
+      page.style.setProperty("--water-shift-x", `${shiftX}px`);
+      page.style.setProperty("--water-shift-y", `${shiftY}px`);
+      page.style.setProperty("--water-speed", speed.toFixed(3));
+      page.style.setProperty("--water-hue", `${(speed * 8).toFixed(2)}deg`);
+      page.style.setProperty("--water-lens-scale", (0.96 + speed * 0.04).toFixed(3));
+      page.style.setProperty("--water-channel-opacity", (0.04 + speed * 0.48).toFixed(3));
+      page.style.setProperty("--water-red-x", `${shiftX * 0.72}px`);
+      page.style.setProperty("--water-red-y", `${shiftY * 0.32}px`);
+      page.style.setProperty("--water-green-x", `${shiftX * -0.25}px`);
+      page.style.setProperty("--water-green-y", `${shiftY * 0.55}px`);
+      page.style.setProperty("--water-blue-x", `${shiftX * -0.62}px`);
+      page.style.setProperty("--water-blue-y", `${shiftY * -0.45}px`);
+      const displacementStrength = window.innerWidth < 760 ? 0.34 : 0.68;
+      displacementRef.current?.setAttribute("scale", (0.08 + speed * displacementStrength).toFixed(2));
+      if (visible && performance.now() - lastPointerMoveAt > 1_900) visible = false;
+      if (!visible) page.classList.remove("has-water-pointer");
+      frame = window.requestAnimationFrame(renderPointerLens);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    frame = window.requestAnimationFrame(renderPointerLens);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("pointermove", handlePointerMove);
+    };
+  }, []);
+
   const visibleItems = useMemo(() => circularBatch(deck, cursor), [deck, cursor]);
   const returnToPrevious = () => {
     if (window.history.length > 1) window.history.back();
@@ -177,76 +137,111 @@ export function ShowcasePage() {
   };
 
   return (
-    <section className="showcase-page" aria-label="움직이는 이모티콘 쇼케이스">
-      <LiquidBackdrop />
+    <section ref={pageRef} className="showcase-page" aria-label="움직이는 이모티콘 쇼케이스">
+      <svg className="showcase-water-filter" aria-hidden="true">
+        <defs>
+          <filter id="showcase-water-distortion" x="-2%" y="-2%" width="104%" height="104%">
+            <feTurbulence
+              type="turbulence"
+              baseFrequency="0.009 0.018"
+              numOctaves="2"
+              seed="7"
+              stitchTiles="stitch"
+              result="waterNoise"
+            />
+            <feDisplacementMap
+              ref={displacementRef}
+              in="SourceGraphic"
+              in2="waterNoise"
+              scale="0.08"
+              xChannelSelector="R"
+              yChannelSelector="B"
+            />
+          </filter>
+        </defs>
+      </svg>
       <button className="showcase-return-surface" type="button" onClick={returnToPrevious} aria-label="이전 화면으로 돌아가기" />
 
-      <header className="showcase-header">
-        <button className="showcase-logo" type="button" onClick={returnToPrevious} aria-label="이전 화면으로 돌아가기">
-          <img src={imageAssets.logo} alt="" />
-        </button>
-        <p>ANIMATED EMOTICON ARCHIVE</p>
-        <div className="showcase-header-actions">
-          <span>화면을 클릭하면 이전 화면으로 돌아갑니다</span>
-        </div>
-      </header>
+      <div className="showcase-adjusted-content">
+        <header className="showcase-header">
+          <button className="showcase-logo" type="button" onClick={returnToPrevious} aria-label="이전 화면으로 돌아가기">
+            <img src={imageAssets.logo} alt="" />
+          </button>
+          <p>ANIMATED EMOTICON ARCHIVE</p>
+          <div className="showcase-header-actions">
+            <span>화면을 클릭하면 이전 화면으로 돌아갑니다</span>
+          </div>
+        </header>
 
-      <div className="showcase-glass-word" aria-hidden="true">EMOVE</div>
-      <div className="showcase-title" aria-hidden="true">
-        <span>{visibleItems.length ? "ANIMATED /" : "EMPTY /"}</span>
-        <strong>{visibleItems.length ? "ARCHIVE" : "CREATE"}</strong>
-        <strong>{visibleItems.length ? "IN MOTION" : "EMOTICON"}</strong>
+        <div className="showcase-glass-word" data-word="EMOVE" aria-hidden="true">EMOVE</div>
+        {visibleItems.length ? (
+          <div className="showcase-title" aria-hidden="true">
+            <span>ANIMATED /</span>
+            <strong>ARCHIVE</strong>
+            <strong>IN MOTION</strong>
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="showcase-state" role="status">움직이는 이모티콘을 불러오는 중</div>
+        ) : visibleItems.length ? (
+          <div className="floating-emoticon-field">
+            {visibleItems.map((item, index) => {
+              const [left, top, scale] = FLOATING_SLOTS[index];
+              const seed = hash(`${item.id}-${cycle}-${index}`);
+              const isBehind = index === 0 || (index > 1 && seed % 2 === 0);
+              const style: FloatStyle = {
+                left: `${left}%`,
+                top: `${top}%`,
+                "--float-scale": scale,
+                "--float-x": `${10 + seed % 19}px`,
+                "--float-y": `${8 + seed % 14}px`,
+                "--float-duration": `${7 + (seed % 50) / 10}s`,
+                "--float-delay": `${-(seed % 60) / 10}s`,
+                "--float-tilt": `${(seed % 9) - 4}deg`,
+                "--float-depth": `${10 + Math.round(scale * 10)}`,
+              };
+              return (
+                <button
+                  className={`floating-emoticon ${isBehind ? "is-behind" : "is-front"}`}
+                  key={`${cycle}-${item.id}`}
+                  type="button"
+                  style={style}
+                  aria-label={`${item.title}, 이전 화면으로 돌아가기`}
+                  onClick={returnToPrevious}
+                >
+                  <span className="floating-emoticon-bob">
+                    <img src={item.animatedImage} alt={item.title} decoding="async" draggable={false} />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="showcase-empty">
+            <span>아직 움직이는 이모티콘이 없어요.</span>
+            <p>이모티콘을 생성해 보세요.</p>
+          </div>
+        )}
+
+        <footer className="showcase-footer">
+          <span>{visibleItems.length.toString().padStart(2, "0")} / {deck.length.toString().padStart(2, "0")}</span>
+          <div className={`showcase-cycle-track${paused ? " is-paused" : ""}${deck.length <= SHOWCASE_BATCH_SIZE ? " is-static" : ""}`} aria-hidden="true"><span key={cycle} /></div>
+          <button type="button" onClick={() => setPaused((value) => !value)} aria-label={paused ? "자동 전환 재생" : "자동 전환 일시 정지"}>
+            <Icon name={paused ? "play" : "pause"} size={16} />
+          </button>
+          <small>© 2026. EMOVE. All rights reserved.</small>
+        </footer>
       </div>
 
-      {loading ? (
-        <div className="showcase-state" role="status">움직이는 이모티콘을 불러오는 중</div>
-      ) : visibleItems.length ? (
-        <div className="floating-emoticon-field">
-          {visibleItems.map((item, index) => {
-            const [left, top, scale] = FLOATING_SLOTS[index];
-            const seed = hash(`${item.id}-${cycle}-${index}`);
-            const style: FloatStyle = {
-              left: `${left}%`,
-              top: `${top}%`,
-              "--float-scale": scale,
-              "--float-x": `${10 + seed % 19}px`,
-              "--float-y": `${8 + seed % 14}px`,
-              "--float-duration": `${7 + (seed % 50) / 10}s`,
-              "--float-delay": `${-(seed % 60) / 10}s`,
-              "--float-tilt": `${(seed % 9) - 4}deg`,
-              "--float-depth": `${10 + Math.round(scale * 10)}`,
-            };
-            return (
-              <button
-                className={`floating-emoticon ${seed % 3 === 0 ? "is-behind" : "is-front"}`}
-                key={`${cycle}-${item.id}`}
-                type="button"
-                style={style}
-                aria-label={`${item.title}, 이전 화면으로 돌아가기`}
-                onClick={returnToPrevious}
-              >
-                <span className="floating-emoticon-bob">
-                  <img src={item.animatedImage} alt={item.title} decoding="async" draggable={false} />
-                </span>
-              </button>
-            );
-          })}
+      <div className="showcase-adjustment-layer" aria-hidden="true">
+        <LiquidRippleCanvas />
+        <div className="showcase-refraction-lens">
+          <i className="refraction-channel refraction-red" />
+          <i className="refraction-channel refraction-green" />
+          <i className="refraction-channel refraction-blue" />
         </div>
-      ) : (
-        <div className="showcase-empty">
-          <span>아직 움직이는 이모티콘이 없어요.</span>
-          <p>이모티콘을 생성해 보세요.</p>
-        </div>
-      )}
-
-      <footer className="showcase-footer">
-        <span>{visibleItems.length.toString().padStart(2, "0")} / {deck.length.toString().padStart(2, "0")}</span>
-        <div className={`showcase-cycle-track${paused ? " is-paused" : ""}${deck.length <= SHOWCASE_BATCH_SIZE ? " is-static" : ""}`} aria-hidden="true"><span key={cycle} /></div>
-        <button type="button" onClick={() => setPaused((value) => !value)} aria-label={paused ? "자동 전환 재생" : "자동 전환 일시 정지"}>
-          <Icon name={paused ? "play" : "pause"} size={16} />
-        </button>
-        <small>© 2026. EMOVE. All rights reserved.</small>
-      </footer>
+      </div>
     </section>
   );
 }
