@@ -1,4 +1,5 @@
 import { isGcsConfigured, uploadGcsAsset } from "./gcs-storage";
+import { isSameOriginRequest } from "./request-security";
 import { sharedAnimationMemoryStore } from "./share-memory";
 
 type ShareFormat = "APNG" | "GIF" | "WEBP";
@@ -17,6 +18,9 @@ const SPECS: Record<ShareFormat, ShareSpec> = {
 };
 
 export async function handleSharedAnimationPost(request: Request, routeName = "animation"): Promise<Response> {
+  if (!isSameOriginRequest(request)) {
+    return json(403, { error: "다른 출처에서는 애니메이션 공유 파일을 저장할 수 없습니다." });
+  }
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
   const spec = specFromContentType(contentType) ?? specFromFileName(request.headers.get("x-emove-file-name")) ?? SPECS.APNG;
   if (!contentType.includes(spec.contentType)) {
@@ -73,8 +77,17 @@ export async function handleSharedAnimationGet(id: string, download = false): Pr
   });
 }
 
-export function handleSharedAnimationOptions(): Response {
-  return json(204, {});
+export function handleSharedAnimationOptions(request: Request): Response {
+  if (!isSameOriginRequest(request)) {
+    return json(403, { error: "다른 출처에서는 애니메이션 공유 API를 사용할 수 없습니다." });
+  }
+  return new Response(null, {
+    status: 204,
+    headers: {
+      Allow: "GET, POST, OPTIONS",
+      "Cache-Control": "no-store",
+    },
+  });
 }
 
 function specFromContentType(value: string): ShareSpec | null {
@@ -115,16 +128,8 @@ function json(status: number, body: unknown): Response {
   return new Response(status === 204 ? null : JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders(),
+      "Cache-Control": "no-store",
       "Content-Type": "application/json; charset=utf-8",
     },
   });
-}
-
-function corsHeaders(): Record<string, string> {
-  return {
-    "Access-Control-Allow-Headers": "Content-Type, X-EMOVE-File-Name, X-EMOVE-Project-Id, X-EMOVE-Title",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Origin": "*",
-  };
 }

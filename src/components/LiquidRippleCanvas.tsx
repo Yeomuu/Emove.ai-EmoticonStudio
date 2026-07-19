@@ -170,7 +170,7 @@ const DISPLAY_SHADER = `
       0.5 + 0.5 * cos(pointerDistance * 92.0 - uTime * 13.0)
     ) * smoothstep(0.22, 0.035, pointerDistance);
     float pointerPrism = clamp(
-      (pointerEnvelope * 0.34 + pointerRing * 0.82) * uPointerEnergy,
+      (pointerEnvelope * 0.42 + pointerRing * 0.98) * uPointerEnergy,
       0.0,
       1.0
     );
@@ -181,16 +181,17 @@ const DISPLAY_SHADER = `
           + vec3(0.0, 0.3333, 0.6667)
       )
     );
-    color = mix(color, pointerSpectrum, pointerPrism * 0.82);
+    color = mix(color, pointerSpectrum, pointerPrism * 0.95);
 
     float softNoise = noise(gl_FragCoord.xy * 0.22 + vec2(uTime * 2.4, -uTime * 1.7)) - 0.5;
     float fineNoise = hash21(gl_FragCoord.xy + floor(uTime * 30.0)) - 0.5;
     float alpha = caustic * mix(0.145, 0.105, uLight)
       + disturbance * mix(0.12, 0.10, uLight)
-      + pointerPrism * mix(0.24, 0.22, uLight)
+      + pointerPrism * mix(0.38, 0.38, uLight)
       + softNoise * 0.008
       + fineNoise * 0.003;
-    alpha = clamp(alpha, 0.0, mix(0.24, 0.21, uLight));
+    float alphaLimit = mix(0.24, 0.21, uLight) + pointerPrism * 0.18;
+    alpha = clamp(alpha, 0.0, alphaLimit);
 
     gl_FragColor = vec4(color, alpha);
   }

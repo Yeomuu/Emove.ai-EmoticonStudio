@@ -78,7 +78,7 @@ function dataUrlBytes(value: string): number {
   return new Blob([value]).size;
 }
 
-function keyOutConnectedGreen(data: Uint8ClampedArray, width: number, height: number): void {
+export function keyOutConnectedGreen(data: Uint8ClampedArray, width: number, height: number): void {
   const total = width * height;
   const visited = new Uint8Array(total);
   const queue = new Uint32Array(total);

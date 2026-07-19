@@ -80,7 +80,7 @@ export function CharacterPage() {
       id: id ?? generated?.token.id ?? `character-${Date.now()}`,
       version: 1,
       name: name.trim() || fallbackName,
-      ownerId: "local-user",
+      ownerId: "public",
       isDefault: false,
       sourceAsset: imageUrl,
       referenceImages: imageUrl ? [imageUrl] : uploadedReference ? [uploadedReference] : [],

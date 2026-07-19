@@ -5,9 +5,9 @@ import { navigate, route } from "../router";
 import { toast } from "../store";
 import type { RoutePath } from "../types";
 
-const navItems: Array<{ label: string; path: RoutePath }> = [
-  { label: "캐릭터", path: "/character" },
-  { label: "이모티콘", path: "/input" },
+const navItems: Array<{ icon: "layers" | "image"; label: string; path: RoutePath }> = [
+  { icon: "layers", label: "캐릭터", path: "/character" },
+  { icon: "image", label: "이모티콘", path: "/input" },
 ];
 
 type ThemeMode = "dark" | "light";
@@ -94,6 +94,7 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
                 navigate(item.path);
               }}
             >
+              <Icon name={item.icon} className="home-nav-glyph" size={22} />
               {item.label}
             </a>
           ))}
@@ -133,6 +134,7 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
             aria-label="마이페이지 보관함"
           >
             <img src={imageAssets.detailProfile} alt="" />
+            <Icon name="folder" className="home-profile-glyph" size={22} />
           </button>
         </div>
       </header>

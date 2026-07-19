@@ -16,15 +16,29 @@ export interface StoredGcsAsset {
 let storageClient: Storage | null = null;
 
 export function isGcsConfigured(): boolean {
-  return Boolean(bucketName());
+  return gcsConfigurationError() == null;
+}
+
+export function gcsConfigurationError(): string | null {
+  if (!bucketName()) return "GCS_BUCKET_NAME이 설정되지 않았습니다.";
+  const hasJsonCredentials = Boolean(
+    process.env.GOOGLE_CLOUD_CLIENT_EMAIL?.trim()
+    && process.env.GOOGLE_CLOUD_PRIVATE_KEY?.trim(),
+  );
+  const hasCredentialFile = Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim());
+  if (!hasJsonCredentials && !hasCredentialFile) {
+    return "Google Cloud 인증정보가 없습니다. Vercel에는 GOOGLE_CLOUD_CLIENT_EMAIL과 GOOGLE_CLOUD_PRIVATE_KEY를, 로컬에는 같은 값 또는 GOOGLE_APPLICATION_CREDENTIALS를 설정해 주세요.";
+  }
+  return null;
 }
 
 export async function uploadGcsAsset(
   data: Buffer,
   options: { contentType: string; fileName: string; kind: GcsAssetKind; requestUrl: string },
 ): Promise<StoredGcsAsset> {
+  const configurationError = gcsConfigurationError();
+  if (configurationError) throw new Error(configurationError);
   const bucket = bucketName();
-  if (!bucket) throw new Error("GCS_BUCKET_NAME이 설정되지 않았습니다.");
   if (!data.byteLength) throw new Error("업로드할 이미지가 비어 있습니다.");
   if (data.byteLength > MAX_ASSET_BYTES) throw new Error("이미지는 최대 12MB까지 저장할 수 있습니다.");
 
@@ -57,8 +71,9 @@ export async function uploadGcsAsset(
 }
 
 export async function downloadGcsAsset(objectName: string): Promise<{ data: Buffer; contentType: string }> {
+  const configurationError = gcsConfigurationError();
+  if (configurationError) throw new Error(configurationError);
   const bucket = bucketName();
-  if (!bucket) throw new Error("GCS_BUCKET_NAME이 설정되지 않았습니다.");
   assertSafeObjectName(objectName);
   const file = getStorage().bucket(bucket).file(objectName);
   const [metadata] = await file.getMetadata();

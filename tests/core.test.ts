@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createMotionBrief, emotionMeta, initialLayers } from "../src/data";
 import { normalizePath } from "../src/router";
-import { encodeGifFrames } from "../src/services/renderer";
+import { keyOutConnectedGreen } from "../src/services/image-processing";
+import { encodeApngPngFrames, encodeGifFrames } from "../src/services/renderer";
 import { circularBatch, isAnimatedSticker, shuffled } from "../src/services/animated-library";
 import { persistGeneratedAsset } from "../src/services/asset-storage";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
+import { isSameOriginRequest } from "../src/app/api/openai/[...path]/route";
 import { previewLayerOrder } from "../src/store";
 import type { StickerItem } from "../src/types";
 
@@ -15,6 +17,32 @@ describe("clean route normalization", () => {
     expect(normalizePath("/showcase")).toBe("/showcase");
     expect(normalizePath("/#home")).toBe("/home");
     expect(normalizePath("/unknown")).toBe("/home");
+  });
+});
+
+describe("OpenAI proxy origin validation", () => {
+  it("accepts a browser origin preserved by the forwarded host", () => {
+    const request = new Request("http://localhost:3008/api/openai/frame", {
+      headers: {
+        origin: "http://127.0.0.1:3008",
+        host: "localhost:3008",
+        "x-forwarded-host": "127.0.0.1:3008",
+        "x-forwarded-proto": "http",
+      },
+    });
+    expect(isSameOriginRequest(request)).toBe(true);
+  });
+
+  it("rejects an unrelated browser origin", () => {
+    const request = new Request("https://emove-emoticonstudio.vercel.app/api/openai/frame", {
+      headers: {
+        origin: "https://attacker.example",
+        host: "emove-emoticonstudio.vercel.app",
+        "x-forwarded-host": "emove-emoticonstudio.vercel.app",
+        "x-forwarded-proto": "https",
+      },
+    });
+    expect(isSameOriginRequest(request)).toBe(false);
   });
 });
 
@@ -124,5 +152,40 @@ describe("GIF export encoder", () => {
     expect(blob.type).toBe("image/gif");
     expect(header).toBe("GIF89a");
     expect(blob.size).toBeGreaterThan(40);
+  });
+});
+
+describe("transparent animation pipeline", () => {
+  it("removes connected chroma green while preserving the character-colored center pixel", () => {
+    const width = 3;
+    const height = 3;
+    const pixels = new Uint8ClampedArray([
+      0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255,
+      0, 255, 0, 255, 184, 178, 255, 255, 0, 255, 0, 255,
+      0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255,
+    ]);
+
+    keyOutConnectedGreen(pixels, width, height);
+
+    expect(Array.from({ length: 9 }, (_, index) => pixels[index * 4 + 3])).toEqual([
+      0, 0, 0,
+      0, 255, 0,
+      0, 0, 0,
+    ]);
+    expect(Array.from(pixels.slice(16, 20))).toEqual([184, 178, 255, 255]);
+  });
+
+  it("packages multiple PNG frames into a looping APNG container", async () => {
+    const transparentPng = Uint8Array.from(
+      Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XwW5WQAAAABJRU5ErkJggg==", "base64"),
+    );
+    const blob = encodeApngPngFrames([transparentPng, transparentPng], 120);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const ascii = new TextDecoder("latin1").decode(bytes);
+
+    expect(blob.type).toBe("image/apng");
+    expect(ascii).toContain("acTL");
+    expect(ascii.match(/fcTL/g)).toHaveLength(2);
+    expect(ascii).toContain("fdAT");
   });
 });

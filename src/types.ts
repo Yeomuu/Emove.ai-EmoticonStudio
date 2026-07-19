@@ -57,6 +57,7 @@ export interface CharacterToken {
   name: string;
   ownerId: string | null;
   isDefault: boolean;
+  favorite?: boolean;
   sourceAsset: string;
   referenceImages: string[];
   styleMode: CharacterStyleMode;

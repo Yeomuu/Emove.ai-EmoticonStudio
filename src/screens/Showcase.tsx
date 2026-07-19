@@ -22,6 +22,7 @@ type FloatStyle = CSSProperties & Record<`--${string}`, string | number>;
 
 export function ShowcasePage() {
   const pageRef = useRef<HTMLElement>(null);
+  const refractionLensRef = useRef<HTMLDivElement>(null);
   const displacementRef = useRef<SVGFEDisplacementMapElement>(null);
   const [deck, setDeck] = useState<StickerItem[]>([]);
   const [cursor, setCursor] = useState(0);
@@ -108,7 +109,7 @@ export function ShowcasePage() {
       page.style.setProperty("--water-speed", speed.toFixed(3));
       page.style.setProperty("--water-hue", `${(speed * 8).toFixed(2)}deg`);
       page.style.setProperty("--water-lens-scale", (0.96 + speed * 0.04).toFixed(3));
-      page.style.setProperty("--water-channel-opacity", (0.04 + speed * 0.48).toFixed(3));
+      page.style.setProperty("--water-channel-opacity", (0.1 + speed * 0.8).toFixed(3));
       page.style.setProperty("--water-red-x", `${shiftX * 0.72}px`);
       page.style.setProperty("--water-red-y", `${shiftY * 0.32}px`);
       page.style.setProperty("--water-green-x", `${shiftX * -0.25}px`);
@@ -117,8 +118,20 @@ export function ShowcasePage() {
       page.style.setProperty("--water-blue-y", `${shiftY * -0.45}px`);
       const displacementStrength = window.innerWidth < 760 ? 0.34 : 0.68;
       displacementRef.current?.setAttribute("scale", (0.08 + speed * displacementStrength).toFixed(2));
-      if (visible && performance.now() - lastPointerMoveAt > 1_900) visible = false;
-      if (!visible) page.classList.remove("has-water-pointer");
+      if (visible && performance.now() - lastPointerMoveAt > 3_600) visible = false;
+      page.style.setProperty(
+        "--water-lens-opacity",
+        visible ? (0.38 + speed * 0.62).toFixed(3) : "0",
+      );
+      if (refractionLensRef.current) {
+        refractionLensRef.current.style.setProperty(
+          "opacity",
+          visible ? (0.38 + speed * 0.62).toFixed(3) : "0",
+          "important",
+        );
+      }
+      if (visible) page.classList.add("has-water-pointer");
+      else page.classList.remove("has-water-pointer");
       frame = window.requestAnimationFrame(renderPointerLens);
     };
 
@@ -236,7 +249,7 @@ export function ShowcasePage() {
 
       <div className="showcase-adjustment-layer" aria-hidden="true">
         <LiquidRippleCanvas />
-        <div className="showcase-refraction-lens">
+        <div ref={refractionLensRef} className="showcase-refraction-lens">
           <i className="refraction-channel refraction-red" />
           <i className="refraction-channel refraction-green" />
           <i className="refraction-channel refraction-blue" />

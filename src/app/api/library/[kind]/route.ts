@@ -1,4 +1,5 @@
 import { listLibraryRecords, saveLibraryRecord } from "../../../../../server/library-store";
+import { isSameOriginRequest } from "../../../../../server/request-security";
 
 export const runtime = "nodejs";
 
@@ -25,16 +26,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ kin
   const result = await saveLibraryRecord({ id: body.id, kind, payload: body.payload });
   if (!result.enabled) return json(501, { error: "DATABASE_URL이 설정되지 않아 원격 DB 저장을 건너뜁니다." });
   return json(201, result);
-}
-
-function isSameOriginRequest(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).origin === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
 }
 
 function json(status: number, body: unknown): Response {

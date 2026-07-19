@@ -35,6 +35,7 @@ type RemoteCharacterDoc = {
   token?: unknown;
   styleMode?: unknown;
   isDefault?: unknown;
+  favorite?: unknown;
   imageUrl?: unknown;
   metadata?: { generatedAt?: unknown; prompt?: unknown };
 };
@@ -156,6 +157,7 @@ function createCharacterDoc(item: CharacterToken, ownerId: string) {
     token: item.id,
     styleMode: item.styleMode,
     isDefault: item.isDefault,
+    favorite: Boolean(item.favorite),
     imageUrl: compactAssetUrl(item.sourceAsset, `character://${item.id}`),
     metadata: {
       generatedAt: item.createdAt || new Date().toISOString(),
@@ -297,6 +299,7 @@ function characterFromRemoteDoc(value: unknown, updatedAt?: string): CharacterTo
     name: text(doc.name) || "공유 캐릭터",
     ownerId: text(doc.ownerId) || "public",
     isDefault: Boolean(doc.isDefault),
+    favorite: Boolean(doc.favorite),
     sourceAsset: imageUrl,
     referenceImages: [imageUrl],
     styleMode,

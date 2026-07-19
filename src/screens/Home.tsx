@@ -35,24 +35,16 @@ const getFieldScale = (width: number) => {
 };
 
 const placementSlots = [
-  [0.358, 0.305],
-  [0.237, 0.641],
-  [0.796, 0.828],
-  [0.66, 0.18],
-  [0.73, 0.68],
-  [0.88, 0.48],
-  [0.54, 0.78],
+  [0.375, 0.218],
+  [0.208, 0.704],
+  [0.812, 0.738],
 ] as const;
 
 function createLandingCharacters(): LandingCharacterSpec[] {
   const sources = [
-    { id: "main", src: imageAssets.library[0], label: "인사하는 캐릭터", size: 184, depth: 1.08 },
-    { id: "input", src: imageAssets.character, label: "펭귄 캐릭터", size: 136, depth: 0.94 },
-    { id: "edit", src: imageAssets.library[1], label: "우주 비행사 캐릭터", size: 158, depth: 1 },
-    { id: "library-1", src: imageAssets.library[0], label: "라이브러리 캐릭터 1", size: 144, depth: 0.92 },
-    { id: "library-2", src: imageAssets.library[1], label: "라이브러리 캐릭터 2", size: 150, depth: 0.98 },
-    { id: "library-4", src: imageAssets.library[3], label: "라이브러리 캐릭터 3", size: 128, depth: 0.88 },
-    { id: "detail", src: imageAssets.detailSticker, label: "완성 이모티콘", size: 168, depth: 1.02 },
+    { id: "main", src: imageAssets.library[0], label: "인사하는 캐릭터", size: 214, depth: 1.04 },
+    { id: "input", src: imageAssets.character, label: "펭귄 캐릭터", size: 242, depth: 1.08 },
+    { id: "edit", src: imageAssets.library[1], label: "우주 비행사 캐릭터", size: 232, depth: 1 },
   ];
 
   return sources.map((source, index) => {

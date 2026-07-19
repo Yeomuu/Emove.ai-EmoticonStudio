@@ -1,4 +1,5 @@
-import { isGcsConfigured, uploadGcsAsset, type GcsAssetKind } from "../../../../server/gcs-storage";
+import { gcsConfigurationError, isGcsConfigured, uploadGcsAsset, type GcsAssetKind } from "../../../../server/gcs-storage";
+import { isSameOriginRequest } from "../../../../server/request-security";
 
 export const runtime = "nodejs";
 
@@ -8,7 +9,7 @@ const MAX_ASSET_BYTES = 12 * 1024 * 1024;
 
 export async function POST(request: Request): Promise<Response> {
   if (!isSameOriginRequest(request)) return json(403, { error: "다른 출처에서는 이미지 업로드를 요청할 수 없습니다." });
-  if (!isGcsConfigured()) return json(501, { error: "GCS_BUCKET_NAME이 설정되지 않아 이미지 업로드를 건너뜁니다." });
+  if (!isGcsConfigured()) return json(501, { error: gcsConfigurationError() ?? "GCS 이미지 저장소가 설정되지 않았습니다." });
   const contentType = request.headers.get("content-type")?.split(";", 1)[0].toLowerCase() || "";
   const kind = request.headers.get("x-emove-asset-kind") as GcsAssetKind | null;
   const contentLength = Number(request.headers.get("content-length") || 0);
@@ -44,14 +45,4 @@ function extensionFor(contentType: string): string {
 
 function json(status: number, body: unknown): Response {
   return Response.json(body, { status });
-}
-
-function isSameOriginRequest(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).origin === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
 }

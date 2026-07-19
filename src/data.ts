@@ -70,7 +70,7 @@ const createdAt = "2026-06-23T12:00:00.000Z";
 
 export const defaultCharacterTokens: CharacterToken[] = [
   {
-    id: "default-penguin-soft3d", version: 1, name: "남극의 펭귄", ownerId: null, isDefault: true,
+    id: "default-penguin-soft3d", version: 1, name: "인사하는 남극의 펭귄", ownerId: null, isDefault: true,
     sourceAsset: imageAssets.character, referenceImages: [imageAssets.character], styleMode: "3D", stylePreset: "Soft 3D",
     styleDescription: "soft 3D toy-like character, rounded silhouette, pastel lavender-blue material, gentle studio lighting, isolated sticker-ready character",
     prompt: "둥글고 말랑한 실루엣의 파스텔 보라색 아기 펭귄", observableTraits: ["2.5등신", "둥근 몸통", "연보라 외피", "흰 얼굴과 배", "작은 검은 눈", "노란 부리와 발"],

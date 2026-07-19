@@ -94,7 +94,7 @@
   width: clamp(170px, 25vmin, 310px);
   aspect-ratio: 1;
   border-radius: 50%;
-  opacity: 0;
+  opacity: var(--water-lens-opacity, 0);
   transform:
     translate(
       calc(-50% + var(--water-shift-x, 0px)),
@@ -122,19 +122,21 @@
   mix-blend-mode: screen;
   pointer-events: none;
   will-change: left, top, transform;
-  transition: opacity .18s ease;
+  transition: none;
 }
 
-.showcase-page.has-water-pointer .showcase-refraction-lens { opacity: .62; }
+.showcase-page.has-water-pointer .showcase-refraction-lens {
+  opacity: var(--water-lens-opacity, .78);
+}
 
 .refraction-channel {
   position: absolute;
   inset: 12%;
-  border: 1.5px solid currentColor;
+  border: 3px solid currentColor;
   border-radius: 50%;
   opacity: var(--water-channel-opacity, .04);
   transform: translate(var(--channel-x), var(--channel-y)) scale(var(--channel-scale));
-  filter: blur(.25px) drop-shadow(0 0 5px currentColor);
+  filter: blur(.15px) drop-shadow(0 0 12px currentColor);
 }
 .refraction-red {
   --channel-x: var(--water-red-x, 0px);
@@ -410,13 +412,20 @@ html[data-theme="light"] .showcase-adjustment-layer {
 }
 html[data-theme="light"] .showcase-refraction-lens {
   mix-blend-mode: multiply;
-  opacity: 0;
+  opacity: var(--water-lens-opacity, 0);
   background:
     radial-gradient(circle at 36% 30%, rgba(56, 89, 148, .06), transparent 22%),
-    radial-gradient(circle at 66% 68%, rgba(92, 72, 176, .055), transparent 38%);
+    radial-gradient(circle at 66% 68%, rgba(92, 72, 176, .055), transparent 38%),
+    conic-gradient(
+      from 90deg,
+      rgba(236, 54, 105, .08),
+      rgba(28, 188, 155, .085),
+      rgba(46, 88, 226, .09),
+      rgba(236, 54, 105, .08)
+    );
 }
 html[data-theme="light"] .showcase-page.has-water-pointer .showcase-refraction-lens {
-  opacity: .66;
+  opacity: var(--water-lens-opacity, .76);
 }
 
 @media (max-width: 820px) {

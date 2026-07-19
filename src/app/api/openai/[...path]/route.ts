@@ -1,4 +1,7 @@
 import { handleOpenAIRequest, type ServerEnv } from "../../../../../server/openai-api";
+import { isSameOriginRequest } from "../../../../../server/request-security";
+
+export { isSameOriginRequest } from "../../../../../server/request-security";
 
 export const runtime = "nodejs";
 
@@ -40,14 +43,4 @@ function json(status: number, body: unknown): Response {
       "Content-Type": "application/json; charset=utf-8",
     },
   });
-}
-
-function isSameOriginRequest(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).origin === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
 }

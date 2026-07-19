@@ -325,7 +325,7 @@ type ParsedPngFrame = {
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 let crcTable: Uint32Array | null = null;
 
-function encodeApngPngFrames(frames: Uint8Array[], delayMs = 100): Blob {
+export function encodeApngPngFrames(frames: Uint8Array[], delayMs = 100): Blob {
   if (!frames.length) throw new Error("APNG 프레임이 없습니다.");
   const parsed = frames.map(parsePngFrame);
   const first = parsed[0];

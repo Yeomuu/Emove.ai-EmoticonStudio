@@ -42,13 +42,29 @@ export function InputPage() {
 
   const [personDetected, setPersonDetected] = useState(false);
   const [tierOverride, setTierOverride] = useState<ExaggerationTier | null>(null);
+  const [captureError, setCaptureError] = useState<string | null>(null);
 
   useEffect(() => {
     window.clearTimeout(idleTimer.current);
-    if (currentStep < 2 || capturing || analyzing || generatingFrames || recording || process) return;
+    const captureCompleted = (
+      behaviorCapture.value.id !== "capture-empty"
+      && Boolean(behaviorCapture.value.videoBlob)
+      && Boolean(behaviorCapture.value.audioBlob)
+    );
+    if (!captureCompleted || currentStep < 2 || capturing || analyzing || generatingFrames || recording || process) return;
     idleTimer.current = window.setTimeout(() => navigate("/showcase"), 10_000);
     return () => window.clearTimeout(idleTimer.current);
-  }, [currentStep, capturing, analyzing, generatingFrames, recording, process]);
+  }, [
+    currentStep,
+    capturing,
+    analyzing,
+    generatingFrames,
+    recording,
+    process,
+    behaviorCapture.value.id,
+    behaviorCapture.value.videoBlob,
+    behaviorCapture.value.audioBlob,
+  ]);
 
   // Always-on camera: start on mount, blur when person not detected
   useEffect(() => {
@@ -103,6 +119,7 @@ export function InputPage() {
   };
 
   const startCaptureFlow = async () => {
+    setCaptureError(null);
     setCurrentStep(1);
     await capturePose();
   };
@@ -153,9 +170,11 @@ export function InputPage() {
       }
       setCurrentStep(2); // Go to results view
     } catch (error) {
+      const message = captureFailureMessage(error);
       setProcess(null);
       returnToPreview();
-      notify(error instanceof Error ? error.message : "자세 촬영에 실패했습니다.");
+      setCaptureError(message);
+      notify(message);
     } finally {
       captureLockRef.current = false;
       setCapturing(false);
@@ -276,49 +295,64 @@ export function InputPage() {
       id: "preview-wait",
       label: "01 · 촬영 대기",
       content: (
-        <div className="input-composer">
-          <div className="pose-capture-panel">
-            <Panel title="✦ 실시간 모니터" className="camera-monitor-panel">
-              <div className={`pose-media-frame${cameraReady && !personDetected && !capturing ? " is-awaiting-person" : ""}`}>
-                <video
-                  ref={videoRef}
-                  muted
-                  playsInline
-                  className={cameraReady ? "visible" : ""}
-                  style={{
-                    transform: "scaleX(-1)",
-                    ...(cameraReady && !personDetected && !capturing ? { filter: "blur(8px) brightness(0.68)", transition: "filter 0.5s ease" } : {})
-                  }}
-                />
-                {!cameraReady && <img src={imageAssets.pose} alt="포즈 예시" />}
-                <span className="camera-status">
-                  <i className={cameraReady ? "on" : ""} />
-                  {personDetected ? "인식 완료 ✨" : cameraReady ? "카메라 준비됨 (사람 인식 대기)" : "CAMERA CLOSED"}
-                </span>
-              </div>
-              <p className="step-tip">상반신과 양손이 화면에 모두 들어오도록 카메라 앞에 서 주세요.</p>
-              <button type="button" className="btn-start-capture" onClick={startCaptureFlow} disabled={!cameraReady}>
-                <Icon name="camera" />
-                <span>촬영 시작하기</span>
-              </button>
-            </Panel>
-          </div>
-          <div className="input-right-column">
-            <aside className="input-stage-panel" aria-label="입력 단계">
-              <strong>입력단계</strong>
-              {["촬영", "분석", "포즈 분석 결과", "음성 분석 결과"].map((label, index) => (
-                <div
-                  key={label}
-                  className={index === currentStep ? "active" : index < currentStep ? "complete" : ""}
-                  aria-current={index === currentStep ? "step" : undefined}
-                >
-                  <span aria-hidden="true" />
-                  {label}
+        <>
+          <div className="input-composer">
+            <div className="pose-capture-panel">
+              <Panel title="✦ 실시간 모니터" className="camera-monitor-panel">
+                <div className={`pose-media-frame${cameraReady && !personDetected && !capturing ? " is-awaiting-person" : ""}`}>
+                  <video
+                    ref={videoRef}
+                    muted
+                    playsInline
+                    className={cameraReady ? "visible" : ""}
+                    style={{
+                      transform: "scaleX(-1)",
+                      ...(cameraReady && !personDetected && !capturing ? { filter: "blur(8px) brightness(0.68)", transition: "filter 0.5s ease" } : {})
+                    }}
+                  />
+                  {!cameraReady && <img src={imageAssets.pose} alt="포즈 예시" />}
+                  <span className="camera-status">
+                    <i className={cameraReady ? "on" : ""} />
+                    {personDetected ? "인식 완료 ✨" : cameraReady ? "카메라 준비됨 (사람 인식 대기)" : "CAMERA CLOSED"}
+                  </span>
                 </div>
-              ))}
-            </aside>
+                <p className="step-tip">상반신과 양손이 화면에 모두 들어오도록 카메라 앞에 서 주세요.</p>
+                <button type="button" className="btn-start-capture" onClick={startCaptureFlow} disabled={!cameraReady}>
+                  <Icon name="camera" />
+                  <span>촬영 시작하기</span>
+                </button>
+              </Panel>
+            </div>
+            <div className="input-right-column">
+              <aside className="input-stage-panel" aria-label="입력 단계">
+                <strong>입력단계</strong>
+                {["촬영", "분석", "포즈 분석 결과", "음성 분석 결과"].map((label, index) => (
+                  <div
+                    key={label}
+                    className={index === currentStep ? "active" : index < currentStep ? "complete" : ""}
+                    aria-current={index === currentStep ? "step" : undefined}
+                  >
+                    <span aria-hidden="true" />
+                    {label}
+                  </div>
+                ))}
+              </aside>
+            </div>
           </div>
-        </div>
+          {captureError ? (
+            <div className="input-capture-error" role="alert" aria-live="assertive">
+              <strong>분석을 완료하지 못했습니다.</strong>
+              <span>{captureError}</span>
+              <button type="button" onClick={() => setCaptureError(null)}>확인</button>
+            </div>
+          ) : (
+            <ul className="input-capture-notes" aria-label="촬영 안내">
+              <li>다양한 움직임을 표현하면 더 풍부한 결과를 생성할 수 있습니다.</li>
+              <li>음성 데이터로부터 감정을 추출하여 이모티콘에 반영합니다.</li>
+              <li>주변이 소란스럽지 않은지 확인해 주세요.</li>
+            </ul>
+          )}
+        </>
       ),
       validate: () => {
         if (!cameraReady) return "카메라 장치를 초기화하는 중입니다. 대기하거나 권한을 승인해 주세요.";
@@ -602,6 +636,14 @@ function describeFaceUse(current: Emotion, metrics: VisionMetrics): string {
   if (!metrics.face) return "표정 미분석";
   const meta = emotionMeta[metrics.face.expression ?? current];
   return `${meta.label} 표정 · ${Math.round(metrics.face.confidence * 100)}%`;
+}
+
+function captureFailureMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (/quota|billing|hard limit|usage limit/i.test(message)) {
+    return "OpenAI API 사용 한도를 초과했습니다. 결제 및 사용량 설정을 확인한 뒤 다시 촬영해 주세요.";
+  }
+  return message || "자세 촬영에 실패했습니다.";
 }
 
 function emotionAnalysisLabel(capture: BehaviorCapture): string {

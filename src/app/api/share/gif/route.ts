@@ -2,8 +2,8 @@ import { handleSharedAnimationOptions, handleSharedAnimationPost } from "../../.
 
 export const runtime = "nodejs";
 
-export async function OPTIONS(): Promise<Response> {
-  return handleSharedAnimationOptions();
+export async function OPTIONS(request: Request): Promise<Response> {
+  return handleSharedAnimationOptions(request);
 }
 
 export async function POST(request: Request): Promise<Response> {

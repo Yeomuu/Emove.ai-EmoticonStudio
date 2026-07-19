@@ -1,4 +1,5 @@
 import { dominantEmotion, normalizeImentivEmotionScores } from "../../../../../server/imentiv-emotion";
+import { isSameOriginRequest } from "../../../../../server/request-security";
 
 export const runtime = "nodejs";
 
@@ -105,14 +106,4 @@ function externalError(payload: unknown, fallback: string): string {
 
 function json(status: number, body: unknown): Response {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
-}
-
-function isSameOriginRequest(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).origin === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
 }

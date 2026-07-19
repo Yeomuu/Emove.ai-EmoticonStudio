@@ -3,8 +3,8 @@ import { Icon } from "../components/Icon";
 import { emotionMeta, emotionOrder } from "../data";
 import { navigate, route } from "../router";
 import { downloadBlob } from "../services/renderer";
-import { deleteCharacter, deleteSticker, loadProjects, loadStickers } from "../services/repository";
-import { loadRemoteCharacters, loadRemoteStickers } from "../services/remote-store";
+import { deleteCharacter, deleteSticker, loadProjects, loadStickers, saveCharacter } from "../services/repository";
+import { loadRemoteCharacters, loadRemoteStickers, syncCharacterToRemote } from "../services/remote-store";
 import { animationExtension } from "../services/share";
 import { characterName, characterPrompt, characterStyle, characterTone, characters, loadProjectForEditing, notify, sanitizeAssetUrl, selectCharacter, stickers, toggleFavorite } from "../store";
 import type { AnimationFormat, CharacterToken, EmoticonProject, Emotion, StickerItem } from "../types";
@@ -21,8 +21,6 @@ const categories: Array<{ id: string; title: string; copy: string; filter: Filte
   { id: "decline", title: "거절", copy: "난감함, 정중한 거절", filter: "neutral" },
   { id: "surprise", title: "놀람", copy: "새로운 소식", filter: "surprised" },
 ];
-
-const carouselInactiveWidth = 442;
 
 export function LibraryPage() {
   const railRef = useRef<HTMLDivElement>(null);
@@ -66,8 +64,9 @@ export function LibraryPage() {
   ), [stickers.value, filter, query]);
 
   const visibleCharacters = useMemo(() => characters.value.filter((item) =>
-    !query.trim() || `${item.name} ${item.prompt} ${item.personalityTags.join(" ")}`.toLowerCase().includes(query.toLowerCase())
-  ), [characters.value, query]);
+    (filter !== "favorite" || Boolean(item.favorite))
+    && (!query.trim() || `${item.name} ${item.prompt} ${item.personalityTags.join(" ")}`.toLowerCase().includes(query.toLowerCase()))
+  ), [characters.value, filter, query]);
 
   const mixedItems = useMemo<MixedLibraryItem[]>(() => [
     ...visible.map((item) => ({ kind: "emoticon" as const, item, createdAt: item.createdAt })),
@@ -95,6 +94,29 @@ export function LibraryPage() {
     navigate("/character");
   };
 
+  const toggleCharacterFavorite = async (token: CharacterToken) => {
+    const updated = { ...token, favorite: !token.favorite, updatedAt: new Date().toISOString() };
+    characters.value = characters.value.map((item) => item.id === token.id ? updated : item);
+    await saveCharacter(updated);
+    if (!updated.isDefault) await syncCharacterToRemote(updated);
+    notify(updated.favorite ? "즐겨찾기에 추가했습니다." : "즐겨찾기에서 제거했습니다.");
+  };
+
+  const downloadLibraryAsset = async (source: string, fileStem: string, preferredFormat?: AnimationFormat) => {
+    const response = await fetch(sanitizeAssetUrl(source));
+    if (!response.ok) throw new Error(`파일을 불러오지 못했습니다. (${response.status})`);
+    const blob = await response.blob();
+    const extension = preferredFormat
+      ? animationExtension(preferredFormat)
+      : blob.type.includes("webp")
+        ? "webp"
+        : blob.type.includes("jpeg")
+          ? "jpg"
+          : "png";
+    downloadBlob(blob, `${fileStem}.${extension}`);
+    notify(`${extension.toUpperCase()} 파일을 저장했습니다.`);
+  };
+
   const [activeVirtualIndex, setActiveVirtualIndex] = useState(0);
   const [isListDragging, setIsListDragging] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -117,60 +139,48 @@ export function LibraryPage() {
   }, [mode, visible, visibleCharacters, mixedItems]);
 
   const virtualItems = useMemo<VirtualLibraryItem[]>(() => {
-    return itemsToDisplay.map((entry, index) => ({
+    const copies = itemsToDisplay.length > 1 ? [-1, 0, 1] : [0];
+    return copies.flatMap((copy, copyIndex) => itemsToDisplay.map((entry, index) => ({
       entry,
-      virtualIndex: index,
-      copy: 0,
-    }));
+      virtualIndex: copyIndex * itemsToDisplay.length + index,
+      copy,
+    })));
   }, [itemsToDisplay]);
 
-  const getCarouselStride = () => {
+  const positionCarouselCard = (virtualIndex: number, behavior: ScrollBehavior) => {
     const list = listRef.current;
-    if (!list) return carouselInactiveWidth;
-    const cards = list.querySelectorAll<HTMLElement>(".carousel-card");
-    for (const card of Array.from(cards)) {
-      if (card.classList.contains("inactive")) {
-        return card.offsetWidth;
-      }
-    }
-    // Fallback: if all cards are active or we can't find one, measure the first card and scale it
-    const firstCard = cards[0];
-    if (firstCard) {
-      if (firstCard.classList.contains("active")) {
-        // active card is var(--library-card-active) which is 568/442 times larger
-        return Math.round(firstCard.offsetWidth * (442 / 568));
-      }
-      return firstCard.offsetWidth;
-    }
-    return carouselInactiveWidth;
+    if (!list) return;
+    const card = list.querySelector<HTMLElement>(`[data-virtual-index="${virtualIndex}"]`);
+    if (!card) return;
+    const paddingLeft = Number.parseFloat(getComputedStyle(list).paddingLeft) || 0;
+    list.scrollTo({ left: Math.max(0, card.offsetLeft - paddingLeft), behavior });
   };
 
   const scrollToVirtualIndex = (virtualIndex: number, behavior: ScrollBehavior = "smooth") => {
-    const list = listRef.current;
-    if (!list) return;
-    
-    // Update active index state immediately!
-    const length = itemsToDisplay.length;
-    if (length > 0) {
-      const clampedIndex = Math.max(0, Math.min(length - 1, virtualIndex));
-      setActiveVirtualIndex(clampedIndex);
-      
-      isScrollingRef.current = true;
-      window.clearTimeout(normalizeTimerRef.current);
-      
-      const targetLeft = clampedIndex * getCarouselStride();
-      list.scrollTo({ left: targetLeft, behavior });
-      
-      // Release lock after animation settles
-      window.setTimeout(() => { 
-        isScrollingRef.current = false; 
-      }, behavior === "smooth" ? 500 : 60);
-    }
+    const total = virtualItems.length;
+    if (!total) return;
+    const clampedIndex = Math.max(0, Math.min(total - 1, virtualIndex));
+    setActiveVirtualIndex(clampedIndex);
+    isScrollingRef.current = true;
+    window.clearTimeout(normalizeTimerRef.current);
+    window.requestAnimationFrame(() => positionCarouselCard(clampedIndex, behavior));
+
+    normalizeTimerRef.current = window.setTimeout(() => {
+      const logicalLength = itemsToDisplay.length;
+      if (logicalLength > 1 && (clampedIndex < logicalLength || clampedIndex >= logicalLength * 2)) {
+        const logicalIndex = ((clampedIndex % logicalLength) + logicalLength) % logicalLength;
+        const middleIndex = logicalLength + logicalIndex;
+        setActiveVirtualIndex(middleIndex);
+        window.requestAnimationFrame(() => positionCarouselCard(middleIndex, "auto"));
+      }
+      isScrollingRef.current = false;
+    }, behavior === "smooth" ? 520 : 60);
   };
 
   useEffect(() => {
-    setActiveVirtualIndex(0);
-    const frame = window.requestAnimationFrame(() => scrollToVirtualIndex(0, "auto"));
+    const startIndex = itemsToDisplay.length > 1 ? itemsToDisplay.length : 0;
+    setActiveVirtualIndex(startIndex);
+    const frame = window.requestAnimationFrame(() => scrollToVirtualIndex(startIndex, "auto"));
     return () => window.cancelAnimationFrame(frame);
   }, [mode, filter, query, itemsToDisplay.length]);
 
@@ -181,22 +191,23 @@ export function LibraryPage() {
   };
 
   const moveCarousel = (direction: -1 | 1) => {
-    const length = itemsToDisplay.length;
-    if (!length) return;
-    const next = (activeVirtualIndex + direction + length) % length;
+    if (!virtualItems.length) return;
+    const next = Math.max(0, Math.min(virtualItems.length - 1, activeVirtualIndex + direction));
     scrollToVirtualIndex(next, "smooth");
   };
 
   const getNearestVirtualIndex = () => {
     const list = listRef.current;
     if (!list) return activeVirtualIndex;
-    const stride = getCarouselStride();
-    if (stride <= 0) return activeVirtualIndex;
-    
-    // Nearest index is simply scrollLeft divided by stride!
-    const index = Math.round(list.scrollLeft / stride);
-    const maxIndex = itemsToDisplay.length - 1;
-    return Math.max(0, Math.min(maxIndex, index));
+    const cards = Array.from(list.querySelectorAll<HTMLElement>(".carousel-card"));
+    if (!cards.length) return activeVirtualIndex;
+    const paddingLeft = Number.parseFloat(getComputedStyle(list).paddingLeft) || 0;
+    const target = list.scrollLeft + paddingLeft;
+    const nearest = cards.reduce((current, card) => (
+      Math.abs(card.offsetLeft - target) < Math.abs(current.offsetLeft - target) ? card : current
+    ));
+    const index = Number(nearest.dataset.virtualIndex);
+    return Number.isFinite(index) ? index : activeVirtualIndex;
   };
 
   const handleScroll = () => {
@@ -231,7 +242,7 @@ export function LibraryPage() {
 
       wheelCooldownRef.current = true;
       const nextVirtualIndex = delta > 0 ? activeVirtualIndex + 1 : activeVirtualIndex - 1;
-      const clampedIndex = Math.max(0, Math.min(itemsToDisplay.length - 1, nextVirtualIndex));
+      const clampedIndex = Math.max(0, Math.min(virtualItems.length - 1, nextVirtualIndex));
       
       if (clampedIndex !== activeVirtualIndex) {
         scrollToVirtualIndex(clampedIndex, "smooth");
@@ -246,7 +257,7 @@ export function LibraryPage() {
     return () => {
       list.removeEventListener("wheel", onWheel);
     };
-  }, [itemsToDisplay.length, activeVirtualIndex]);
+  }, [itemsToDisplay.length, activeVirtualIndex, virtualItems.length]);
 
   const beginCarouselDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
@@ -302,7 +313,7 @@ export function LibraryPage() {
         targetVirtualIndex = drag.startIndex - 1;
       }
       
-      const clampedIndex = Math.max(0, Math.min(itemsToDisplay.length - 1, targetVirtualIndex));
+      const clampedIndex = Math.max(0, Math.min(virtualItems.length - 1, targetVirtualIndex));
 
       suppressCardClickRef.current = drag.dragged;
       scrollToVirtualIndex(clampedIndex, "smooth");
@@ -617,6 +628,7 @@ export function LibraryPage() {
                           <p className="carousel-card-title">{sticker.title}</p>
                           <div className="card-action-overlay" aria-label={`${sticker.title} 빠른 작업`}>
                               <strong className="card-hover-title">{sticker.title}</strong>
+                              <span className="card-hover-group"><Icon name="folder" size={15} />{sticker.group ?? "이모티콘 그룹"}</span>
                               <button
                                 type="button"
                                 className={`floating-action btn-favorite ${sticker.favorite ? "active" : ""}`}
@@ -635,6 +647,22 @@ export function LibraryPage() {
                                 >
                                   <Icon name="edit" size={18} />
                                   <span>수정</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-download"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void downloadLibraryAsset(
+                                      sticker.animatedImage ?? sticker.image,
+                                      sticker.id,
+                                      sticker.animationFormat,
+                                    ).catch((error) => notify(`다운로드에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`));
+                                  }}
+                                  aria-label="다운로드"
+                                >
+                                  <Icon name="download" size={18} />
+                                  <span>다운로드</span>
                                 </button>
                                 <button
                                   type="button"
@@ -664,6 +692,19 @@ export function LibraryPage() {
                           <p className="carousel-card-title">{character.name}</p>
                           <div className="card-action-overlay" aria-label={`${character.name} 빠른 작업`}>
                               <strong className="card-hover-title">{character.name}</strong>
+                              <span className="card-hover-group"><Icon name="folder" size={15} />캐릭터</span>
+                              <button
+                                type="button"
+                                className={`floating-action btn-favorite ${character.favorite ? "active" : ""}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void toggleCharacterFavorite(character);
+                                }}
+                                aria-label="즐겨찾기"
+                              >
+                                <Icon name="star" size={18} />
+                                <span>즐겨찾기</span>
+                              </button>
                               <div className="action-buttons">
                                 <button
                                   type="button"
@@ -673,6 +714,19 @@ export function LibraryPage() {
                                 >
                                   <Icon name="edit" size={18} />
                                   <span>수정</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-download"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void downloadLibraryAsset(character.sourceAsset, character.id)
+                                      .catch((error) => notify(`다운로드에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`));
+                                  }}
+                                  aria-label="다운로드"
+                                >
+                                  <Icon name="download" size={18} />
+                                  <span>다운로드</span>
                                 </button>
                                 <button
                                   type="button"
@@ -689,17 +743,6 @@ export function LibraryPage() {
                       );
                     }
                   })}
-                  {virtualItems.length > 0 && (
-                    <div 
-                      style={{ 
-                        flex: "0 0 calc(100% - var(--library-card-active))", 
-                        minWidth: "calc(100% - var(--library-card-active))", 
-                        height: "1px",
-                        pointerEvents: "none"
-                      }} 
-                      aria-hidden="true" 
-                    />
-                  )}
                 </div>
                 </>
               ) : (

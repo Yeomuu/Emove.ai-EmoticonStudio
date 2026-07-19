@@ -12,6 +12,7 @@ out/
 
 qa/
 .design-qa/
+public/__qa__/
 *.log
 deploy-*.zip
 
