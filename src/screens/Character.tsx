@@ -138,7 +138,7 @@ export function CharacterPage() {
       setGenerated(next);
       setSelectedVariationIndex(0);
       setProcess({ title: "입력한 정보를 바탕으로 캐릭터를 생성하고 있습니다.", label: "캐릭터 완성 단계...", percent: 100 });
-      notify(persisted.warning ? `새 캐릭터 초안은 생성됐지만 GCS 저장은 보류됐습니다: ${persisted.warning}` : "새 캐릭터 초안과 이미지 URL을 GCS에 저장했습니다. 베리에이션을 고른 뒤 저장하세요.");
+      notify(persisted.warning ? `새 캐릭터 초안은 생성됐지만 Firebase Storage 저장은 보류됐습니다: ${persisted.warning}` : "새 캐릭터 초안과 이미지 URL을 Firebase Storage에 저장했습니다. 베리에이션을 고른 뒤 저장하세요.");
     } catch (error) {
       setProcess(null);
       notify(error instanceof Error ? error.message : "캐릭터 생성에 실패했습니다.");
@@ -166,7 +166,7 @@ export function CharacterPage() {
       try {
         const sync = await syncCharacterToRemote(saved);
         if (sync.ownerId) saved = { ...saved, ownerId: sync.ownerId };
-        if (sync.enabled) remoteMessage = persisted.enabled ? "GCS 이미지 주소와 캐릭터 메타데이터를 Firestore에 저장했습니다." : `캐릭터 메타데이터는 저장했지만 GCS 이미지 저장은 보류됐습니다: ${persisted.error}`;
+        if (sync.enabled) remoteMessage = persisted.enabled ? "Firebase Storage 이미지 주소와 캐릭터 메타데이터를 Firestore에 저장했습니다." : `캐릭터 메타데이터는 저장했지만 Firebase Storage 이미지 저장은 보류됐습니다: ${persisted.error}`;
         else if (sync.storageWarning) remoteMessage = `${sync.storageWarning} IndexedDB에만 임시 저장했습니다.`;
       } catch (error) {
         remoteMessage = `원격 DB 저장 실패로 IndexedDB에만 임시 저장했습니다: ${error instanceof Error ? error.message : String(error)}`;

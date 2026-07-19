@@ -1,4 +1,4 @@
-import { downloadGcsAsset } from "../../../../../server/gcs-storage";
+import { downloadFirebaseAsset } from "../../../../../server/firebase-storage";
 
 export const runtime = "nodejs";
 
@@ -7,7 +7,7 @@ export async function GET(request: Request): Promise<Response> {
   const objectName = url.searchParams.get("path") || "";
   const fileName = safeDownloadName(url.searchParams.get("name") || objectName.split("/").pop() || "emove.png");
   try {
-    const asset = await downloadGcsAsset(objectName);
+    const asset = await downloadFirebaseAsset(objectName);
     return new Response(new Uint8Array(asset.data), {
       headers: {
         "Cache-Control": "private, no-store",

@@ -85,7 +85,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit canvas resize/rotate control handles belong only to the current active layer; inactive selection bounds must not show handles or steal resize/rotate interactions.
 - Edit canvas may temporarily preview the currently selected layer above the other layers for easier adjustment, but this must never mutate the actual layer order or exported order. Clicking empty canvas space clears the active layer selection.
 - Source code, styles, fonts, icons, and used UI images should be referenced from `src/` and `src/assets/` in v1; old root-level source/asset folders are legacy copies only until explicitly removed.
-- Remote persistence uses Vercel Route Handlers. Google Cloud Storage is the primary binary store for generated characters, frames, effects, thumbnails, and APNG-first animation files; Cloud Firestore through the server-only Firebase Admin SDK stores stable GCS URLs and compact metadata for `characters`, `captures`, `projects`, and `stickers`; IndexedDB remains the local fallback when remote storage is unavailable.
+- Remote persistence uses Vercel Route Handlers. Firebase Storage is the binary store for generated characters, frames, effects, thumbnails, and APNG-first animation files; Cloud Firestore through the same server-only Firebase Admin SDK stores stable asset URLs and compact metadata for `characters`, `captures`, `projects`, and `stickers`; IndexedDB remains the local fallback when remote storage is unavailable.
 - Input analysis must visibly show the understood behavior, expression/emotion key, voice usage, and emotion background-effect guide instead of only showing a completion toast.
 - Input camera analysis uses MediaPipe Pose Landmarker and Face Landmarker for the closest single person; if real landmarks are unavailable, the app must say the analysis failed instead of substituting preset behavior or expression data.
 - Library category UI must keep display category state separate from emotion filtering so same-emotion categories such as celebration and gratitude do not appear selected at the same time.
@@ -99,7 +99,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
 - OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to serverless timeout or response-size limits.
 - Use compressed `webp` image API responses by default before browser chroma-key removal; if this changes, the returned data URL MIME type must match the requested image output format.
-- On Vercel production, long image routes such as `character`, `frame`, `frames`, and `effect` should move to durable background jobs with GCS-backed or DB-backed status/result polling before paid production traffic. Do not make long browser-facing functions risk losing paid OpenAI results to timeout.
+- On Vercel production, long image routes such as `character`, `frame`, `frames`, and `effect` should move to durable background jobs with Firebase Storage-backed or Firestore-backed status/result polling before paid production traffic. Do not make long browser-facing functions risk losing paid OpenAI results to timeout.
 - Treat the Notion Design System page as fixed unless the user explicitly asks to change it; PRD, technical specification, and page/function documentation may be updated around that fixed design system.
 - When transplanting Notion page-function inventories into a technical test app, focus on the actual page functions, states, controls, and route behavior rather than recreating sidebar/navigation layout details.
 - Use the Next.js lab to stress-test accumulated EMOVE features with realistic mock state before wiring paid API calls, remote persistence, or production background jobs.
@@ -135,9 +135,9 @@ When implementing from a selected generated mock, treat that image as the source
 - Emotion selection follows the explicit product priority voice → action → facial expression. Imentiv audio analysis is server-only through `/api/emotion/audio`; store the chosen source, provider, confidence, and full normalized score map, and label local heuristic fallbacks honestly.
 - Browser microphone capture may remain WebM for OpenAI transcription, but convert the short clip to mono WAV before Imentiv because its direct file upload accepts MP3, WAV, AAC, and M4A rather than WebM.
 
-## Vercel Storage Data Model
+## Firebase Remote Data Model
 
-원격 저장은 선택 기능입니다. Firebase Admin 서비스 계정 정보가 없으면 IndexedDB 로컬 저장만 사용하고, `GCS_BUCKET_NAME` 또는 Google Cloud 인증정보가 없으면 로컬 개발용 메모리 애니메이션 공유 URL과 로컬 이미지 데이터만 사용하면서 설정 오류를 명확히 알립니다.
+원격 저장은 선택 기능입니다. Firebase Admin 서비스 계정 정보가 없으면 IndexedDB 로컬 저장만 사용하고, `FIREBASE_STORAGE_BUCKET`이 없으면 로컬 개발용 메모리 애니메이션 공유 URL과 로컬 이미지 데이터만 사용하면서 설정 오류를 명확히 알립니다.
 
 ### 1. `emove_library/{kind}/records/{recordId}`
 **Cloud Firestore shared metadata documents**
@@ -152,13 +152,13 @@ When implementing from a selected generated mock, treat that image as the source
 }
 ```
 
-### 2. Google Cloud Storage Objects
+### 2. Firebase Storage Objects
 **QR/mobile share file storage**
 
 ```typescript
 {
-  path: `gcs://${bucket}/assets/animations/${year}/${month}/${shareId}.apng`;
-  url: string;         // stable public GCS or configured CDN URL
+  path: `firebase-storage://${bucket}/assets/animations/${year}/${month}/${shareId}.apng`;
+  url: string;         // stable same-origin Firebase Storage proxy URL
   downloadUrl: string; // /api/assets/download attachment response used by QR
   contentType: "image/apng" | "image/gif" | "image/webp";
   maxSizeBytes: 5750000;
@@ -170,10 +170,10 @@ When implementing from a selected generated mock, treat that image as the source
 1. **Input 페이지**: 사용자 입력 → local `captures` 저장, Firebase Admin이 설정되어 있으면 `/api/library/captures`에도 compact metadata 저장
 2. **Character 페이지**: OpenAI 생성 → local `characters` 저장, Firebase Admin이 설정되어 있으면 `/api/library/characters`에도 저장
 3. **Edit 페이지**: 프레임별 편집 상태 → local `projects`, `stickers`, `characters` 저장, Firebase Admin이 설정되어 있으면 `/api/library/projects`에도 compact metadata 저장
-4. **Export**: APNG 우선 애니메이션 렌더링 → `/api/share/animation` 업로드 → GCS public URL은 화면 표시/DB에 사용하고 `/api/assets/download` attachment URL은 QR에 사용
+4. **Export**: APNG 우선 애니메이션 렌더링 → `/api/share/animation` 업로드 → Firebase Storage URL은 화면 표시/DB에 사용하고 `/api/assets/download` attachment URL은 QR에 사용
 5. **Library**: IndexedDB/local state와 Firestore 공용 레코드를 병합해 모든 브라우저에서 공개 캐릭터와 이모티콘을 함께 표시
 
 ### 권한 및 보안
-- `OPENAI_API_KEY`, `GCS_BUCKET_NAME`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_CLIENT_EMAIL`, `GOOGLE_CLOUD_PRIVATE_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`는 서버 환경변수로만 보관합니다.
+- `OPENAI_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_STORAGE_BUCKET`은 서버 환경변수로만 보관합니다.
 - 브라우저 공개 환경변수는 `NEXT_PUBLIC_` prefix만 사용합니다.
 - 원격 shared library를 production에 열기 전에는 visibility, moderation, rate limiting, and ownership 정책을 먼저 확정합니다.

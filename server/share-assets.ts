@@ -1,4 +1,4 @@
-import { isGcsConfigured, uploadGcsAsset } from "./gcs-storage";
+import { isFirebaseStorageConfigured, uploadFirebaseAsset } from "./firebase-storage";
 import { isSameOriginRequest } from "./request-security";
 import { sharedAnimationMemoryStore } from "./share-memory";
 
@@ -36,10 +36,9 @@ export async function handleSharedAnimationPost(request: Request, routeName = "a
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   const fileName = safeDownloadName(headerValue(request, "x-emove-file-name", `emove-${id}.${spec.extension}`), spec.extension);
-  const key = `animations/${id}.${spec.extension}`;
 
-  if (isGcsConfigured()) {
-    const asset = await uploadGcsAsset(Buffer.from(data), {
+  if (isFirebaseStorageConfigured()) {
+    const asset = await uploadFirebaseAsset(Buffer.from(data), {
       contentType: spec.contentType,
       fileName,
       kind: "animations",

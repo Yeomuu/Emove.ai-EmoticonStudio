@@ -31,7 +31,7 @@ const SIMULATION_SHADER = `
     vec4 previous = texture2D(uState, vUv);
     float height = previous.r * 2.0 - 1.0;
     float velocity = previous.g * 2.0 - 1.0;
-    float wake = previous.b * 0.968;
+    float wake = previous.b * 0.985;
     float neighbors =
       heightAt(vUv + vec2(uTexel.x, 0.0)) +
       heightAt(vUv - vec2(uTexel.x, 0.0)) +
@@ -66,6 +66,7 @@ const DISPLAY_SHADER = `
   uniform vec2 uPointer;
   uniform vec2 uAspect;
   uniform float uPointerEnergy;
+  uniform vec3 uTrail[12];
   uniform float uTime;
   uniform float uLight;
 
@@ -171,11 +172,35 @@ const DISPLAY_SHADER = `
     vec3 lightWater = vec3(0.17, 0.32, 0.49);
     vec3 color = mix(darkWater, lightWater, uLight);
     float trailPrism = clamp(
-      max(disturbance * (0.62 + abs(height) * 2.8), wake * 0.96),
+      max(disturbance * (0.38 + abs(height) * 1.2), wake * 0.78),
       0.0,
-      0.94
+      0.62
     );
-    color = mix(color, spectrum, trailPrism);
+    color = mix(color, spectrum, trailPrism * 0.72);
+
+    float sampledTrail = 0.0;
+    for (int index = 0; index < 12; index++) {
+      vec2 trailDelta = (vUv - uTrail[index].xy) * uAspect;
+      float trailDistance = length(trailDelta);
+      float trailEnvelope = smoothstep(0.105, 0.008, trailDistance);
+      float trailRing = (
+        0.5 + 0.5 * cos(trailDistance * 112.0 - uTime * 8.5)
+      ) * smoothstep(0.115, 0.016, trailDistance);
+      float trailEnergy = clamp(
+        (trailEnvelope * 0.18 + trailRing * 0.64) * uTrail[index].z,
+        0.0,
+        1.0
+      );
+      vec3 trailSpectrum = 0.5 + 0.5 * cos(
+        6.2831853 * (
+          trailDistance * 8.0
+            - uTime * 0.42
+            + vec3(0.0, 0.3333, 0.6667)
+        )
+      );
+      color = mix(color, trailSpectrum, min(0.34, trailEnergy * 0.55));
+      sampledTrail = max(sampledTrail, trailEnergy);
+    }
 
     vec2 pointerDelta = (vUv - uPointer) * uAspect;
     float pointerDistance = length(pointerDelta);
@@ -199,13 +224,16 @@ const DISPLAY_SHADER = `
 
     float softNoise = noise(gl_FragCoord.xy * 0.22 + vec2(uTime * 2.4, -uTime * 1.7)) - 0.5;
     float fineNoise = hash21(gl_FragCoord.xy + floor(uTime * 30.0)) - 0.5;
-    float alpha = caustic * mix(0.072, 0.048, uLight)
-      + disturbance * mix(0.24, 0.15, uLight)
-      + wake * mix(0.34, 0.23, uLight)
-      + pointerPrism * mix(0.38, 0.38, uLight)
+    float alpha = caustic * mix(0.055, 0.04, uLight)
+      + disturbance * mix(0.15, 0.10, uLight)
+      + wake * mix(0.28, 0.18, uLight)
+      + sampledTrail * mix(0.34, 0.24, uLight)
+      + pointerPrism * 0.35
       + softNoise * 0.008
       + fineNoise * 0.003;
-    float alphaLimit = mix(0.36, 0.245, uLight) + pointerPrism * 0.18;
+    float alphaLimit = mix(0.28, 0.21, uLight)
+      + sampledTrail * 0.1
+      + pointerPrism * 0.16;
     alpha = clamp(alpha, 0.0, alphaLimit);
 
     gl_FragColor = vec4(color, alpha);
@@ -239,10 +267,16 @@ export function LiquidRippleCanvas() {
       const pointer = new THREE.Vector2(.5, .5);
       const pointerTarget = new THREE.Vector2(.5, .5);
       const previousPointer = new THREE.Vector2(.5, .5);
+      const lastTrailPointer = new THREE.Vector2(.5, .5);
+      const trailUniforms = Array.from(
+        { length: 12 },
+        () => new THREE.Vector3(.5, .5, 0),
+      );
       const simulationPointer = new THREE.Vector2(.5, .5);
       const simulationSize = new THREE.Vector2(320, 180);
       let impulse = 0;
       let pointerEnergy = 0;
+      let trailCursor = 0;
       let frame = 0;
       let lastTime = performance.now();
       let targetA = createTarget(THREE, simulationSize.x, simulationSize.y);
@@ -263,6 +297,7 @@ export function LiquidRippleCanvas() {
         uPointer: { value: pointer },
         uAspect: { value: simulationUniforms.uAspect.value },
         uPointerEnergy: { value: 0 },
+        uTrail: { value: trailUniforms },
         uTime: { value: 0 },
         uLight: { value: document.documentElement.dataset.theme === "light" ? 1 : 0 },
       };
@@ -318,6 +353,16 @@ export function LiquidRippleCanvas() {
           Math.min(1, Math.max(0, (event.clientX - bounds.left) / Math.max(1, bounds.width))),
           1 - Math.min(1, Math.max(0, (event.clientY - bounds.top) / Math.max(1, bounds.height))),
         );
+        const trailDistance = pointerTarget.distanceTo(lastTrailPointer);
+        if (trailDistance > .012) {
+          trailUniforms[trailCursor].set(
+            pointerTarget.x,
+            pointerTarget.y,
+            Math.min(1, .45 + trailDistance * 7),
+          );
+          trailCursor = (trailCursor + 1) % trailUniforms.length;
+          lastTrailPointer.copy(pointerTarget);
+        }
       };
       const renderFrame = (time: number) => {
         const elapsed = Math.min(34, Math.max(0, time - lastTime));
@@ -327,6 +372,10 @@ export function LiquidRippleCanvas() {
         const speed = pointer.distanceTo(previousPointer);
         impulse = Math.min(.55, Math.max(speed * 30, impulse * .82));
         pointerEnergy = Math.min(1, Math.max(speed * 56, pointerEnergy * .975));
+        const trailDecay = Math.pow(.99, elapsed / 16.67);
+        trailUniforms.forEach((sample) => {
+          sample.z *= trailDecay;
+        });
 
         simulationUniforms.uImpulse.value = impulse;
         const simulationSteps = impulse > .025 ? 3 : 1;

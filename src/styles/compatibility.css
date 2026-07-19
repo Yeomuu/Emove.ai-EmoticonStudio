@@ -167,6 +167,10 @@ html[data-theme="light"] .slide-warning-dialog :where(.warning-stay, .warning-co
 html[data-theme="light"] .slide-warning-dialog .warning-continue { background: rgba(91,73,255,.13) !important; }
 
 /* Persistent bottom-right navigation. The logo is the Home affordance. */
+.nav-hover-zone {
+  pointer-events: none;
+}
+
 .bottom-dock-text-nav,
 .app-shell.route-home .bottom-dock-text-nav {
   left: auto !important;
@@ -1330,5 +1334,45 @@ html[data-theme="light"] .input-stage-panel > div.active { color: #2b2540; backg
     height: 92px !important;
     padding: 16px !important;
     border-radius: 0 0 20px 20px !important;
+  }
+}
+
+/*
+ * Short desktop stages keep the process line beside the title instead of
+ * letting it drift onto the camera surface. The page still uses its 760px
+ * minimum work height and remains vertically scrollable below that height.
+ */
+@media (max-height: 760px) and (min-width: 761px) {
+  .input-scroll-slider .scroll-slide-nav {
+    left: auto !important;
+    right: 8% !important;
+    top: 19% !important;
+    width: min(330px, 36svw) !important;
+  }
+}
+
+/*
+ * The editor keeps the 1920px composition, but its square canvas must resolve
+ * against the narrower right column instead of creating a fixed 560px grid
+ * track. This preserves the 1024px logical export surface without clipping the
+ * visual workspace on tablet and compact desktop widths.
+ */
+@media (max-width: 1280px) and (min-width: 761px) {
+  .editor-page .editor-toolbar {
+    position: absolute !important;
+    z-index: 80 !important;
+    top: auto !important;
+    bottom: 20px !important;
+    height: 54px !important;
+  }
+
+  .editor-page .editor-stage {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+  }
+
+  .editor-page .canvas-artboard {
+    width: min(490px, calc(100% - 48px)) !important;
+    max-width: none !important;
   }
 }

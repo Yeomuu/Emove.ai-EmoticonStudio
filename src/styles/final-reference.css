@@ -276,7 +276,7 @@ html[data-theme="light"] :where(
 
 html[data-theme="light"] .character-dropdown-menu {
   border-color: rgba(55, 48, 85, .15) !important;
-  background: rgba(255, 255, 255, .96) !important;
+  background: #fff !important;
   color: #29243b !important;
   box-shadow: 0 14px 30px rgba(42, 37, 62, .09) !important;
 }
@@ -584,8 +584,29 @@ html[data-theme="light"] .editor-page :where(
   }
 }
 
-html[data-theme="light"] .home-copy :where(.hero-kicker, h1) {
-  background-image: var(--reference-title-light);
+/*
+ * Keep the title glyphs and marker as independent paint layers. Applying a
+ * gradient to the h1 itself becomes an opaque rectangle in short viewports.
+ */
+.home-copy .hero-kicker,
+.home-copy h1 {
+  background: none !important;
+  color: var(--theme-title) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.home-copy .hero-kicker,
+.home-copy .home-highlight-word {
+  background-image: var(--reference-title) !important;
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+html[data-theme="light"] .home-copy .hero-kicker,
+html[data-theme="light"] .home-copy .home-highlight-word {
+  background-image: var(--reference-title-light) !important;
 }
 
 html[data-theme="light"] .app-shell.route-home .text-nav-bar a,

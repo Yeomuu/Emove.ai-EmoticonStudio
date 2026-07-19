@@ -22,10 +22,10 @@ export async function persistGeneratedAsset(source: string, options: { fileName:
       body: blob,
     });
     const payload = await response.json().catch(() => ({})) as { downloadUrl?: string; error?: string; path?: string; url?: string };
-    if (!response.ok || !payload.url) return { enabled: false, error: payload.error || `GCS 업로드에 실패했습니다. (${response.status})`, url: source };
+    if (!response.ok || !payload.url) return { enabled: false, error: payload.error || `Firebase Storage 업로드에 실패했습니다. (${response.status})`, url: source };
     return { enabled: true, downloadUrl: payload.downloadUrl, path: payload.path, url: payload.url };
   } catch (error) {
-    return { enabled: false, error: error instanceof Error ? error.message : "GCS 업로드에 실패했습니다.", url: source };
+    return { enabled: false, error: error instanceof Error ? error.message : "Firebase Storage 업로드에 실패했습니다.", url: source };
   }
 }
 
