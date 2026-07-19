@@ -1,4 +1,4 @@
-import { listLibraryRecords, saveLibraryRecord } from "../../../../../server/library-store";
+import { libraryStoreConfigurationError, listLibraryRecords, saveLibraryRecord } from "../../../../../server/library-store";
 import { isSameOriginRequest } from "../../../../../server/request-security";
 
 export const runtime = "nodejs";
@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
   if (!allowedKinds.has(kind)) return json(404, { error: "지원하지 않는 라이브러리 저장소입니다." });
 
   const result = await listLibraryRecords(kind);
-  if (!result.enabled) return json(501, { error: "DATABASE_URL이 설정되지 않아 원격 DB 조회를 건너뜁니다." });
+  if (!result.enabled) return json(501, { error: result.error ?? libraryStoreConfigurationError() ?? "Firestore 조회를 사용할 수 없습니다." });
   return json(200, result);
 }
 
@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ kin
   if (!body?.id || body.payload == null) return json(400, { error: "저장할 라이브러리 레코드가 비어 있습니다." });
 
   const result = await saveLibraryRecord({ id: body.id, kind, payload: body.payload });
-  if (!result.enabled) return json(501, { error: "DATABASE_URL이 설정되지 않아 원격 DB 저장을 건너뜁니다." });
+  if (!result.enabled) return json(501, { error: result.error ?? libraryStoreConfigurationError() ?? "Firestore 저장을 사용할 수 없습니다." });
   return json(201, result);
 }
 

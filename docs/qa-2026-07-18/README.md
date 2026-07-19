@@ -40,5 +40,5 @@
 ## 참고
 
 - 화면 좌측 하단의 검은 `N` 버튼은 Next.js 개발 서버 도구이며 프로덕션 빌드에는 표시되지 않음
-- API 키, OpenAI 생성 품질, Imentiv 응답, Neon/GCS 원격 저장은 이번 1차 QA 판정에서 제외
+- API 키, OpenAI 생성 품질, Imentiv 응답, Firestore/GCS 원격 저장은 이번 1차 QA 판정에서 제외
 - 각 PNG는 수정 전후를 포함한 현재 실행의 실제 브라우저 캡처

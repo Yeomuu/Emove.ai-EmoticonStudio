@@ -383,7 +383,7 @@ export function HomePage() {
       </button>
       <div className="home-copy">
         <p className="hero-kicker">Move Your</p>
-        <h1>Emotion</h1>
+        <h1><span className="home-highlight-word">Emotion</span></h1>
         <div className="hero-actions">
           <button className="hero-button" type="button" onClick={() => navigate("/library")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 보관함으로 이동하기</span></button>
           <button className="hero-button" type="button" onClick={() => navigate("/character")}><span className="button-aura" aria-hidden="true" /><span>이모티콘 생성하기</span></button>

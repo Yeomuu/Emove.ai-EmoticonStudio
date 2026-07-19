@@ -61,6 +61,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Home/landing should also keep the Figma geometric circle/line pattern behind the random character tokens.
 - Home character tokens should repel from the pointer, remain draggable, and push nearby character tokens away when they collide during drag.
 - Home character pointer interactions use the visible `.home-character-token` card bounds, including the glass card outline, for drag, pointer repulsion, and character-to-character collision.
+- Home's `Emotion` word uses a restrained highlighter loop: paint left-to-right within about 1–2 seconds, erase by about 3 seconds, then wait so the full cycle repeats every 10–20 seconds.
 - Header layout keeps the logo centered, primary nav pinned to the left side of the 1440px frame, and profile/theme controls pinned to the right side.
 - The current Figma redesign uses a bottom-right dock navigation. Home and Library show it by default; Character, Input, and Edit hide it during work and reveal it when the pointer enters the bottom-right dock zone.
 - Glassmorphism buttons should use `backdrop-filter` so the background behind the button blurs while button text/icons remain sharp.
@@ -84,7 +85,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit canvas resize/rotate control handles belong only to the current active layer; inactive selection bounds must not show handles or steal resize/rotate interactions.
 - Edit canvas may temporarily preview the currently selected layer above the other layers for easier adjustment, but this must never mutate the actual layer order or exported order. Clicking empty canvas space clears the active layer selection.
 - Source code, styles, fonts, icons, and used UI images should be referenced from `src/` and `src/assets/` in v1; old root-level source/asset folders are legacy copies only until explicitly removed.
-- Remote persistence uses Vercel Route Handlers. Google Cloud Storage is the primary binary store for generated characters, frames, effects, thumbnails, and APNG-first animation files; Neon Postgres via `DATABASE_URL` stores stable GCS URLs and compact metadata for `characters`, `captures`, `projects`, and `stickers`; IndexedDB remains the local fallback when remote storage is unavailable.
+- Remote persistence uses Vercel Route Handlers. Google Cloud Storage is the primary binary store for generated characters, frames, effects, thumbnails, and APNG-first animation files; Cloud Firestore through the server-only Firebase Admin SDK stores stable GCS URLs and compact metadata for `characters`, `captures`, `projects`, and `stickers`; IndexedDB remains the local fallback when remote storage is unavailable.
 - Input analysis must visibly show the understood behavior, expression/emotion key, voice usage, and emotion background-effect guide instead of only showing a completion toast.
 - Input camera analysis uses MediaPipe Pose Landmarker and Face Landmarker for the closest single person; if real landmarks are unavailable, the app must say the analysis failed instead of substituting preset behavior or expression data.
 - Library category UI must keep display category state separate from emotion filtering so same-emotion categories such as celebration and gratitude do not appear selected at the same time.
@@ -112,7 +113,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Loading surfaces, including boot loading, route curtain loading, and generation/analysis progress screens, must follow the active light/dark theme.
 - Light mode shadows should be softer than dark mode shadows so glass surfaces stay clean rather than smudged.
 - Horizontal filter rails should show edge fades only on the sides where additional hidden items are available.
-- Edit save should keep Neon records easy to inspect by upserting the project plus separate sticker, character, and capture metadata rows.
+- Edit save should keep Firestore records easy to inspect by upserting the project plus separate sticker, character, and capture metadata documents.
 - Export QR should prefer the hosted animation URL when available and fall back to the saved Library detail URL when direct animation sharing is unavailable.
 - The overall layout reference websites are:
   - https://startrail.stellive.me/ (stellar dynamic components and animations)
@@ -123,6 +124,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Keep all Showcase visual content below one full-screen, pointer-transparent adjustment layer so the water response refracts the background word, copy, and emoticons together. Use one fixed base color per light/dark theme, render the background `EMOVE` word as liquid glass, omit `CREATE EMOTICON` in the empty state, and guarantee a behind/front emoticon split whenever at least two animated items exist.
 - Showcase water should resemble a fast, fine `CC Drizzle`-style moving caustic surface rather than a large accumulated radial blob. Render the transparent WebGL caustic canvas inside the adjustment layer above Showcase content, keep DOM displacement subtle enough to avoid duplicated text outlines, and use darker blue-gray refraction in light mode so the motion remains visible.
 - Keep the Showcase light-mode ambient caustic restrained; pointer movement should temporarily restore the stronger RGB prism/ring dispersion without raising the whole page's water intensity.
+- Showcase pointer motion must leave a visible decaying RGB/refraction wake along the traveled path; do not reduce the effect to a single lens that only follows the current pointer position.
 - The 2026-07-19 attached `design.pdf` plus Home, Character, Input, Emoticon, and Collection SVG files are the current final dark-mode visual references; compare implementation screenshots against those 1920×1080 sources before handoff.
 - The shared production Library is public and login-free: all browsers may read generated public characters and emoticons, while browser writes remain same-origin and production upload/generation routes still require abuse controls.
 - Form and media-panel internals must use containment-safe flex/grid layout. Do not position controls across unrelated parent panels or allow labels, previews, buttons, or upload controls to overflow their owning region.
@@ -135,18 +137,18 @@ When implementing from a selected generated mock, treat that image as the source
 
 ## Vercel Storage Data Model
 
-원격 저장은 선택 기능입니다. `DATABASE_URL`이 없으면 IndexedDB 로컬 저장만 사용하고, `GCS_BUCKET_NAME` 또는 Google Cloud 인증정보가 없으면 로컬 개발용 메모리 애니메이션 공유 URL과 로컬 이미지 데이터만 사용하면서 설정 오류를 명확히 알립니다.
+원격 저장은 선택 기능입니다. Firebase Admin 서비스 계정 정보가 없으면 IndexedDB 로컬 저장만 사용하고, `GCS_BUCKET_NAME` 또는 Google Cloud 인증정보가 없으면 로컬 개발용 메모리 애니메이션 공유 URL과 로컬 이미지 데이터만 사용하면서 설정 오류를 명확히 알립니다.
 
-### 1. `emove_library_records`
-**Neon Postgres shared metadata table**
+### 1. `emove_library/{kind}/records/{recordId}`
+**Cloud Firestore shared metadata documents**
 
 ```typescript
 {
   id: string;          // character/capture/project/sticker id
   kind: "characters" | "captures" | "projects" | "stickers";
   payload: object;     // compact metadata payload, no raw Blob fields
-  created_at: string;
-  updated_at: string;
+  createdAt: Firestore create time;
+  updatedAt: Firestore server timestamp;
 }
 ```
 
@@ -165,13 +167,13 @@ When implementing from a selected generated mock, treat that image as the source
 
 ### 데이터 흐름 및 저장 시점
 
-1. **Input 페이지**: 사용자 입력 → local `captures` 저장, `DATABASE_URL`이 있으면 `/api/library/captures`에도 compact metadata 저장
-2. **Character 페이지**: OpenAI 생성 → local `characters` 저장, `DATABASE_URL`이 있으면 `/api/library/characters`에도 저장
-3. **Edit 페이지**: 프레임별 편집 상태 → local `projects`, `stickers`, `characters` 저장, `DATABASE_URL`이 있으면 `/api/library/projects`에도 compact metadata 저장
+1. **Input 페이지**: 사용자 입력 → local `captures` 저장, Firebase Admin이 설정되어 있으면 `/api/library/captures`에도 compact metadata 저장
+2. **Character 페이지**: OpenAI 생성 → local `characters` 저장, Firebase Admin이 설정되어 있으면 `/api/library/characters`에도 저장
+3. **Edit 페이지**: 프레임별 편집 상태 → local `projects`, `stickers`, `characters` 저장, Firebase Admin이 설정되어 있으면 `/api/library/projects`에도 compact metadata 저장
 4. **Export**: APNG 우선 애니메이션 렌더링 → `/api/share/animation` 업로드 → GCS public URL은 화면 표시/DB에 사용하고 `/api/assets/download` attachment URL은 QR에 사용
-5. **Library**: 현재 구현은 IndexedDB/local state를 우선 표시하며, shared public gallery reads can be added from Neon when the public gallery policy is finalized
+5. **Library**: IndexedDB/local state와 Firestore 공용 레코드를 병합해 모든 브라우저에서 공개 캐릭터와 이모티콘을 함께 표시
 
 ### 권한 및 보안
-- `OPENAI_API_KEY`, `DATABASE_URL`, `GCS_BUCKET_NAME`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_CLIENT_EMAIL`, `GOOGLE_CLOUD_PRIVATE_KEY`는 서버 환경변수로만 보관합니다.
+- `OPENAI_API_KEY`, `GCS_BUCKET_NAME`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_CLIENT_EMAIL`, `GOOGLE_CLOUD_PRIVATE_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`는 서버 환경변수로만 보관합니다.
 - 브라우저 공개 환경변수는 `NEXT_PUBLIC_` prefix만 사용합니다.
 - 원격 shared library를 production에 열기 전에는 visibility, moderation, rate limiting, and ownership 정책을 먼저 확정합니다.

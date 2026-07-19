@@ -166,7 +166,7 @@ export function CharacterPage() {
       try {
         const sync = await syncCharacterToRemote(saved);
         if (sync.ownerId) saved = { ...saved, ownerId: sync.ownerId };
-        if (sync.enabled) remoteMessage = persisted.enabled ? "GCS 이미지 주소와 캐릭터 메타데이터를 Neon에 저장했습니다." : `캐릭터 메타데이터는 저장했지만 GCS 이미지 저장은 보류됐습니다: ${persisted.error}`;
+        if (sync.enabled) remoteMessage = persisted.enabled ? "GCS 이미지 주소와 캐릭터 메타데이터를 Firestore에 저장했습니다." : `캐릭터 메타데이터는 저장했지만 GCS 이미지 저장은 보류됐습니다: ${persisted.error}`;
         else if (sync.storageWarning) remoteMessage = `${sync.storageWarning} IndexedDB에만 임시 저장했습니다.`;
       } catch (error) {
         remoteMessage = `원격 DB 저장 실패로 IndexedDB에만 임시 저장했습니다: ${error instanceof Error ? error.message : String(error)}`;

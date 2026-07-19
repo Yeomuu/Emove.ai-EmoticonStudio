@@ -1,4 +1,5 @@
-import { neon } from "@neondatabase/serverless";
+import { applicationDefault, cert, getApps, initializeApp, type App } from "firebase-admin/app";
+import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore";
 
 type LibraryRecord = {
   id: string;
@@ -11,88 +12,122 @@ type StoredLibraryRecord = LibraryRecord & {
   updatedAt: string;
 };
 
-type LibraryRow = {
-  id: unknown;
-  kind: unknown;
-  payload: unknown;
-  created_at: unknown;
-  updated_at: unknown;
-};
+const LIBRARY_ROOT_COLLECTION = "emove_library";
 
-let sqlClient: ReturnType<typeof neon> | null = null;
-let schemaReady: Promise<void> | null = null;
+let firestoreClient: Firestore | null = null;
 
-function getSql(): ReturnType<typeof neon> | null {
-  const url = process.env.DATABASE_URL;
-  if (!url) return null;
-  sqlClient ??= neon(url);
-  return sqlClient;
+export function libraryStoreConfigurationError(): string | null {
+  const projectId = firebaseProjectId();
+  const clientEmail = firebaseClientEmail();
+  const privateKey = firebasePrivateKey();
+  const hasApplicationDefaultCredentials = Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim());
+
+  if (!projectId) return "FIREBASE_PROJECT_ID 또는 GOOGLE_CLOUD_PROJECT가 설정되지 않았습니다.";
+  if (!hasApplicationDefaultCredentials && !clientEmail) {
+    return "FIREBASE_CLIENT_EMAIL 또는 GOOGLE_CLOUD_CLIENT_EMAIL이 설정되지 않았습니다.";
+  }
+  if (!hasApplicationDefaultCredentials && !privateKey) {
+    return "FIREBASE_PRIVATE_KEY 또는 GOOGLE_CLOUD_PRIVATE_KEY가 설정되지 않았습니다.";
+  }
+  return null;
 }
 
-export async function saveLibraryRecord(record: LibraryRecord): Promise<{ enabled: boolean; syncedAt?: string; storagePath?: string }> {
-  const sql = getSql();
-  if (!sql) return { enabled: false };
-  await ensureSchema(sql);
+export async function saveLibraryRecord(record: LibraryRecord): Promise<{ enabled: boolean; syncedAt?: string; storagePath?: string; error?: string }> {
+  const database = getLibraryFirestore();
+  if (!database) return { enabled: false, error: libraryStoreConfigurationError() ?? "Firestore가 설정되지 않았습니다." };
+
   const syncedAt = new Date().toISOString();
-  await sql`
-    insert into emove_library_records (id, kind, payload, updated_at)
-    values (${record.id}, ${record.kind}, ${JSON.stringify(record.payload)}::jsonb, ${syncedAt})
-    on conflict (kind, id) do update set
-      payload = excluded.payload,
-      updated_at = excluded.updated_at
-  `;
-  return { enabled: true, syncedAt, storagePath: `neon://emove_library_records/${record.id}` };
-}
+  const reference = recordCollection(database, record.kind).doc(documentId(record.id));
+  await reference.set({
+    id: record.id,
+    kind: record.kind,
+    payload: record.payload,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
 
-export async function listLibraryRecords(kind: string): Promise<{ enabled: boolean; records?: StoredLibraryRecord[] }> {
-  const sql = getSql();
-  if (!sql) return { enabled: false };
-  await ensureSchema(sql);
-  const rows = await sql`
-    select id, kind, payload, created_at, updated_at
-    from emove_library_records
-    where kind = ${kind}
-    order by updated_at desc
-    limit 200
-  ` as LibraryRow[];
   return {
     enabled: true,
-    records: rows.map((row) => ({
-      id: String(row.id),
-      kind: String(row.kind),
-      payload: row.payload,
-      createdAt: toIsoString(row.created_at),
-      updatedAt: toIsoString(row.updated_at),
-    })),
+    syncedAt,
+    storagePath: `firestore://${LIBRARY_ROOT_COLLECTION}/${record.kind}/records/${record.id}`,
   };
 }
 
-async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {
-  schemaReady ??= (async () => {
-    await sql`
-      create table if not exists emove_library_records (
-        id text not null,
-        kind text not null,
-        payload jsonb not null,
-        created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now()
-      )
-    `;
-    // Older EMOVE tables used id alone as the primary key, which allowed
-    // project/sticker records with the same id to overwrite one another.
-    await sql`alter table emove_library_records drop constraint if exists emove_library_records_pkey`;
-    await sql`create unique index if not exists emove_library_records_kind_id_idx on emove_library_records (kind, id)`;
-  })();
-  try {
-    await schemaReady;
-  } catch (error) {
-    schemaReady = null;
-    throw error;
-  }
+export async function listLibraryRecords(kind: string): Promise<{ enabled: boolean; records?: StoredLibraryRecord[]; error?: string }> {
+  const database = getLibraryFirestore();
+  if (!database) return { enabled: false, error: libraryStoreConfigurationError() ?? "Firestore가 설정되지 않았습니다." };
+
+  const snapshot = await recordCollection(database, kind)
+    .orderBy("updatedAt", "desc")
+    .limit(200)
+    .get();
+
+  return {
+    enabled: true,
+    records: snapshot.docs.map((document) => {
+      const data = document.data() as Partial<LibraryRecord>;
+      return {
+        id: typeof data.id === "string" ? data.id : document.id,
+        kind: typeof data.kind === "string" ? data.kind : kind,
+        payload: data.payload,
+        createdAt: document.createTime.toDate().toISOString(),
+        updatedAt: document.updateTime.toDate().toISOString(),
+      };
+    }),
+  };
 }
 
-function toIsoString(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === "string") return new Date(value).toISOString();
-  return new Date().toISOString();
+function getLibraryFirestore(): Firestore | null {
+  if (libraryStoreConfigurationError()) return null;
+  if (firestoreClient) return firestoreClient;
+
+  const app = getFirebaseApp();
+  const databaseId = process.env.FIREBASE_FIRESTORE_DATABASE_ID?.trim();
+  firestoreClient = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
+  firestoreClient.settings({ ignoreUndefinedProperties: true });
+  return firestoreClient;
+}
+
+function getFirebaseApp(): App {
+  const existing = getApps()[0];
+  if (existing) return existing;
+
+  const projectId = firebaseProjectId();
+  const clientEmail = firebaseClientEmail();
+  const privateKey = firebasePrivateKey();
+  const credential = clientEmail && privateKey
+    ? cert({ projectId, clientEmail, privateKey })
+    : applicationDefault();
+
+  return initializeApp({
+    credential,
+    projectId,
+    storageBucket: process.env.GCS_BUCKET_NAME?.trim() || undefined,
+  });
+}
+
+function recordCollection(database: Firestore, kind: string) {
+  return database.collection(LIBRARY_ROOT_COLLECTION).doc(kind).collection("records");
+}
+
+function documentId(id: string): string {
+  return Buffer.from(id, "utf8").toString("base64url");
+}
+
+function firebaseProjectId(): string {
+  return process.env.FIREBASE_PROJECT_ID?.trim()
+    || process.env.GOOGLE_CLOUD_PROJECT?.trim()
+    || "";
+}
+
+function firebaseClientEmail(): string {
+  return process.env.FIREBASE_CLIENT_EMAIL?.trim()
+    || process.env.GOOGLE_CLOUD_CLIENT_EMAIL?.trim()
+    || "";
+}
+
+function firebasePrivateKey(): string {
+  const value = process.env.FIREBASE_PRIVATE_KEY?.trim()
+    || process.env.GOOGLE_CLOUD_PRIVATE_KEY?.trim()
+    || "";
+  return value.replace(/\\n/g, "\n");
 }

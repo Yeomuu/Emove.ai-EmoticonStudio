@@ -31,6 +31,7 @@ const SIMULATION_SHADER = `
     vec4 previous = texture2D(uState, vUv);
     float height = previous.r * 2.0 - 1.0;
     float velocity = previous.g * 2.0 - 1.0;
+    float wake = previous.b * 0.968;
     float neighbors =
       heightAt(vUv + vec2(uTexel.x, 0.0)) +
       heightAt(vUv - vec2(uTexel.x, 0.0)) +
@@ -38,18 +39,19 @@ const SIMULATION_SHADER = `
       heightAt(vUv - vec2(0.0, uTexel.y));
 
     velocity += (neighbors * 0.25 - height) * 0.38;
-    velocity *= 0.90;
-    height = (height + velocity) * 0.955;
+    velocity *= 0.93;
+    height = (height + velocity) * 0.97;
 
     vec2 delta = (vUv - uPointer) * uAspect;
-    float brush = smoothstep(0.038, 0.0, length(delta));
-    height += brush * uImpulse * 0.18;
-    velocity += brush * uImpulse * 0.09;
+    float brush = smoothstep(0.052, 0.0, length(delta));
+    height += brush * uImpulse * 0.26;
+    velocity += brush * uImpulse * 0.14;
+    wake = max(wake, brush * smoothstep(0.018, 0.12, uImpulse));
 
     gl_FragColor = vec4(
       clamp(height * 0.5 + 0.5, 0.0, 1.0),
       clamp(velocity * 0.5 + 0.5, 0.0, 1.0),
-      brush,
+      wake,
       1.0
     );
   }
@@ -119,6 +121,13 @@ const DISPLAY_SHADER = `
 
   void main() {
     float height = heightAt(vUv);
+    float wake = (
+      texture2D(uState, vUv).b * 2.0
+        + texture2D(uState, vUv + vec2(uTexel.x, 0.0)).b
+        + texture2D(uState, vUv - vec2(uTexel.x, 0.0)).b
+        + texture2D(uState, vUv + vec2(0.0, uTexel.y)).b
+        + texture2D(uState, vUv - vec2(0.0, uTexel.y)).b
+    ) / 6.0;
     vec2 gradient = vec2(
       heightAt(vUv + vec2(uTexel.x, 0.0)) - heightAt(vUv - vec2(uTexel.x, 0.0)),
       heightAt(vUv + vec2(0.0, uTexel.y)) - heightAt(vUv - vec2(0.0, uTexel.y))
@@ -154,14 +163,19 @@ const DISPLAY_SHADER = `
       1.0
     );
 
-    float spectralPhase = caustic * 0.72 + height * 3.4 + length(gradient) * 2.8;
+    float spectralPhase = caustic * 0.72 + height * 3.4 + length(gradient) * 2.8 + wake * 0.74;
     vec3 spectrum = 0.5 + 0.5 * cos(
       6.2831853 * (spectralPhase + vec3(0.0, 0.3333, 0.6667))
     );
     vec3 darkWater = vec3(0.64, 0.78, 1.0);
     vec3 lightWater = vec3(0.17, 0.32, 0.49);
     vec3 color = mix(darkWater, lightWater, uLight);
-    color = mix(color, spectrum, disturbance * 0.24);
+    float trailPrism = clamp(
+      max(disturbance * (0.62 + abs(height) * 2.8), wake * 0.96),
+      0.0,
+      0.94
+    );
+    color = mix(color, spectrum, trailPrism);
 
     vec2 pointerDelta = (vUv - uPointer) * uAspect;
     float pointerDistance = length(pointerDelta);
@@ -185,12 +199,13 @@ const DISPLAY_SHADER = `
 
     float softNoise = noise(gl_FragCoord.xy * 0.22 + vec2(uTime * 2.4, -uTime * 1.7)) - 0.5;
     float fineNoise = hash21(gl_FragCoord.xy + floor(uTime * 30.0)) - 0.5;
-    float alpha = caustic * mix(0.145, 0.105, uLight)
-      + disturbance * mix(0.12, 0.10, uLight)
+    float alpha = caustic * mix(0.072, 0.048, uLight)
+      + disturbance * mix(0.24, 0.15, uLight)
+      + wake * mix(0.34, 0.23, uLight)
       + pointerPrism * mix(0.38, 0.38, uLight)
       + softNoise * 0.008
       + fineNoise * 0.003;
-    float alphaLimit = mix(0.24, 0.21, uLight) + pointerPrism * 0.18;
+    float alphaLimit = mix(0.36, 0.245, uLight) + pointerPrism * 0.18;
     alpha = clamp(alpha, 0.0, alphaLimit);
 
     gl_FragColor = vec4(color, alpha);
@@ -224,6 +239,7 @@ export function LiquidRippleCanvas() {
       const pointer = new THREE.Vector2(.5, .5);
       const pointerTarget = new THREE.Vector2(.5, .5);
       const previousPointer = new THREE.Vector2(.5, .5);
+      const simulationPointer = new THREE.Vector2(.5, .5);
       const simulationSize = new THREE.Vector2(320, 180);
       let impulse = 0;
       let pointerEnergy = 0;
@@ -235,7 +251,7 @@ export function LiquidRippleCanvas() {
       const simulationUniforms = {
         uState: { value: targetA.texture },
         uTexel: { value: new THREE.Vector2(1 / simulationSize.x, 1 / simulationSize.y) },
-        uPointer: { value: pointer },
+        uPointer: { value: simulationPointer },
         uAspect: { value: new THREE.Vector2(1, 1) },
         uImpulse: { value: 0 },
         uReset: { value: 1 },
@@ -309,12 +325,13 @@ export function LiquidRippleCanvas() {
         previousPointer.copy(pointer);
         pointer.lerp(pointerTarget, 1 - Math.pow(.62, elapsed / 16.67));
         const speed = pointer.distanceTo(previousPointer);
-        impulse = Math.min(.38, Math.max(speed * 20, impulse * .72));
-        pointerEnergy = Math.min(1, Math.max(speed * 48, pointerEnergy * .985));
+        impulse = Math.min(.55, Math.max(speed * 30, impulse * .82));
+        pointerEnergy = Math.min(1, Math.max(speed * 56, pointerEnergy * .975));
 
         simulationUniforms.uImpulse.value = impulse;
-        const simulationSteps = 1;
+        const simulationSteps = impulse > .025 ? 3 : 1;
         for (let step = 0; step < simulationSteps; step += 1) {
+          simulationPointer.lerpVectors(previousPointer, pointer, (step + 1) / simulationSteps);
           simulationUniforms.uState.value = targetA.texture;
           renderer.setRenderTarget(targetB);
           renderer.render(simulationScene, camera);

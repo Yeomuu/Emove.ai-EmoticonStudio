@@ -14,7 +14,7 @@ The Figma Home frame still shows an older left-side navigation. The later produc
 - Character generation: a synchronous ref lock prevents same-frame double submission. The UI stays disabled through OpenAI generation, chroma-key removal, GCS/local persistence, and browser image decoding.
 - Emoticon frame generation: one lock covers all five sequential paid image requests. Navigation stays disabled until all five returned images decode.
 - Core-effect generation: Save/Export and effect generation are mutually exclusive; the generated effect must decode before the effect button unlocks.
-- Save/Export: one ref lock prevents duplicate APNG render, upload, Neon upsert, and QR publication work.
+- Save/Export: one ref lock prevents duplicate APNG render, upload, Firestore upsert, and QR publication work.
 - Home: pointer repulsion and drag use alpha hit maps, so transparent PNG pixels do not react. Character-to-character collision now samples both alpha maps inside their overlap area before applying an impulse.
 - Route motion: App Router-compatible client routes remain addressable and preserve browser history. The full-screen curtain waits for the target client bundle and its minimum reveal interval; in-page depth changes keep the vertical slide motion without the global curtain.
 - Showcase: animated items remain limited to 12, rotate through a shuffled circular deck every 20 seconds, and split between behind-text and front layers.
