@@ -12,6 +12,7 @@ export interface RemoteSyncResult {
 
 type RemoteKind = "characters" | "captures" | "projects" | "stickers";
 type RemoteLibraryRecord = { id: string; kind: RemoteKind; payload: unknown; createdAt?: string; updatedAt?: string };
+const REMOTE_REQUEST_TIMEOUT_MS = 6_500;
 
 type RemoteStickerDoc = {
   id?: unknown;
@@ -116,6 +117,7 @@ async function postRemoteRecord(kind: RemoteKind, payload: unknown, id = recordI
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, kind, payload }),
+      signal: AbortSignal.timeout(REMOTE_REQUEST_TIMEOUT_MS),
     });
     const body = await response.json().catch(() => ({})) as Partial<RemoteSyncResult> & { error?: string };
     if (response.status === 501) return { enabled: false, storageWarning: body.error ?? "원격 DB가 아직 설정되지 않았습니다." };
@@ -128,7 +130,10 @@ async function postRemoteRecord(kind: RemoteKind, payload: unknown, id = recordI
 
 async function getRemoteRecords(kind: RemoteKind): Promise<{ enabled: boolean; records: RemoteLibraryRecord[]; storageWarning?: string }> {
   try {
-    const response = await fetch(remoteEndpoint(kind), { method: "GET" });
+    const response = await fetch(remoteEndpoint(kind), {
+      method: "GET",
+      signal: AbortSignal.timeout(REMOTE_REQUEST_TIMEOUT_MS),
+    });
     const body = await response.json().catch(() => ({})) as { records?: RemoteLibraryRecord[]; error?: string };
     if (response.status === 501) return { enabled: false, records: [], storageWarning: body.error ?? "원격 DB가 아직 설정되지 않았습니다." };
     if (!response.ok) throw new Error(body.error ?? `원격 보관함 조회에 실패했습니다. (${response.status})`);

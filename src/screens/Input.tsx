@@ -10,6 +10,7 @@ import { waitForImageAssets } from "../services/asset-readiness";
 
 import { AudioCapture, CameraCapture } from "../services/media";
 import { analyzeEmotionPriority } from "../services/emotion-analysis";
+import { watchForInactivity } from "../services/inactivity";
 import { syncCaptureToRemote } from "../services/remote-store";
 import { saveCapture } from "../services/repository";
 import { createLiveVisionAnalyzer } from "../services/vision";
@@ -25,7 +26,7 @@ export function InputPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const camera = useRef(new CameraCapture());
   const audio = useRef(new AudioCapture());
-  const idleTimer = useRef<number | undefined>(undefined);
+  const idleWatcher = useRef<(() => void) | undefined>(undefined);
   const captureLockRef = useRef(false);
   const generationLockRef = useRef(false);
 
@@ -45,15 +46,21 @@ export function InputPage() {
   const [captureError, setCaptureError] = useState<string | null>(null);
 
   useEffect(() => {
-    window.clearTimeout(idleTimer.current);
+    idleWatcher.current?.();
     const captureCompleted = (
       behaviorCapture.value.id !== "capture-empty"
       && Boolean(behaviorCapture.value.videoBlob)
       && Boolean(behaviorCapture.value.audioBlob)
     );
     if (!captureCompleted || currentStep < 2 || capturing || analyzing || generatingFrames || recording || process) return;
-    idleTimer.current = window.setTimeout(() => navigate("/showcase"), 10_000);
-    return () => window.clearTimeout(idleTimer.current);
+
+    const stopWatching = watchForInactivity(() => navigate("/showcase"));
+    idleWatcher.current = stopWatching;
+
+    return () => {
+      stopWatching();
+      if (idleWatcher.current === stopWatching) idleWatcher.current = undefined;
+    };
   }, [
     currentStep,
     capturing,
@@ -103,14 +110,14 @@ export function InputPage() {
     return () => {
       active = false;
       window.clearTimeout(tickId);
-      window.clearTimeout(idleTimer.current);
+      idleWatcher.current?.();
       camera.current.release();
       audio.current.release();
     };
   }, []);
 
   const returnToPreview = (message?: string) => {
-    window.clearTimeout(idleTimer.current);
+    idleWatcher.current?.();
     setCapturing(false);
     setRecording(false);
     setCaptureProgress(0);
@@ -127,7 +134,7 @@ export function InputPage() {
   const capturePose = async () => {
     if (!videoRef.current || captureLockRef.current) return;
     captureLockRef.current = true;
-    window.clearTimeout(idleTimer.current);
+    idleWatcher.current?.();
     setCapturing(true);
     setRecording(true);
     setAnalyzing(false);

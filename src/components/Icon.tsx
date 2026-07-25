@@ -14,12 +14,14 @@ import imageIcon from "../assets/icons/image-02.svg";
 import layersIcon from "../assets/icons/layers.svg";
 import unlockIcon from "../assets/icons/lock-open.svg";
 import lockIcon from "../assets/icons/lock.svg";
+import moonIcon from "../assets/icons/moon.svg";
 import pauseIcon from "../assets/icons/pause.svg";
 import playIcon from "../assets/icons/play.svg";
 import saveIcon from "../assets/icons/save.svg";
 import searchIcon from "../assets/icons/search-magnifying-glass.svg";
 import settingsIcon from "../assets/icons/settings.svg";
 import starIcon from "../assets/icons/star.svg";
+import sunIcon from "../assets/icons/sun.svg";
 import trashIcon from "../assets/icons/trash-full.svg";
 import undoIcon from "../assets/icons/undo.svg";
 import voiceIcon from "../assets/icons/user-voice.svg";
@@ -39,6 +41,7 @@ const iconSources = {
   image: imageIcon,
   layers: layersIcon,
   lock: lockIcon,
+  moon: moonIcon,
   unlock: unlockIcon,
   pause: pauseIcon,
   play: playIcon,
@@ -47,6 +50,7 @@ const iconSources = {
   search: searchIcon,
   settings: settingsIcon,
   star: starIcon,
+  sun: sunIcon,
   trash: trashIcon,
   undo: undoIcon,
   voice: voiceIcon,

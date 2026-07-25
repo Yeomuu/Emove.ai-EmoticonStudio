@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMotionBrief, emotionMeta, initialLayers } from "../src/data";
 import { normalizePath } from "../src/router";
 import { keyOutConnectedGreen } from "../src/services/image-processing";
@@ -6,6 +6,7 @@ import { encodeApngPngFrames, encodeGifFrames } from "../src/services/renderer";
 import { circularBatch, isAnimatedSticker, shuffled } from "../src/services/animated-library";
 import { persistGeneratedAsset } from "../src/services/asset-storage";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
+import { SHOWCASE_IDLE_TIMEOUT_MS, watchForInactivity } from "../src/services/inactivity";
 import { isSameOriginRequest } from "../src/app/api/openai/[...path]/route";
 import { previewLayerOrder } from "../src/store";
 import type { StickerItem } from "../src/types";
@@ -17,6 +18,30 @@ describe("clean route normalization", () => {
     expect(normalizePath("/showcase")).toBe("/showcase");
     expect(normalizePath("/#home")).toBe("/home");
     expect(normalizePath("/unknown")).toBe("/home");
+  });
+});
+
+describe("showcase inactivity timer", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("waits three full minutes and restarts after user activity", () => {
+    vi.useFakeTimers();
+    const target = new EventTarget();
+    const onIdle = vi.fn();
+    const stopWatching = watchForInactivity(onIdle, { target });
+
+    vi.advanceTimersByTime(SHOWCASE_IDLE_TIMEOUT_MS - 1);
+    expect(onIdle).not.toHaveBeenCalled();
+
+    target.dispatchEvent(new Event("pointermove"));
+    vi.advanceTimersByTime(SHOWCASE_IDLE_TIMEOUT_MS - 1);
+    expect(onIdle).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(onIdle).toHaveBeenCalledTimes(1);
+    stopWatching();
   });
 });
 
@@ -43,6 +68,21 @@ describe("OpenAI proxy origin validation", () => {
       },
     });
     expect(isSameOriginRequest(request)).toBe(false);
+  });
+
+  it("rejects mutation requests that omit browser origin evidence", () => {
+    const request = new Request("https://emove-emoticonstudio.vercel.app/api/openai/frame", {
+      method: "POST",
+      headers: {
+        host: "emove-emoticonstudio.vercel.app",
+      },
+    });
+    expect(isSameOriginRequest(request)).toBe(false);
+  });
+
+  it("keeps same-origin read endpoints available without an Origin header", () => {
+    const request = new Request("https://emove-emoticonstudio.vercel.app/api/emotion/audio?id=job-1");
+    expect(isSameOriginRequest(request)).toBe(true);
   });
 });
 

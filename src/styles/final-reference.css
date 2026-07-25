@@ -494,91 +494,6 @@ html[data-theme="light"] .editor-page :where(
     background: linear-gradient(145deg, rgba(83, 66, 165, .32), rgba(255, 255, 255, .022));
   }
 
-  .app-shell.route-home .bottom-dock-text-nav {
-    left: 5.2604% !important;
-    right: auto !important;
-    top: 36.4815% !important;
-    bottom: auto !important;
-    width: 84px !important;
-    height: 300px !important;
-    padding: 0 !important;
-    display: grid !important;
-    grid-template-rows: repeat(3, 84px) !important;
-    align-content: space-between;
-    gap: 0 !important;
-    overflow: visible;
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  .app-shell.route-home .dock-home-logo,
-  .app-shell.route-home .showcase-icon-btn,
-  .app-shell.route-home .theme-icon-toggle {
-    display: none !important;
-  }
-
-  .app-shell.route-home :where(.text-nav-bar, .text-nav-actions) {
-    display: contents !important;
-  }
-
-  .app-shell.route-home .text-nav-bar a,
-  .app-shell.route-home .profile-icon-btn {
-    position: relative;
-    width: 84px !important;
-    height: 84px !important;
-    min-width: 84px !important;
-    min-height: 84px !important;
-    padding: 17px 8px 10px !important;
-    display: flex !important;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    border: 1px solid rgba(225, 221, 255, .14) !important;
-    border-radius: 50% !important;
-    background: linear-gradient(145deg, rgba(73, 58, 145, .32), rgba(255, 255, 255, .02)) !important;
-    color: rgba(248, 247, 255, .72) !important;
-    font-size: 10px !important;
-    line-height: 1;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 16px 32px rgba(0, 0, 0, .16) !important;
-    backdrop-filter: blur(18px) saturate(135%) !important;
-    -webkit-backdrop-filter: blur(18px) saturate(135%) !important;
-  }
-
-  .app-shell.route-home .text-nav-bar a.active {
-    border-color: rgba(180, 169, 255, .3) !important;
-    background: rgba(101, 82, 203, .3) !important;
-  }
-
-  .app-shell.route-home .home-nav-glyph,
-  .app-shell.route-home .home-profile-glyph {
-    display: block;
-    width: 22px;
-    height: 22px;
-    filter: brightness(0) invert(1);
-    opacity: .82;
-  }
-
-  .app-shell.route-home .profile-icon-btn img {
-    display: none !important;
-  }
-
-  .app-shell.route-home .profile-icon-btn::after {
-    content: "마이페이지" !important;
-  }
-
-  .app-shell.route-home .profile-icon-btn {
-    font-size: 0 !important;
-  }
-
-  .app-shell.route-home .profile-icon-btn::after {
-    font-size: 10px;
-  }
-
   .edit-brief {
     max-width: 620px !important;
   }
@@ -609,18 +524,6 @@ html[data-theme="light"] .home-copy .home-highlight-word {
   background-image: var(--reference-title-light) !important;
 }
 
-html[data-theme="light"] .app-shell.route-home .text-nav-bar a,
-html[data-theme="light"] .app-shell.route-home .profile-icon-btn {
-  border-color: rgba(55, 48, 85, .14) !important;
-  background: rgba(255, 255, 255, .56) !important;
-  color: rgba(43, 37, 64, .75) !important;
-  box-shadow: inset 0 1px 0 #fff, 0 12px 24px rgba(42, 37, 62, .055) !important;
-}
-
-html[data-theme="light"] .app-shell.route-home :where(.home-nav-glyph, .home-profile-glyph) {
-  filter: brightness(0) saturate(100%);
-}
-
 @media (max-height: 900px) and (min-width: 761px) {
   .input-capture-notes {
     top: 77.5%;
@@ -637,6 +540,18 @@ html[data-theme="light"] .app-shell.route-home :where(.home-nav-glyph, .home-pro
 }
 
 @media (max-width: 760px) {
+  .home-copy .hero-kicker {
+    left: 8% !important;
+    font-size: 54px !important;
+  }
+
+  .home-copy h1 {
+    left: 8% !important;
+    font-size: 54px !important;
+    max-width: 84%;
+    overflow-wrap: anywhere;
+  }
+
   .input-capture-notes {
     display: none;
   }

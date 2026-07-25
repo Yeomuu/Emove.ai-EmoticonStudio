@@ -1,6 +1,6 @@
 export function isSameOriginRequest(request: Request): boolean {
   const origin = request.headers.get("origin");
-  if (!origin) return true;
+  if (!origin) return request.method === "GET" || request.method === "HEAD";
 
   try {
     const originUrl = new URL(origin);

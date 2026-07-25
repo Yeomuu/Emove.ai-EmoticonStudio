@@ -14,6 +14,7 @@ type StoredLibraryRecord = LibraryRecord & {
 };
 
 const LIBRARY_ROOT_COLLECTION = "emove_library";
+const FIRESTORE_OPERATION_TIMEOUT_MS = 5_000;
 
 let firestoreClient: Firestore | null = null;
 
@@ -27,12 +28,16 @@ export async function saveLibraryRecord(record: LibraryRecord): Promise<{ enable
 
   const syncedAt = new Date().toISOString();
   const reference = recordCollection(database, record.kind).doc(documentId(record.id));
-  await reference.set({
-    id: record.id,
-    kind: record.kind,
-    payload: record.payload,
-    updatedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
+  try {
+    await withFirestoreTimeout(reference.set({
+      id: record.id,
+      kind: record.kind,
+      payload: record.payload,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }));
+  } catch (error) {
+    return { enabled: false, error: firestoreError("Firestore 저장", error) };
+  }
 
   return {
     enabled: true,
@@ -45,10 +50,15 @@ export async function listLibraryRecords(kind: string): Promise<{ enabled: boole
   const database = getLibraryFirestore();
   if (!database) return { enabled: false, error: libraryStoreConfigurationError() ?? "Firestore가 설정되지 않았습니다." };
 
-  const snapshot = await recordCollection(database, kind)
-    .orderBy("updatedAt", "desc")
-    .limit(200)
-    .get();
+  let snapshot;
+  try {
+    snapshot = await withFirestoreTimeout(recordCollection(database, kind)
+      .orderBy("updatedAt", "desc")
+      .limit(200)
+      .get());
+  } catch (error) {
+    return { enabled: false, error: firestoreError("Firestore 조회", error) };
+  }
 
   return {
     enabled: true,
@@ -82,4 +92,25 @@ function recordCollection(database: Firestore, kind: string) {
 
 function documentId(id: string): string {
   return Buffer.from(id, "utf8").toString("base64url");
+}
+
+function withFirestoreTimeout<T>(operation: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("요청 시간이 초과되었습니다.")), FIRESTORE_OPERATION_TIMEOUT_MS);
+    operation.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+function firestoreError(label: string, error: unknown): string {
+  const detail = error instanceof Error ? error.message : "알 수 없는 오류";
+  return `${label}를 사용할 수 없어 로컬 보관함으로 전환합니다. (${detail})`;
 }
