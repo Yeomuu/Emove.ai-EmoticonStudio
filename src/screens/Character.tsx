@@ -649,17 +649,19 @@ function CharacterDropdown({
   return (
     <div className={`character-dropdown ${open ? "is-open" : ""}`} data-dropdown={id}>
       <span className="character-field-label">{label}</span>
-      <button type="button" className="character-dropdown-trigger" onClick={onToggle} aria-expanded={open}>
+      <button type="button" className="character-dropdown-trigger" onClick={onToggle} aria-expanded={open} aria-haspopup="menu" aria-controls={`character-dropdown-${id}-menu`}>
         <span>{value}</span>
         <Icon name={open ? "previous" : "next"} size={14} />
       </button>
-      <div className="character-dropdown-menu" aria-hidden={!open}>
-        {options.map((option) => (
-          <button key={option} type="button" className={option === value ? "active" : ""} onClick={() => onSelect(option)}>
-            {option}
-          </button>
-        ))}
-      </div>
+      {open ? (
+        <div id={`character-dropdown-${id}-menu`} className="character-dropdown-menu" role="menu" aria-label={`${label} 목록`}>
+          {options.map((option) => (
+            <button key={option} type="button" role="menuitemradio" aria-checked={option === value} className={option === value ? "active" : ""} onClick={() => onSelect(option)}>
+              {option}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

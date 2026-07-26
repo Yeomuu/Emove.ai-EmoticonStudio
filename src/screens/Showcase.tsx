@@ -173,11 +173,11 @@ export function ShowcasePage() {
           </filter>
         </defs>
       </svg>
-      <button className="showcase-return-surface" type="button" onClick={returnToPrevious} aria-label="이전 화면으로 돌아가기" />
+      <button className="showcase-return-surface" type="button" onClick={returnToPrevious} aria-hidden="true" tabIndex={-1} />
 
       <div className="showcase-adjusted-content">
         <header className="showcase-header">
-          <button className="showcase-logo" type="button" onClick={returnToPrevious} aria-label="이전 화면으로 돌아가기">
+          <button className="showcase-logo" type="button" onClick={returnToPrevious} aria-label="EMOVE 로고, 이전 화면으로 돌아가기">
             <img src={imageAssets.logo} alt="" />
           </button>
           <p>ANIMATED EMOTICON ARCHIVE</p>

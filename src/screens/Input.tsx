@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Shell";
 import { Waveform } from "../components/Waveform";
@@ -23,6 +23,7 @@ const FRAME_COUNT = 5;
 const CAPTURE_DURATION_MS = 5000;
 type ProcessState = { title: string; label: string; percent: number };
 type CapturePhase = "idle" | "preparing" | "recording";
+type CameraStatus = "connecting" | "ready" | "blocked" | "unavailable" | "closed";
 
 export function InputPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -31,9 +32,11 @@ export function InputPage() {
   const idleWatcher = useRef<(() => void) | undefined>(undefined);
   const captureLockRef = useRef(false);
   const generationLockRef = useRef(false);
+  const cameraConnectRef = useRef<Promise<boolean> | undefined>(undefined);
+  const mountedRef = useRef(false);
 
   const [currentStep, setCurrentStep] = useState(0);
-  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>("connecting");
   const [captureProgress, setCaptureProgress] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [capturePhase, setCapturePhase] = useState<CapturePhase>("idle");
@@ -45,8 +48,61 @@ export function InputPage() {
   const [process, setProcess] = useState<ProcessState | null>(null);
 
   const [personDetected, setPersonDetected] = useState(false);
+  const [visionAvailable, setVisionAvailable] = useState<boolean | null>(null);
   const [tierOverride, setTierOverride] = useState<ExaggerationTier | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
+  const [cameraIssue, setCameraIssue] = useState<string | null>(null);
+  const cameraReady = cameraStatus === "ready";
+
+  const connectCamera = useCallback(async (showNotification = true): Promise<boolean> => {
+    const video = videoRef.current;
+    if (!video) return false;
+    if (camera.current.isReady(video)) {
+      setCameraStatus("ready");
+      setCameraIssue(null);
+      return true;
+    }
+    if (cameraConnectRef.current) return cameraConnectRef.current;
+
+    setCameraStatus("connecting");
+    setCameraIssue(null);
+    setPersonDetected(false);
+    const task = (async () => {
+      try {
+        await camera.current.attach(video, () => {
+          if (!mountedRef.current) return;
+          setCameraStatus("closed");
+          setPersonDetected(false);
+          setVisionAvailable(null);
+          setCameraIssue("카메라 연결이 종료되었습니다. 아래 버튼을 눌러 다시 연결해 주세요.");
+        });
+        if (!mountedRef.current) {
+          camera.current.release();
+          return false;
+        }
+        setCameraStatus("ready");
+        setCameraIssue(null);
+        return true;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return false;
+        const message = captureFailureMessage(error);
+        if (mountedRef.current) {
+          setCameraStatus(cameraStatusFromError(error));
+          setPersonDetected(false);
+          setVisionAvailable(null);
+          setCameraIssue(message);
+          if (showNotification) notify(message);
+        }
+        return false;
+      }
+    })();
+    cameraConnectRef.current = task;
+    try {
+      return await task;
+    } finally {
+      if (cameraConnectRef.current === task) cameraConnectRef.current = undefined;
+    }
+  }, []);
 
   useEffect(() => {
     idleWatcher.current?.();
@@ -76,48 +132,58 @@ export function InputPage() {
     behaviorCapture.value.audioBlob,
   ]);
 
-  // Always-on camera: start on mount, blur when person not detected
+  // Keep the preview warm, but always leave a recoverable manual reconnect path.
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    let active = true;
-    let tickId = 0;
-    camera.current.attach(video).then(() => {
-      setCameraReady(true);
-      createLiveVisionAnalyzer().then((analyzer) => {
-        const checkFrame = () => {
-          if (!active) return;
-          if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-            try {
-              const metrics = analyzer.detectFrame?.(video);
-              if (metrics && metrics.source === "mediapipe") {
-                setPersonDetected(true);
-              } else {
-                setPersonDetected(false);
-              }
-            } catch (err) {
-              // Ignore frame errors
-            }
-          }
-          tickId = window.setTimeout(checkFrame, 250);
-        };
-        checkFrame();
-      }).catch(() => {
-        // Fallback for offline/no internet: clear blur after 3 seconds
-        window.setTimeout(() => {
-          if (active) setPersonDetected(true);
-        }, 3000);
-      });
-    }).catch(() => { /* camera not available */ });
-
+    mountedRef.current = true;
+    void connectCamera(false);
     return () => {
-      active = false;
-      window.clearTimeout(tickId);
+      mountedRef.current = false;
+      cameraConnectRef.current = undefined;
       idleWatcher.current?.();
       camera.current.release();
       audio.current.release();
     };
-  }, []);
+  }, [connectCamera]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !cameraReady) return;
+    let active = true;
+    let tickId = 0;
+    setVisionAvailable(null);
+    createLiveVisionAnalyzer().then((analyzer) => {
+      if (!active) return;
+      setVisionAvailable(true);
+      const checkFrame = () => {
+        if (!active) return;
+        if (!camera.current.isReady(video)) {
+          setCameraStatus("closed");
+          setPersonDetected(false);
+          return;
+        }
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          try {
+            const metrics = analyzer.detectFrame?.(video);
+            setPersonDetected(Boolean(metrics && metrics.source === "mediapipe"));
+          } catch {
+            setPersonDetected(false);
+          }
+        }
+        tickId = window.setTimeout(checkFrame, 250);
+      };
+      checkFrame();
+    }).catch((error) => {
+      if (!active) return;
+      setVisionAvailable(false);
+      setPersonDetected(false);
+      setCameraIssue(`카메라는 연결되었지만 행동 분석 모델을 준비하지 못했습니다. ${error instanceof Error ? error.message : ""}`.trim());
+    });
+
+    return () => {
+      active = false;
+      window.clearTimeout(tickId);
+    };
+  }, [cameraReady]);
 
   const returnToPreview = (message?: string) => {
     idleWatcher.current?.();
@@ -131,6 +197,9 @@ export function InputPage() {
 
   const startCaptureFlow = async () => {
     setCaptureError(null);
+    setCameraIssue(null);
+    const ready = await connectCamera(true);
+    if (!ready) return;
     await capturePose();
   };
 
@@ -322,7 +391,7 @@ export function InputPage() {
           <div className="input-composer">
             <div className="pose-capture-panel">
               <Panel title="✦ 실시간 모니터" className="camera-monitor-panel">
-                <div className={`pose-media-frame${cameraReady && !personDetected && !capturing ? " is-awaiting-person" : ""}${capturing ? " is-recording" : ""}`}>
+                <div className={`pose-media-frame${cameraReady && visionAvailable === true && !personDetected && !capturing ? " is-awaiting-person" : ""}${capturing ? " is-recording" : ""}`}>
                   <video
                     ref={videoRef}
                     muted
@@ -330,21 +399,31 @@ export function InputPage() {
                     className={cameraReady ? "visible" : ""}
                     style={{
                       transform: "scaleX(-1)",
-                      ...(cameraReady && !personDetected && !capturing ? { filter: "blur(8px) brightness(0.68)", transition: "filter 0.5s ease" } : {})
+                      ...(cameraReady && visionAvailable === true && !personDetected && !capturing ? { filter: "blur(8px) brightness(0.68)", transition: "filter 0.5s ease" } : {})
                     }}
                   />
                   {!cameraReady && <img src={imageAssets.pose} alt="포즈 예시" />}
                   <span className="camera-status">
-                    <i className={cameraReady ? capturing ? capturePhase : "on" : ""} />
+                    <i className={cameraReady ? capturing ? capturePhase : "on" : cameraStatus} />
                     {capturing
                       ? capturePhase === "recording"
                         ? "포즈와 목소리를 동시에 기록하고 있습니다"
                         : "카메라와 마이크를 준비하고 있습니다"
+                      : cameraStatus === "connecting"
+                        ? "카메라 연결 중"
                       : personDetected
                         ? "인식 완료"
                         : cameraReady
-                          ? "카메라 준비됨 (사람 인식 대기)"
-                          : "CAMERA CLOSED"}
+                          ? visionAvailable === false
+                            ? "카메라 준비됨 (행동 분석 모델 오류)"
+                            : visionAvailable === null
+                              ? "카메라 준비됨 (행동 분석 모델 준비 중)"
+                              : "카메라 준비됨 (사람 인식 대기)"
+                          : cameraStatus === "blocked"
+                            ? "카메라 권한 필요"
+                            : cameraStatus === "unavailable"
+                              ? "카메라 사용 불가"
+                              : "카메라 연결 종료"}
                   </span>
                   {capturing ? (
                     <div className="camera-capture-hud" role="status" aria-live="polite">
@@ -378,8 +457,8 @@ export function InputPage() {
                   type="button"
                   className="btn-start-capture"
                   onClick={startCaptureFlow}
-                  disabled={!cameraReady || capturing || analyzing}
-                  aria-busy={capturing}
+                  disabled={cameraStatus === "connecting" || capturing || analyzing}
+                  aria-busy={cameraStatus === "connecting" || capturing}
                 >
                   <Icon name="camera" />
                   <span>
@@ -387,7 +466,11 @@ export function InputPage() {
                       ? capturePhase === "recording"
                         ? `${Math.max(1, Math.ceil((1 - captureProgress) * 5))}초 촬영 중`
                         : "촬영 준비 중"
-                      : "촬영 시작하기"}
+                      : cameraStatus === "connecting"
+                        ? "카메라 연결 중"
+                        : cameraReady
+                          ? "촬영 시작하기"
+                          : "카메라 다시 연결하기"}
                   </span>
                 </button>
               </Panel>
@@ -408,11 +491,14 @@ export function InputPage() {
               </aside>
             </div>
           </div>
-          {captureError ? (
+          {captureError || cameraIssue ? (
             <div className="input-capture-error" role="alert" aria-live="assertive">
-              <strong>분석을 완료하지 못했습니다.</strong>
-              <span>{captureError}</span>
-              <button type="button" onClick={() => setCaptureError(null)}>확인</button>
+              <strong>{captureError ? "분석을 완료하지 못했습니다." : "카메라 연결을 확인해 주세요."}</strong>
+              <span>{captureError ?? cameraIssue}</span>
+              <button type="button" onClick={() => {
+                setCaptureError(null);
+                setCameraIssue(null);
+              }}>확인</button>
             </div>
           ) : (
             <ul className="input-capture-notes" aria-label="촬영 안내">
@@ -723,16 +809,35 @@ function describeFaceUse(current: Emotion, metrics: VisionMetrics): string {
   return `${meta.label} 표정 · ${Math.round(metrics.face.confidence * 100)}%`;
 }
 
+function cameraStatusFromError(error: unknown): CameraStatus {
+  const name = error instanceof DOMException ? error.name : "";
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (/NotAllowedError|SecurityError/i.test(name) || /permission denied|permission dismissed|권한/i.test(message)) {
+    return "blocked";
+  }
+  if (
+    /NotFoundError|NotReadableError|OverconstrainedError/i.test(name)
+    || /device in use|could not start|no device|찾지 못|사용 중/i.test(message)
+  ) {
+    return "unavailable";
+  }
+  return "closed";
+}
+
 function captureFailureMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error || "");
-  if (/permission denied|notallowederror|permission dismissed/i.test(message)) {
+  const name = error instanceof DOMException ? error.name : "";
+  if (/NotAllowedError|SecurityError/i.test(name) || /permission denied|notallowederror|permission dismissed/i.test(message)) {
     return "카메라와 마이크 권한이 필요합니다. 브라우저 주소창의 권한 설정에서 두 장치를 허용한 뒤 다시 촬영해 주세요.";
   }
-  if (/notreadableerror|could not start|device in use|track start/i.test(message)) {
+  if (/NotReadableError/i.test(name) || /notreadableerror|could not start|device in use|track start/i.test(message)) {
     return "카메라 또는 마이크를 다른 앱에서 사용 중입니다. 해당 앱을 닫은 뒤 다시 촬영해 주세요.";
   }
-  if (/notfounderror|requested device not found|no device/i.test(message)) {
+  if (/NotFoundError|OverconstrainedError/i.test(name) || /notfounderror|requested device not found|no device/i.test(message)) {
     return "사용 가능한 카메라 또는 마이크를 찾지 못했습니다. 장치 연결 상태를 확인해 주세요.";
+  }
+  if (/시간이 초과|timeout|timed out/i.test(message)) {
+    return "카메라 권한 또는 영상 준비 응답이 지연되고 있습니다. 브라우저 권한 창을 확인한 뒤 다시 연결해 주세요.";
   }
   if (/quota|billing|hard limit|usage limit/i.test(message)) {
     return "OpenAI API 사용 한도를 초과했습니다. 결제 및 사용량 설정을 확인한 뒤 다시 촬영해 주세요.";

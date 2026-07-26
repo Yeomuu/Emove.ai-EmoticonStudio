@@ -102,7 +102,7 @@
   padding: 0;
   display: grid;
   gap: 7px;
-  color: rgba(199, 194, 218, .32);
+  color: rgba(199, 194, 218, .44);
   font-size: 13px;
   font-weight: 300;
   line-height: 1.35;
@@ -288,7 +288,7 @@ html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .came
 }
 
 html[data-theme="light"] .input-capture-notes {
-  color: rgba(43, 37, 64, .42);
+  color: rgba(43, 37, 64, .64);
 }
 
 html[data-theme="light"] .input-capture-error {

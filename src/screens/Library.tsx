@@ -611,6 +611,7 @@ export function LibraryPage() {
                 >
                   {virtualItems.map(({ entry, virtualIndex, copy }) => {
                     const isActive = virtualIndex === activeVirtualIndex;
+                    const actionTabIndex = isActive ? 0 : -1;
                     const key = `${copy}-${entry.kind}-${entry.item.id}`;
                     if (entry.kind === "emoticon") {
                       const sticker = entry.item as StickerItem;
@@ -620,6 +621,7 @@ export function LibraryPage() {
                           key={key}
                           data-virtual-index={virtualIndex}
                           className={`carousel-card emoticon-card ${isActive ? "active" : "inactive"}`}
+                          aria-hidden={isActive ? undefined : true}
                           onClick={() => selectVirtualItem(virtualIndex)}
                         >
                           <div className="card-preview">
@@ -631,6 +633,7 @@ export function LibraryPage() {
                               <span className="card-hover-group"><Icon name="folder" size={15} />{sticker.group ?? "이모티콘 그룹"}</span>
                               <button
                                 type="button"
+                                tabIndex={actionTabIndex}
                                 className={`floating-action btn-favorite ${sticker.favorite ? "active" : ""}`}
                                 onClick={(e) => { e.stopPropagation(); toggleFavorite(sticker.id); }}
                                 aria-label="즐겨찾기"
@@ -641,6 +644,7 @@ export function LibraryPage() {
                               <div className="action-buttons">
                                 <button
                                   type="button"
+                                  tabIndex={actionTabIndex}
                                   className="btn-edit"
                                   onClick={(e) => { e.stopPropagation(); beginEditSticker(sticker, project); }}
                                   aria-label="수정"
@@ -650,6 +654,7 @@ export function LibraryPage() {
                                 </button>
                                 <button
                                   type="button"
+                                  tabIndex={actionTabIndex}
                                   className="btn-download"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -666,6 +671,7 @@ export function LibraryPage() {
                                 </button>
                                 <button
                                   type="button"
+                                  tabIndex={actionTabIndex}
                                   className="btn-delete"
                                   onClick={(e) => { e.stopPropagation(); handleDelete(sticker.id, "emoticon"); }}
                                   aria-label="삭제"
@@ -684,6 +690,7 @@ export function LibraryPage() {
                           key={key}
                           data-virtual-index={virtualIndex}
                           className={`carousel-card character-card ${isActive ? "active" : "inactive"}`}
+                          aria-hidden={isActive ? undefined : true}
                           onClick={() => selectVirtualItem(virtualIndex)}
                         >
                           <div className="card-preview" style={{ background: character.colors.body ?? "rgba(187, 182, 255, 0.12)" }}>
@@ -695,6 +702,7 @@ export function LibraryPage() {
                               <span className="card-hover-group"><Icon name="folder" size={15} />캐릭터</span>
                               <button
                                 type="button"
+                                tabIndex={actionTabIndex}
                                 className={`floating-action btn-favorite ${character.favorite ? "active" : ""}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -708,6 +716,7 @@ export function LibraryPage() {
                               <div className="action-buttons">
                                 <button
                                   type="button"
+                                  tabIndex={actionTabIndex}
                                   className="btn-edit"
                                   onClick={(e) => { e.stopPropagation(); beginEditCharacter(character); }}
                                   aria-label="수정"
@@ -717,6 +726,7 @@ export function LibraryPage() {
                                 </button>
                                 <button
                                   type="button"
+                                  tabIndex={actionTabIndex}
                                   className="btn-download"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -730,6 +740,7 @@ export function LibraryPage() {
                                 </button>
                                 <button
                                   type="button"
+                                  tabIndex={actionTabIndex}
                                   className="btn-delete"
                                   onClick={(e) => { e.stopPropagation(); handleDelete(character.id, "character"); }}
                                   aria-label="삭제"

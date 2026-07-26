@@ -224,7 +224,8 @@
   .layer-copy small { color: var(--dim); font-size: 8px; }
   .layer-order { color: var(--purple); font-size: 9px; }
   .layer-controls, .layer-move { display: flex; align-items: center; gap: 6px; }
-  .layer-controls i, .layer-move i { color: var(--dim); font-size: 10px; font-style: normal; cursor: pointer; }
+  .layer-control-button { width: 22px; height: 22px; padding: 0; display: inline-grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--dim); cursor: pointer; }
+  .layer-control-button:hover, .layer-control-button:focus-visible { background: rgba(187,182,255,.12); color: var(--text); }
   .rotate-up { transform: rotate(90deg); }
   .rotate-down { transform: rotate(90deg); }
   .frame-track { position: relative; min-width: 0; overflow: hidden; }

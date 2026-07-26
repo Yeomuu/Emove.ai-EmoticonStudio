@@ -96,23 +96,75 @@ export class AudioCapture {
 
 export class CameraCapture {
   private stream?: MediaStream;
+  private video?: HTMLVideoElement;
+  private requestVersion = 0;
 
-  async attach(video: HTMLVideoElement): Promise<void> {
+  async attach(video: HTMLVideoElement, onEnded?: () => void): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("이 브라우저는 카메라 입력을 지원하지 않습니다.");
     this.release();
-    this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 960 }, height: { ideal: 720 } }, audio: false });
-    video.srcObject = this.stream;
-    await new Promise<void>((resolve, reject) => {
-      const ready = () => { cleanup(); resolve(); };
-      const error = () => { cleanup(); reject(new Error("카메라 영상을 불러오지 못했습니다.")); };
-      const cleanup = () => { video.removeEventListener("canplay", ready); video.removeEventListener("error", error); };
-      video.addEventListener("canplay", ready, { once: true });
-      video.addEventListener("error", error, { once: true });
-      void video.play().catch((playError: DOMException) => {
-        if (playError.name !== "AbortError") error();
-      });
-      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) ready();
+    const requestVersion = this.requestVersion;
+    const mediaRequest = navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 960 }, height: { ideal: 720 } },
+      audio: false,
     });
+    const stream = await withTimeout(
+      mediaRequest,
+      20_000,
+      "카메라 권한 응답 시간이 초과되었습니다. 브라우저 권한 창을 확인한 뒤 다시 연결해 주세요.",
+      (lateStream) => lateStream.getTracks().forEach((track) => track.stop()),
+    );
+    if (requestVersion !== this.requestVersion) {
+      stream.getTracks().forEach((track) => track.stop());
+      throw new DOMException("카메라 연결 요청이 취소되었습니다.", "AbortError");
+    }
+
+    this.stream = stream;
+    this.video = video;
+    video.srcObject = stream;
+    const track = stream.getVideoTracks()[0];
+    track?.addEventListener("ended", () => {
+      if (this.stream !== stream) return;
+      this.stream = undefined;
+      if (video.srcObject === stream) video.srcObject = null;
+      onEnded?.();
+    }, { once: true });
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        let timeoutId = 0;
+        const ready = () => { cleanup(); resolve(); };
+        const error = () => { cleanup(); reject(new Error("카메라 영상을 불러오지 못했습니다.")); };
+        const cleanup = () => {
+          window.clearTimeout(timeoutId);
+          video.removeEventListener("canplay", ready);
+          video.removeEventListener("error", error);
+        };
+        video.addEventListener("canplay", ready, { once: true });
+        video.addEventListener("error", error, { once: true });
+        timeoutId = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("카메라 프레임 준비 시간이 초과되었습니다. 다시 연결해 주세요."));
+        }, 8_000);
+        void video.play().catch((playError: DOMException) => {
+          if (playError.name !== "AbortError") error();
+        });
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) ready();
+      });
+    } catch (error) {
+      this.release();
+      throw error;
+    }
+  }
+
+  isReady(video?: HTMLVideoElement): boolean {
+    const target = video ?? this.video;
+    return Boolean(
+      this.stream
+      && target
+      && target.srcObject === this.stream
+      && target.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+      && this.stream.getVideoTracks().some((track) => track.readyState === "live"),
+    );
   }
 
   async record(video: HTMLVideoElement, durationMs = 5000, onProgress?: (progress: number) => void): Promise<CameraCaptureResult> {
@@ -163,9 +215,39 @@ export class CameraCapture {
     };
   }
 
-  release(): void { this.stream?.getTracks().forEach((track) => track.stop()); this.stream = undefined; }
+  release(): void {
+    this.requestVersion += 1;
+    const stream = this.stream;
+    const video = this.video;
+    stream?.getTracks().forEach((track) => track.stop());
+    if (video && video.srcObject === stream) video.srcObject = null;
+    this.stream = undefined;
+    this.video = undefined;
+  }
 }
 
 function supportedRecorderMimeType(candidates: string[]): string | undefined {
   return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate));
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+  onLateResolve?: (value: T) => void,
+): Promise<T> {
+  let timedOut = false;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      reject(new Error(message));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (timedOut && onLateResolve) void promise.then(onLateResolve).catch(() => undefined);
+  }
 }

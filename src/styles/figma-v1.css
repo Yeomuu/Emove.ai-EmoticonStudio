@@ -6561,9 +6561,9 @@ body::before {
 .character-trait-card { left: 49.375%; top: 44.7222%; width: 36.9792%; height: 31.7593%; }
 .character-flow-card h2 { font-size: 24px; font-weight: 300; letter-spacing: 0; }
 .character-shape-card h2 { left: 5.25%; top: 7.5%; }
-.character-dual-dropdowns { left: 5.25%; top: 26%; width: 89.5%; grid-template-columns: 1fr 48px 1fr; gap: 10px; }
+.character-dual-dropdowns { z-index: 50; left: 5.25%; top: 26%; width: 89.5%; grid-template-columns: 1fr 48px 1fr; gap: 10px; }
 .character-dropdown-trigger { height: 48px; border-radius: 12px; background: rgba(255,255,255,.035); }
-.character-dropdown-menu { z-index: 40; top: 76px; border-radius: 14px; background: rgba(19,17,31,.98); }
+.character-dropdown-menu { z-index: 40; top: 76px; border-radius: 14px; background: rgb(19,17,31); }
 .character-step-one .character-dropdown-menu { opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; transform: none !important; }
 .character-mini-preview { left: 5.25%; top: 58%; width: 89.5%; height: 32%; }
 .character-mini-preview figure { width: 122px; height: 122px; border-radius: 0; background: transparent; }
@@ -6866,13 +6866,17 @@ body::before {
   position: absolute;
   z-index: 52;
   left: 0;
-  top: -393px;
+  top: calc(-36.3889svh - 61px);
   width: 210px;
   height: 320px;
   padding: 0;
   gap: 0;
   border-right: 1px solid var(--figma-line);
   background: rgba(255,255,255,.012);
+}
+@media (max-height: 900px) {
+  .layer-stack { height: 260px; }
+  .layer-row { min-height: 56px; }
 }
 .layer-row {
   min-height: 62px;

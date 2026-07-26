@@ -39,7 +39,7 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
   const [booting, setBooting] = useState(true);
   const [bootProgress, setBootProgress] = useState(0);
   const [bootLabel, setBootLabel] = useState("Checking assets");
-  const [activeRoute, setActiveRoute] = useState<RoutePath>("/home");
+  const [activeRoute, setActiveRoute] = useState<RoutePath>(() => initialPath ?? route.value);
   const [routePhase, setRoutePhase] = useState<"idle" | "covering" | "revealing">("idle");
   const [routeProgress, setRouteProgress] = useState(0);
 
@@ -85,11 +85,12 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
     }).catch(() => undefined);
   }, []);
 
-  // Sync initial path
+  // Keep Next.js route props and the client route signal in sync. Active route
+  // changes stay inside the curtain transition below so its timers cannot be
+  // bypassed by browser back/forward navigation.
   useEffect(() => {
     if (initialPath && route.value !== initialPath) {
       route.value = initialPath;
-      setActiveRoute(initialPath);
     }
   }, [initialPath]);
 

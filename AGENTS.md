@@ -136,6 +136,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Character reference input prioritizes cartoon or 3D-rendered imagery and accepts one user-uploaded reference image that is included in the character generation token.
 - Emotion selection follows the explicit product priority voice → action → facial expression. Imentiv audio analysis is server-only through `/api/emotion/audio`; store the chosen source, provider, confidence, and full normalized score map, and label local heuristic fallbacks honestly.
 - Browser microphone capture may remain WebM for OpenAI transcription, but convert the short clip to mono WAV before Imentiv because its direct file upload accepts MP3, WAV, AAC, and M4A rather than WebM.
+- Camera initialization failures must remain recoverable: distinguish permission denial, unavailable devices, interrupted tracks, and delayed initialization; show a manual reconnect action instead of leaving capture permanently disabled.
 
 ## Firebase Remote Data Model
 

@@ -30,8 +30,12 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
 
   useEffect(() => {
     window.clearTimeout(closeTimer.current);
+    closeTimer.current = undefined;
     setDockVisible(!dockAutoHide);
-    return () => window.clearTimeout(closeTimer.current);
+    return () => {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = undefined;
+    };
   }, [dockAutoHide, current]);
 
   useEffect(() => {
@@ -46,22 +50,32 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
       const inRevealZone = event.clientX >= window.innerWidth - revealWidth && event.clientY >= window.innerHeight - 210;
       if (inRevealZone) {
         window.clearTimeout(closeTimer.current);
+        closeTimer.current = undefined;
         setDockVisible(true);
+      } else if (dockVisible && closeTimer.current === undefined) {
+        closeTimer.current = window.setTimeout(() => {
+          setDockVisible(false);
+          closeTimer.current = undefined;
+        }, 1000);
       }
     };
     window.addEventListener("pointermove", onPointerMove, { passive: true });
     return () => window.removeEventListener("pointermove", onPointerMove);
-  }, [dockAutoHide, current]);
+  }, [dockAutoHide, current, dockVisible]);
 
   const revealDock = () => {
     window.clearTimeout(closeTimer.current);
+    closeTimer.current = undefined;
     setDockVisible(true);
   };
 
   const scheduleDockHide = () => {
     if (!dockAutoHide) return;
     window.clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => setDockVisible(false), 1000);
+    closeTimer.current = window.setTimeout(() => {
+      setDockVisible(false);
+      closeTimer.current = undefined;
+    }, 1000);
   };
 
   return (
@@ -74,6 +88,8 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
       <header
         className={`bottom-dock-text-nav ${dockAutoHide ? "is-work-mode" : ""} ${dockVisible ? "is-visible" : "is-hidden"}`}
         aria-label="주요 메뉴"
+        aria-hidden={dockAutoHide && !dockVisible ? true : undefined}
+        inert={dockAutoHide && !dockVisible ? true : undefined}
         onPointerEnter={revealDock}
         onPointerLeave={scheduleDockHide}
         onPointerDown={(event) => event.stopPropagation()}
