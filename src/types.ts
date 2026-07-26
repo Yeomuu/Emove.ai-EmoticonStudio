@@ -87,6 +87,10 @@ export interface BehaviorCapture {
   audioBlob?: Blob;
   poseSummary: string;
   gesture: string;
+  handGesture?: string;
+  handConfidence?: number;
+  bodyGesture?: string;
+  bodyConfidence?: number;
   expression?: Emotion;
   emotionScores: Record<Emotion, number>;
   emotionSource?: EmotionSource;
@@ -169,8 +173,16 @@ export interface VisionMetrics {
     expression: Emotion;
     confidence: number;
   };
-  pose?: { shoulderTilt: number; armSpread: number };
+  pose?: {
+    shoulderTilt: number;
+    armSpread: number;
+    bodyGesture?: string;
+    bodyConfidence?: number;
+    leftWrist?: { x: number; y: number; raised: boolean };
+    rightWrist?: { x: number; y: number; raised: boolean };
+  };
   hand?: { gesture: string; confidence: number };
+  handDetected?: boolean;
   gesture?: string;
   source: "mediapipe" | "unavailable";
   diagnostics?: string;

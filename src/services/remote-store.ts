@@ -180,7 +180,13 @@ function createCaptureDoc(item: Omit<BehaviorCapture, "videoBlob" | "audioBlob">
       expression: item.expression ?? "unknown",
       gesture: item.gesture || item.poseSummary,
       emotionKey,
-      poseData: { poseSummary: item.poseSummary },
+      poseData: {
+        poseSummary: item.poseSummary,
+        handGesture: item.handGesture,
+        handConfidence: item.handConfidence,
+        bodyGesture: item.bodyGesture,
+        bodyConfidence: item.bodyConfidence,
+      },
     },
     voice: {
       waveformData: [item.audio.rms, item.audio.peak, item.audio.energy],

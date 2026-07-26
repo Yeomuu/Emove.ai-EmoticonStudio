@@ -10,6 +10,7 @@ import { waitForImageAssets } from "../services/asset-readiness";
 
 import { AudioCapture, CameraCapture } from "../services/media";
 import { analyzeEmotionPriority } from "../services/emotion-analysis";
+import { getGestureLabel } from "../services/gesture-analysis";
 import { watchForInactivity } from "../services/inactivity";
 import { syncCaptureToRemote } from "../services/remote-store";
 import { saveCapture } from "../services/repository";
@@ -285,6 +286,10 @@ export function InputPage() {
       audioBlob,
       poseSummary: describePose(metrics),
       gesture: metrics.gesture ?? "Not_Detected",
+      handGesture: metrics.hand?.gesture,
+      handConfidence: metrics.hand?.confidence,
+      bodyGesture: metrics.pose?.bodyGesture,
+      bodyConfidence: metrics.pose?.bodyConfidence,
       expression: metrics.face?.expression ?? "unknown",
       emotionSource: analyzedEmotion.source,
       emotionProvider: analyzedEmotion.provider,
@@ -690,23 +695,26 @@ function WorkProcessScreen({ title, label, percent }: ProcessState) {
 
 function describePose(metrics: VisionMetrics): string {
   if (metrics.source !== "mediapipe") return "행동 미분석";
-  if (metrics.gesture === "Victory") return "브이(V) 사인 행동";
-  if (metrics.gesture === "Thumb_Up") return "엄지 척 행동";
-  if (metrics.gesture === "Thumb_Down") return "엄지를 내린 행동";
-  if (metrics.gesture === "Pointing_Up") return "위쪽을 가리키는 행동";
-  if (metrics.gesture === "ILoveYou") return "사랑해 손동작";
-  if (metrics.gesture === "Closed_Fist") return "주먹을 쥔 행동";
-  if (metrics.gesture === "Open_Palm") return "손바닥을 펼친 행동";
-  if (metrics.gesture === "Raised_Hand") return "손을 든 행동";
-  if ((metrics.pose?.armSpread ?? 0) > .62) return "양팔을 펼친 행동";
-  if ((metrics.pose?.shoulderTilt ?? 0) > .12) return "상체가 기운 행동";
-  return "상체 중심의 자연스러운 행동";
+  const primary = getGestureLabel(metrics.gesture);
+  const bodyGesture = metrics.pose?.bodyGesture;
+  if (!bodyGesture || bodyGesture === "Natural" || bodyGesture === metrics.gesture) return primary;
+  return `${primary} · ${getGestureLabel(bodyGesture)}`;
 }
 
 function describePoseDetail(metrics: VisionMetrics): string {
   if (metrics.source !== "mediapipe") return "동작 감지 실패 - 다시 촬영해 주세요.";
-  if (metrics.hand) return `MediaPipe 손 제스처·관절 분석 완료 · 신뢰도 ${Math.round(metrics.hand.confidence * 100)}%`;
-  return "MediaPipe 관절 랜드마크 분석 완료 · 손 모양 미검출";
+  const details: string[] = [];
+  if (metrics.hand) {
+    details.push(`손 ${getGestureLabel(metrics.hand.gesture).replace(/ 행동$/, "")} ${Math.round(metrics.hand.confidence * 100)}%`);
+  } else if (metrics.handDetected) {
+    details.push("손 모양 미분류");
+  }
+  if (metrics.pose?.bodyGesture && metrics.pose.bodyGesture !== "Natural") {
+    details.push(`상체 ${getGestureLabel(metrics.pose.bodyGesture).replace(/ 행동$/, "")} ${Math.round((metrics.pose.bodyConfidence ?? 0) * 100)}%`);
+  }
+  return details.length
+    ? `MediaPipe 관절·손가락·이동 분석 · ${details.join(" · ")}`
+    : "MediaPipe 관절·손가락·이동 분석 완료";
 }
 
 function describeFaceUse(current: Emotion, metrics: VisionMetrics): string {

@@ -1,7 +1,17 @@
 import type { Emotion, VisionMetrics } from "../types";
+import {
+  classifyCustomHandGesture,
+  classifyPoseFrame,
+  classifyTwoHandGesture,
+  resolvePrimaryGesture,
+  selectDominantBodyGesture,
+  selectDominantHandGesture,
+  type GestureDecision,
+  type PosePoint,
+} from "./gesture-analysis";
 
 type BlendshapeCategory = { categoryName?: string; score?: number };
-type GestureCategory = { categoryName?: string; score?: number };
+type GestureRecognizerResult = import("@mediapipe/tasks-vision").GestureRecognizerResult;
 type VisionFileset = Awaited<ReturnType<(typeof import("@mediapipe/tasks-vision"))["FilesetResolver"]["forVisionTasks"]>>;
 type HandGesture = NonNullable<VisionMetrics["hand"]>;
 
@@ -104,11 +114,12 @@ async function analyzeVideoStream(video: HTMLVideoElement, durationMs: number, o
 function detectCurrentVideoFrame(video: HTMLVideoElement, timestampMs: number): VisionMetrics {
   const poseResult = poseLandmarker?.detectForVideo(video, timestampMs);
   let handGesture: HandGesture | undefined;
+  let handDetected = false;
   let faceCategories: BlendshapeCategory[] | undefined;
   try {
-    handGesture = pickFrameHandGesture(
-      gestureRecognizer?.recognizeForVideo(video, timestampMs).gestures as GestureCategory[][] | undefined,
-    );
+    const handResult = gestureRecognizer?.recognizeForVideo(video, timestampMs);
+    handDetected = Boolean(handResult?.landmarks.length);
+    handGesture = pickFrameHandGesture(handResult);
   } catch {
     handGesture = undefined;
   }
@@ -117,7 +128,7 @@ function detectCurrentVideoFrame(video: HTMLVideoElement, timestampMs: number): 
   } catch {
     faceUnavailable = true;
   }
-  return buildMetrics(poseResult?.landmarks[0], faceCategories, handGesture);
+  return buildMetrics(poseResult?.landmarks[0], faceCategories, handGesture, handDetected);
 }
 
 async function ensureFileset(): Promise<VisionFileset> {
@@ -174,12 +185,17 @@ async function ensureGestureRecognizer(): Promise<void> {
       baseOptions: { modelAssetPath, delegate: "GPU" as const },
       runningMode: "VIDEO" as const,
       numHands: 2,
-      minHandDetectionConfidence: .45,
-      minHandPresenceConfidence: .45,
-      minTrackingConfidence: .45,
+      minHandDetectionConfidence: .5,
+      minHandPresenceConfidence: .5,
+      minTrackingConfidence: .5,
       cannedGesturesClassifierOptions: {
         maxResults: 1,
-        scoreThreshold: .45,
+        scoreThreshold: .5,
+        categoryDenylist: ["None"],
+      },
+      customGesturesClassifierOptions: {
+        maxResults: 1,
+        scoreThreshold: .5,
         categoryDenylist: ["None"],
       },
     };
@@ -232,15 +248,19 @@ async function ensureFaceLandmarker(): Promise<void> {
 }
 
 function summarizeVideoSamples(samples: VisionMetrics[], lastError: Error | undefined): VisionMetrics {
-  const poseSamples = samples.filter((sample) => sample.source === "mediapipe");
+  const mediapipeSamples = samples.filter((sample) => sample.source === "mediapipe");
+  const poseSamples = mediapipeSamples.filter((sample) => sample.pose);
   const faceSamples = samples.filter((sample) => sample.face);
   const bestFace = faceSamples.sort((left, right) => (right.face?.confidence ?? 0) - (left.face?.confidence ?? 0))[0]?.face;
   const dominantHand = selectDominantHandGesture(
-    poseSamples.flatMap((sample) => sample.hand ? [sample.hand] : []),
-    poseSamples.length,
+    mediapipeSamples.flatMap((sample) => sample.hand ? [sample.hand] : []),
+    mediapipeSamples.length,
   );
+  const dominantBody = selectDominantBodyGesture(poseSamples);
+  const handDetectedFrames = mediapipeSamples.filter((sample) => sample.handDetected).length;
+  const handDetected = handDetectedFrames >= Math.max(2, Math.ceil(mediapipeSamples.length * .14));
 
-  if (!poseSamples.length) {
+  if (!mediapipeSamples.length) {
     return {
       source: "unavailable",
       gesture: bestFace ? "Pose_Not_Detected" : "Not_Detected",
@@ -251,105 +271,81 @@ function summarizeVideoSamples(samples: VisionMetrics[], lastError: Error | unde
     };
   }
 
-  const armSpread = Math.max(...poseSamples.map((sample) => sample.pose?.armSpread ?? 0));
-  const shoulderTilt = Math.max(...poseSamples.map((sample) => sample.pose?.shoulderTilt ?? 0));
-  const raisedFrames = poseSamples.filter((sample) => sample.gesture === "Raised_Hand").length;
-  const bodyGesture = raisedFrames >= Math.max(1, Math.ceil(poseSamples.length * .16)) ? "Raised_Hand" : "Natural";
+  const armSpread = percentile(poseSamples.map((sample) => sample.pose?.armSpread ?? 0), .75);
+  const shoulderTilt = percentile(poseSamples.map((sample) => sample.pose?.shoulderTilt ?? 0), .75);
+  const primaryGesture = resolvePrimaryGesture(dominantHand, dominantBody, handDetected);
 
   return {
     source: "mediapipe",
-    pose: { shoulderTilt, armSpread },
+    pose: {
+      shoulderTilt,
+      armSpread,
+      bodyGesture: dominantBody?.gesture,
+      bodyConfidence: dominantBody?.confidence,
+    },
     face: bestFace,
     hand: dominantHand,
-    gesture: dominantHand?.gesture ?? bodyGesture,
-    diagnostics: `5초 영상에서 ${poseSamples.length}회 포즈와 손 모양을 실시간 추적했습니다. MediaPipe pose=${poseDelegate ?? "unknown"}, gesture=${gestureDelegate ?? "off"}${dominantHand ? ` (${dominantHand.gesture} ${Math.round(dominantHand.confidence * 100)}%)` : ""}${faceDelegate ? `, face=${faceDelegate}` : ""}.`,
+    handDetected,
+    gesture: primaryGesture,
+    diagnostics: `5초 영상에서 ${mediapipeSamples.length}회 손가락을, ${poseSamples.length}회 상체 관절과 이동 궤적을 추적했습니다. MediaPipe pose=${poseDelegate ?? "unknown"}, gesture=${gestureDelegate ?? "off"}${dominantHand ? `, hand=${dominantHand.gesture} ${Math.round(dominantHand.confidence * 100)}%` : handDetected ? ", hand=unclassified" : ""}${dominantBody ? `, body=${dominantBody.gesture} ${Math.round(dominantBody.confidence * 100)}%` : ""}${faceDelegate ? `, face=${faceDelegate}` : ""}.`,
   };
 }
 
 function buildMetrics(
-  points: Array<{ x: number; y: number }> | undefined,
+  points: PosePoint[] | undefined,
   blendshapes: BlendshapeCategory[] | undefined,
   handGesture: HandGesture | undefined,
+  handDetected: boolean,
 ): VisionMetrics {
   const face = blendshapes?.length ? summarizeFace(blendshapes) : undefined;
   if (!points) {
     return {
-      source: "unavailable",
+      source: handGesture || handDetected ? "mediapipe" : "unavailable",
       gesture: handGesture?.gesture ?? (face ? "Pose_Not_Detected" : "Not_Detected"),
       hand: handGesture,
+      handDetected,
       face,
       diagnostics: face
         ? `얼굴은 인식했지만 상체/팔 포즈 랜드마크를 찾지 못했습니다. MediaPipe face=${faceDelegate ?? "off"}, pose=${poseDelegate ?? "off"}.`
         : `사람 포즈 랜드마크를 찾지 못했습니다. MediaPipe pose=${poseDelegate ?? "off"}.`,
     };
   }
-  const leftShoulder = points[11];
-  const rightShoulder = points[12];
-  const leftWrist = points[15];
-  const rightWrist = points[16];
-  const bodyGesture = (leftWrist?.y ?? 1) < (leftShoulder?.y ?? 0) || (rightWrist?.y ?? 1) < (rightShoulder?.y ?? 0)
-    ? "Raised_Hand"
-    : "Natural";
+  const pose = classifyPoseFrame(points);
+  const body: GestureDecision | undefined = pose.bodyGesture
+    ? { gesture: pose.bodyGesture, confidence: pose.bodyConfidence ?? 0 }
+    : undefined;
   return {
     source: "mediapipe",
-    pose: {
-      shoulderTilt: Math.abs((leftShoulder?.y ?? 0) - (rightShoulder?.y ?? 0)),
-      armSpread: Math.min(1, Math.abs((leftWrist?.x ?? 0) - (rightWrist?.x ?? 0))),
-    },
+    pose,
     face,
     hand: handGesture,
-    gesture: handGesture?.gesture ?? bodyGesture,
+    handDetected,
+    gesture: resolvePrimaryGesture(handGesture, body, handDetected),
     diagnostics: `MediaPipe pose=${poseDelegate ?? "unknown"}, gesture=${gestureDelegate ?? "off"}${faceDelegate ? `, face=${faceDelegate}` : ""}.`,
   };
 }
 
-function pickFrameHandGesture(gestureGroups: GestureCategory[][] | undefined): HandGesture | undefined {
-  const candidates = (gestureGroups ?? [])
+function pickFrameHandGesture(result: GestureRecognizerResult | undefined): HandGesture | undefined {
+  const cannedCandidates = (result?.gestures ?? [])
     .flat()
     .map((category) => ({
       gesture: category.categoryName ?? "",
       confidence: category.score ?? 0,
     }))
-    .filter((candidate) => candidate.gesture && candidate.gesture !== "None" && candidate.confidence >= .45)
+    .filter((candidate) => candidate.gesture && candidate.gesture !== "None" && candidate.confidence >= .5)
     .sort((left, right) => right.confidence - left.confidence);
-  const strongest = candidates[0];
-  if (!strongest) return undefined;
-
-  const victory = candidates.find((candidate) => candidate.gesture === "Victory");
-  return victory && victory.confidence >= strongest.confidence - .18 ? victory : strongest;
-}
-
-export function selectDominantHandGesture(
-  samples: HandGesture[],
-  totalFrameCount = samples.length,
-): HandGesture | undefined {
-  if (!samples.length || totalFrameCount < 1) return undefined;
-
-  const groups = new Map<string, { count: number; confidenceTotal: number }>();
-  samples.forEach((sample) => {
-    if (!sample.gesture || sample.gesture === "None" || sample.confidence < .45) return;
-    const current = groups.get(sample.gesture) ?? { count: 0, confidenceTotal: 0 };
-    current.count += 1;
-    current.confidenceTotal += sample.confidence;
-    groups.set(sample.gesture, current);
-  });
-
-  const minimumFrames = Math.max(2, Math.ceil(totalFrameCount * .14));
-  const candidates = [...groups.entries()]
-    .map(([gesture, value]) => ({
-      gesture,
-      confidence: value.confidenceTotal / value.count,
-      count: value.count,
-      score: value.count * (value.confidenceTotal / value.count),
-    }))
-    .filter((candidate) => candidate.count >= minimumFrames && candidate.confidence >= .5)
-    .sort((left, right) => right.score - left.score);
-  const strongest = candidates[0];
-  if (!strongest) return undefined;
-
-  const victory = candidates.find((candidate) => candidate.gesture === "Victory");
-  const selected = victory && victory.score >= strongest.score * .65 ? victory : strongest;
-  return { gesture: selected.gesture, confidence: selected.confidence };
+  const handLandmarks = (result?.landmarks ?? []) as PosePoint[][];
+  const twoHandGesture = classifyTwoHandGesture(handLandmarks);
+  const customCandidates = [
+    ...handLandmarks.map((landmarks) => classifyCustomHandGesture(landmarks)),
+  ]
+    .filter((candidate): candidate is HandGesture => Boolean(candidate))
+    .sort((left, right) => right.confidence - left.confidence);
+  const custom = customCandidates[0];
+  const canned = cannedCandidates[0];
+  if (twoHandGesture && twoHandGesture.confidence >= .7) return twoHandGesture;
+  if (custom && custom.confidence >= .72) return custom;
+  return canned ?? custom;
 }
 
 function summarizeFace(categories: BlendshapeCategory[]): NonNullable<VisionMetrics["face"]> {
@@ -381,6 +377,12 @@ function score(categories: BlendshapeCategory[], name: string): number {
 
 function average(left: number, right: number): number {
   return (left + right) / 2;
+}
+
+function percentile(values: number[], ratio: number): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * ratio)))] ?? 0;
 }
 
 function clamp01(value: number): number {
