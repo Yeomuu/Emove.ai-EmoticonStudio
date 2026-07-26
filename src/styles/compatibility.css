@@ -802,6 +802,92 @@ body {
 .input-scroll-slider .scroll-slide[data-step="0"] .btn-start-capture img,
 .input-scroll-slider .scroll-slide[data-step="0"] .btn-start-capture svg { flex: 0 0 auto; align-self: center; }
 .input-scroll-slider .scroll-slide[data-step="0"] .btn-start-capture span { display: inline-flex; align-items: center; height: 100%; }
+.input-scroll-slider .scroll-slide[data-step="0"] .pose-media-frame.is-recording {
+  border-color: rgba(255, 112, 128, .34);
+  box-shadow: inset 0 0 0 1px rgba(255, 112, 128, .08);
+}
+.camera-status i.recording {
+  background: #ff7080;
+  box-shadow: 0 0 10px rgba(255, 112, 128, .82);
+  animation: camera-recording-pulse 1.05s ease-in-out infinite;
+}
+.camera-capture-hud {
+  position: absolute;
+  z-index: 3;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  min-width: 0;
+  padding: 10px 12px 9px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 32px 3px;
+  gap: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 14px;
+  background: rgba(8, 8, 17, .58);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 8px 24px rgba(0,0,0,.18);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+}
+.camera-capture-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(248,247,255,.68);
+  font-size: 10px;
+  line-height: 1;
+}
+.camera-capture-meta strong {
+  color: #ff8793;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+.camera-capture-meta span:last-child {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.camera-capture-hud .waveform {
+  width: 100%;
+  height: 32px;
+  margin: 0;
+}
+.camera-capture-progress {
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+}
+.camera-capture-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8b79ff, #ff7080);
+  transition: width .12s linear;
+}
+.camera-capture-progress.is-preparing > span {
+  width: 38% !important;
+  animation: input-analysis-flow 1.35s ease-in-out infinite;
+}
+.progress-bar.is-flowing {
+  width: 38%;
+  animation: input-analysis-flow 1.35s ease-in-out infinite;
+}
+@keyframes camera-recording-pulse {
+  0%, 100% { opacity: .62; transform: scale(.82); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@keyframes input-analysis-flow {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(290%); }
+}
 .input-scroll-slider .scroll-slide-nav {
   left: 63.5417% !important;
   right: auto !important;
@@ -1203,6 +1289,13 @@ html[data-theme="light"] .input-stage-panel {
 html[data-theme="light"] .input-stage-panel > strong { color: #2b2540; border-color: rgba(55,48,85,.1); }
 html[data-theme="light"] .input-stage-panel > div { color: rgba(43,37,64,.56); }
 html[data-theme="light"] .input-stage-panel > div.active { color: #2b2540; background: rgba(91,73,255,.1); }
+html[data-theme="light"] .camera-capture-hud {
+  border-color: rgba(55,48,85,.16);
+  background: rgba(255,255,255,.7);
+  box-shadow: inset 0 1px 0 #fff, 0 8px 22px rgba(42,37,62,.07);
+}
+html[data-theme="light"] .camera-capture-meta { color: rgba(43,37,64,.68); }
+html[data-theme="light"] .camera-capture-progress { background: rgba(55,48,85,.13); }
 
 /* Library hover content never escapes the actual preview surface. */
 .library-page .carousel-card .card-preview {
@@ -1220,6 +1313,14 @@ html[data-theme="light"] .input-stage-panel > div.active { color: #2b2540; backg
     top: 18px !important;
     width: 176px !important;
   }
+  .camera-capture-hud {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    padding: 8px 9px 7px;
+    grid-template-rows: auto 24px 3px;
+  }
+  .camera-capture-hud .waveform { height: 24px; }
   .input-scroll-slider .scroll-slide[data-step="0"] .input-right-column { display: none !important; }
   .character-scroll-slider .scroll-slide-footer {
     display: flex !important;

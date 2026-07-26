@@ -21,6 +21,7 @@ const ai = getAIProvider();
 const FRAME_COUNT = 5;
 const CAPTURE_DURATION_MS = 5000;
 type ProcessState = { title: string; label: string; percent: number };
+type CapturePhase = "idle" | "preparing" | "recording";
 
 export function InputPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -34,6 +35,7 @@ export function InputPage() {
   const [cameraReady, setCameraReady] = useState(false);
   const [captureProgress, setCaptureProgress] = useState(0);
   const [capturing, setCapturing] = useState(false);
+  const [capturePhase, setCapturePhase] = useState<CapturePhase>("idle");
   const [recording, setRecording] = useState(false);
   const [levels, setLevels] = useState<number[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
@@ -119,6 +121,7 @@ export function InputPage() {
   const returnToPreview = (message?: string) => {
     idleWatcher.current?.();
     setCapturing(false);
+    setCapturePhase("idle");
     setRecording(false);
     setCaptureProgress(0);
     if (message) notify(message);
@@ -127,7 +130,6 @@ export function InputPage() {
 
   const startCaptureFlow = async () => {
     setCaptureError(null);
-    setCurrentStep(1);
     await capturePose();
   };
 
@@ -136,26 +138,33 @@ export function InputPage() {
     captureLockRef.current = true;
     idleWatcher.current?.();
     setCapturing(true);
+    setCapturePhase("preparing");
     setRecording(true);
     setAnalyzing(false);
     setCaptureProgress(0);
     setLevels([]);
-    
+    let audioStarted = false;
+
     try {
       const liveVision = await createLiveVisionAnalyzer();
       await startAudioMeter();
-      
+      audioStarted = true;
+      setCapturePhase("recording");
+
       const visionTask = liveVision.analyze(videoRef.current, CAPTURE_DURATION_MS);
       const result = await camera.current.record(videoRef.current, CAPTURE_DURATION_MS, (progress) => {
         setCaptureProgress(progress);
       });
-      
+
       const voice = await stopAudioCapture();
-      
+      audioStarted = false;
+      setCapturePhase("idle");
+
       // Recording complete. Now show full-screen analysis overlay
+      setCurrentStep(1);
       setAnalyzing(true);
       setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "사람의 포즈와 표정을 판독하는 중...", percent: 64 });
-      
+
       let metrics: VisionMetrics;
       try {
         metrics = await visionTask;
@@ -168,7 +177,7 @@ export function InputPage() {
       if (metrics.source === "mediapipe") {
         setPersonDetected(true);
       }
-      
+
       setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "목소리를 전사하고 감정 키를 정리하는 중...", percent: 78 });
       await applyVoiceAndVision(result.blob, voice.blob, voice.features, metrics);
       setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "분석 결과 저장 완료", percent: 100 });
@@ -177,6 +186,7 @@ export function InputPage() {
       }
       setCurrentStep(2); // Go to results view
     } catch (error) {
+      if (audioStarted) audio.current.release();
       const message = captureFailureMessage(error);
       setProcess(null);
       returnToPreview();
@@ -185,6 +195,7 @@ export function InputPage() {
     } finally {
       captureLockRef.current = false;
       setCapturing(false);
+      setCapturePhase("idle");
       setRecording(false);
       setAnalyzing(false);
       setCaptureProgress(0);
@@ -306,7 +317,7 @@ export function InputPage() {
           <div className="input-composer">
             <div className="pose-capture-panel">
               <Panel title="✦ 실시간 모니터" className="camera-monitor-panel">
-                <div className={`pose-media-frame${cameraReady && !personDetected && !capturing ? " is-awaiting-person" : ""}`}>
+                <div className={`pose-media-frame${cameraReady && !personDetected && !capturing ? " is-awaiting-person" : ""}${capturing ? " is-recording" : ""}`}>
                   <video
                     ref={videoRef}
                     muted
@@ -319,14 +330,60 @@ export function InputPage() {
                   />
                   {!cameraReady && <img src={imageAssets.pose} alt="포즈 예시" />}
                   <span className="camera-status">
-                    <i className={cameraReady ? "on" : ""} />
-                    {personDetected ? "인식 완료 ✨" : cameraReady ? "카메라 준비됨 (사람 인식 대기)" : "CAMERA CLOSED"}
+                    <i className={cameraReady ? capturing ? capturePhase : "on" : ""} />
+                    {capturing
+                      ? capturePhase === "recording"
+                        ? "포즈와 목소리를 동시에 기록하고 있습니다"
+                        : "카메라와 마이크를 준비하고 있습니다"
+                      : personDetected
+                        ? "인식 완료"
+                        : cameraReady
+                          ? "카메라 준비됨 (사람 인식 대기)"
+                          : "CAMERA CLOSED"}
                   </span>
+                  {capturing ? (
+                    <div className="camera-capture-hud" role="status" aria-live="polite">
+                      <div className="camera-capture-meta">
+                        <strong>{capturePhase === "recording" ? "REC" : "READY"}</strong>
+                        <span>{capturePhase === "recording" ? `${Math.max(1, Math.ceil((1 - captureProgress) * 5))}초` : "잠시만 기다려 주세요"}</span>
+                        <span>{capturePhase === "recording" ? "카메라 · 마이크 동시 수집" : "분석 모델 · 입력 장치 확인"}</span>
+                      </div>
+                      <Waveform levels={levels} active={capturePhase === "recording"} />
+                      <div
+                        className={`camera-capture-progress${capturePhase === "preparing" ? " is-preparing" : ""}`}
+                        role="progressbar"
+                        aria-label="카메라와 목소리 촬영 진행률"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={capturePhase === "recording" ? Math.round(captureProgress * 100) : undefined}
+                      >
+                        <span style={{ width: `${captureProgress * 100}%` }} />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-                <p className="step-tip">상반신과 양손이 화면에 모두 들어오도록 카메라 앞에 서 주세요.</p>
-                <button type="button" className="btn-start-capture" onClick={startCaptureFlow} disabled={!cameraReady}>
+                <p className="step-tip">
+                  {capturing
+                    ? capturePhase === "recording"
+                      ? "화면을 보며 목소리와 어울리는 동작을 끝까지 유지해 주세요."
+                      : "입력 장치가 준비되면 5초 촬영이 자동으로 시작됩니다."
+                    : "상반신과 양손이 화면에 모두 들어오도록 카메라 앞에 서 주세요."}
+                </p>
+                <button
+                  type="button"
+                  className="btn-start-capture"
+                  onClick={startCaptureFlow}
+                  disabled={!cameraReady || capturing || analyzing}
+                  aria-busy={capturing}
+                >
                   <Icon name="camera" />
-                  <span>촬영 시작하기</span>
+                  <span>
+                    {capturing
+                      ? capturePhase === "recording"
+                        ? `${Math.max(1, Math.ceil((1 - captureProgress) * 5))}초 촬영 중`
+                        : "촬영 준비 중"
+                      : "촬영 시작하기"}
+                  </span>
                 </button>
               </Panel>
             </div>
@@ -367,29 +424,29 @@ export function InputPage() {
       }
     },
     {
-      id: "capturing",
-      label: "02 · 촬영 중",
+      id: "analyzing",
+      label: "02 · 분석 중",
       content: (
         <div className="input-step-layout active-capturing">
-          <Panel title="✦ 촬영 진행중" className="capturing-panel full-width">
+          <Panel title="✦ 입력 분석 중" className="capturing-panel full-width">
             <div className="capturing-box">
               <div className="recording-indicator">
                 <span className="dot animate-pulse" />
-                <span>REC {Math.ceil((1 - captureProgress) * 5)}s</span>
+                <span>ANALYZING</span>
               </div>
               <div className="progress-track">
-                <span className="progress-bar" style={{ width: `${captureProgress * 100}%` }} />
+                <span className="progress-bar is-flowing" />
               </div>
-              <p className="action-hint">목소리와 어울리는 행동을 5초 동안 크게 보여주세요!</p>
+              <p className="action-hint">촬영한 포즈와 목소리를 분석하고 있습니다.</p>
               <div className="compact-wave">
-                <Waveform levels={levels} active={capturing} />
+                <Waveform levels={levels} active={false} />
               </div>
             </div>
           </Panel>
         </div>
       ),
       validate: () => {
-        if (capturing) return "현재 촬영이 진행 중입니다. 완료될 때까지 기다려 주세요.";
+        if (capturing || analyzing) return "현재 입력 분석이 진행 중입니다. 완료될 때까지 기다려 주세요.";
         return null;
       }
     },
@@ -647,6 +704,15 @@ function describeFaceUse(current: Emotion, metrics: VisionMetrics): string {
 
 function captureFailureMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error || "");
+  if (/permission denied|notallowederror|permission dismissed/i.test(message)) {
+    return "카메라와 마이크 권한이 필요합니다. 브라우저 주소창의 권한 설정에서 두 장치를 허용한 뒤 다시 촬영해 주세요.";
+  }
+  if (/notreadableerror|could not start|device in use|track start/i.test(message)) {
+    return "카메라 또는 마이크를 다른 앱에서 사용 중입니다. 해당 앱을 닫은 뒤 다시 촬영해 주세요.";
+  }
+  if (/notfounderror|requested device not found|no device/i.test(message)) {
+    return "사용 가능한 카메라 또는 마이크를 찾지 못했습니다. 장치 연결 상태를 확인해 주세요.";
+  }
   if (/quota|billing|hard limit|usage limit/i.test(message)) {
     return "OpenAI API 사용 한도를 초과했습니다. 결제 및 사용량 설정을 확인한 뒤 다시 촬영해 주세요.";
   }

@@ -16,37 +16,63 @@ export class AudioCapture {
 
   async start(onFrame: (levels: number[], features: { rms: number; peak: number }) => void): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("이 브라우저는 마이크 입력을 지원하지 않습니다.");
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
-    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
-    this.recorder = new MediaRecorder(this.stream, { mimeType });
-    this.chunks = []; this.rmsSamples = []; this.peak = 0;
-    this.recorder.ondataavailable = (event) => event.data.size && this.chunks.push(event.data);
-    this.recorder.start(120); this.startedAt = performance.now();
-    this.context = new AudioContext();
-    const source = this.context.createMediaStreamSource(this.stream);
-    this.analyser = this.context.createAnalyser();
-    this.analyser.fftSize = 256; this.analyser.smoothingTimeConstant = 0.66; source.connect(this.analyser);
-    const frequency = new Uint8Array(this.analyser.frequencyBinCount);
-    const time = new Uint8Array(this.analyser.fftSize);
-    const tick = () => {
-      if (!this.analyser) return;
-      this.analyser.getByteFrequencyData(frequency); this.analyser.getByteTimeDomainData(time);
-      const rms = Math.sqrt(time.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / time.length);
-      const peak = Math.max(...time.map((value) => Math.abs((value - 128) / 128)));
-      this.rmsSamples.push(rms); this.peak = Math.max(this.peak, peak);
-      const bins = Array.from({ length: 34 }, (_, index) => {
-        const start = Math.floor(index * frequency.length / 34);
-        const end = Math.max(start + 1, Math.floor((index + 1) * frequency.length / 34));
-        return Math.max(0.025, frequency.slice(start, end).reduce((sum, value) => sum + value, 0) / (end - start) / 255);
+    if (typeof MediaRecorder === "undefined") throw new Error("이 브라우저는 음성 녹음을 지원하지 않습니다.");
+    this.release();
+
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false },
       });
-      onFrame(bins, { rms, peak }); this.animationFrame = requestAnimationFrame(tick);
-    };
-    tick();
+      const mimeType = supportedRecorderMimeType([
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/aac",
+      ]);
+      this.recorder = mimeType
+        ? new MediaRecorder(this.stream, { mimeType })
+        : new MediaRecorder(this.stream);
+      this.chunks = [];
+      this.rmsSamples = [];
+      this.peak = 0;
+      this.recorder.ondataavailable = (event) => event.data.size && this.chunks.push(event.data);
+      this.recorder.start(120);
+      this.startedAt = performance.now();
+      this.context = new AudioContext();
+      if (this.context.state === "suspended") await this.context.resume();
+      const source = this.context.createMediaStreamSource(this.stream);
+      this.analyser = this.context.createAnalyser();
+      this.analyser.fftSize = 256;
+      this.analyser.smoothingTimeConstant = 0.66;
+      source.connect(this.analyser);
+      const frequency = new Uint8Array(this.analyser.frequencyBinCount);
+      const time = new Uint8Array(this.analyser.fftSize);
+      const tick = () => {
+        if (!this.analyser) return;
+        this.analyser.getByteFrequencyData(frequency);
+        this.analyser.getByteTimeDomainData(time);
+        const rms = Math.sqrt(time.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / time.length);
+        const peak = Math.max(...time.map((value) => Math.abs((value - 128) / 128)));
+        this.rmsSamples.push(rms);
+        this.peak = Math.max(this.peak, peak);
+        const bins = Array.from({ length: 34 }, (_, index) => {
+          const start = Math.floor(index * frequency.length / 34);
+          const end = Math.max(start + 1, Math.floor((index + 1) * frequency.length / 34));
+          return Math.max(0.025, frequency.slice(start, end).reduce((sum, value) => sum + value, 0) / (end - start) / 255);
+        });
+        onFrame(bins, { rms, peak });
+        this.animationFrame = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (error) {
+      this.release();
+      throw error;
+    }
   }
 
   stop(): Promise<AudioCaptureResult> {
     return new Promise((resolve, reject) => {
-      if (!this.recorder) return reject(new Error("진행 중인 녹음이 없습니다."));
+      if (!this.recorder || this.recorder.state === "inactive") return reject(new Error("진행 중인 녹음이 없습니다."));
       const recorder = this.recorder;
       recorder.onstop = () => {
         const average = this.rmsSamples.reduce((sum, value) => sum + value, 0) / Math.max(1, this.rmsSamples.length);
@@ -73,6 +99,7 @@ export class CameraCapture {
 
   async attach(video: HTMLVideoElement): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("이 브라우저는 카메라 입력을 지원하지 않습니다.");
+    this.release();
     this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 960 }, height: { ideal: 720 } }, audio: false });
     video.srcObject = this.stream;
     await new Promise<void>((resolve, reject) => {
@@ -89,11 +116,32 @@ export class CameraCapture {
   }
 
   async record(video: HTMLVideoElement, durationMs = 5000, onProgress?: (progress: number) => void): Promise<CameraCaptureResult> {
-    if (!this.stream || !video.videoWidth) throw new Error("카메라 프레임이 아직 준비되지 않았습니다.");
-    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
-    const recorder = new MediaRecorder(this.stream, { mimeType }); const chunks: Blob[] = []; const startedAt = performance.now();
-    recorder.ondataavailable = (event) => event.data.size && chunks.push(event.data); recorder.start(100);
-    const canvas = document.createElement("canvas"); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    if (!this.stream || !video.videoWidth || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      throw new Error("카메라 프레임이 아직 준비되지 않았습니다.");
+    }
+    if (typeof MediaRecorder === "undefined") throw new Error("이 브라우저는 카메라 녹화를 지원하지 않습니다.");
+    if (!this.stream.getVideoTracks().some((track) => track.readyState === "live")) {
+      throw new Error("카메라 연결이 중단되었습니다. 권한과 장치 연결을 확인해 주세요.");
+    }
+    if (video.paused) await video.play();
+
+    const videoStream = new MediaStream(this.stream.getVideoTracks());
+    const mimeType = supportedRecorderMimeType([
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+      "video/mp4",
+    ]);
+    const recorder = mimeType
+      ? new MediaRecorder(videoStream, { mimeType })
+      : new MediaRecorder(videoStream);
+    const chunks: Blob[] = [];
+    const startedAt = performance.now();
+    recorder.ondataavailable = (event) => event.data.size && chunks.push(event.data);
+    recorder.start(100);
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     const context = canvas.getContext("2d");
     await new Promise<void>((resolve) => {
       const tick = () => {
@@ -104,10 +152,20 @@ export class CameraCapture {
       };
       tick();
     });
-    const stopped = new Promise<void>((resolve) => { recorder.onstop = () => resolve(); }); recorder.stop(); await stopped;
+    const stopped = new Promise<void>((resolve) => { recorder.onstop = () => resolve(); });
+    recorder.stop();
+    await stopped;
     context?.drawImage(video, 0, 0);
-    return { blob: new Blob(chunks, { type: mimeType }), durationMs: performance.now() - startedAt, dataUrl: canvas.toDataURL("image/jpeg", .88) };
+    return {
+      blob: new Blob(chunks, { type: recorder.mimeType || mimeType || "video/webm" }),
+      durationMs: performance.now() - startedAt,
+      dataUrl: canvas.toDataURL("image/jpeg", .88),
+    };
   }
 
   release(): void { this.stream?.getTracks().forEach((track) => track.stop()); this.stream = undefined; }
+}
+
+function supportedRecorderMimeType(candidates: string[]): string | undefined {
+  return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate));
 }

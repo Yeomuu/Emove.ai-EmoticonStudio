@@ -9,8 +9,11 @@ export type LiveVisionAnalyzer = {
 };
 
 let fileset: VisionFileset | undefined;
+let filesetPromise: Promise<VisionFileset> | undefined;
 let poseLandmarker: import("@mediapipe/tasks-vision").PoseLandmarker | undefined;
+let poseLandmarkerPromise: Promise<void> | undefined;
 let faceLandmarker: import("@mediapipe/tasks-vision").FaceLandmarker | undefined;
+let faceLandmarkerPromise: Promise<void> | undefined;
 let faceUnavailable = false;
 let poseDelegate: "GPU" | "CPU" | undefined;
 let faceDelegate: "GPU" | "CPU" | undefined;
@@ -21,9 +24,10 @@ export async function createLiveVisionAnalyzer(): Promise<LiveVisionAnalyzer> {
   beginBenignTfliteLogFilter();
   try {
     await ensurePoseLandmarker();
-    await ensureFaceLandmarker();
-  } finally {
+    void ensureFaceLandmarker().finally(scheduleConsoleRestore);
+  } catch (error) {
     scheduleConsoleRestore();
+    throw error;
   }
   return {
     analyze: analyzeVideoStream,
@@ -104,60 +108,79 @@ function detectCurrentVideoFrame(video: HTMLVideoElement, timestampMs: number): 
 }
 
 async function ensureFileset(): Promise<VisionFileset> {
-  if (!fileset) {
-    const { FilesetResolver } = await import("@mediapipe/tasks-vision");
-    fileset = await FilesetResolver.forVisionTasks(process.env.NEXT_PUBLIC_MEDIAPIPE_WASM_PATH || publicAssetPath("models/wasm"));
-  }
+  if (fileset) return fileset;
+  filesetPromise ??= import("@mediapipe/tasks-vision")
+    .then(({ FilesetResolver }) => FilesetResolver.forVisionTasks(
+      process.env.NEXT_PUBLIC_MEDIAPIPE_WASM_PATH || publicAssetPath("models/wasm"),
+    ))
+    .then((resolvedFileset) => {
+      fileset = resolvedFileset;
+      return resolvedFileset;
+    })
+    .catch((error) => {
+      filesetPromise = undefined;
+      throw error;
+    });
+  fileset = await filesetPromise;
   return fileset;
 }
 
 async function ensurePoseLandmarker(): Promise<void> {
   if (poseLandmarker) return;
-  const [{ PoseLandmarker }, nextFileset] = await Promise.all([import("@mediapipe/tasks-vision"), ensureFileset()]);
-  const modelAssetPath = process.env.NEXT_PUBLIC_POSE_MODEL_PATH || publicAssetPath("models/pose_landmarker_lite.task");
-  try {
-    poseLandmarker = await PoseLandmarker.createFromOptions(nextFileset, {
-      baseOptions: { modelAssetPath, delegate: "GPU" },
-      runningMode: "VIDEO",
-      numPoses: 1,
-    });
-    poseDelegate = "GPU";
-  } catch {
-    poseLandmarker = await PoseLandmarker.createFromOptions(nextFileset, {
-      baseOptions: { modelAssetPath },
-      runningMode: "VIDEO",
-      numPoses: 1,
-    });
-    poseDelegate = "CPU";
-  }
+  poseLandmarkerPromise ??= (async () => {
+    const [{ PoseLandmarker }, nextFileset] = await Promise.all([import("@mediapipe/tasks-vision"), ensureFileset()]);
+    const modelAssetPath = process.env.NEXT_PUBLIC_POSE_MODEL_PATH || publicAssetPath("models/pose_landmarker_lite.task");
+    try {
+      poseLandmarker = await PoseLandmarker.createFromOptions(nextFileset, {
+        baseOptions: { modelAssetPath, delegate: "GPU" },
+        runningMode: "VIDEO",
+        numPoses: 1,
+      });
+      poseDelegate = "GPU";
+    } catch {
+      poseLandmarker = await PoseLandmarker.createFromOptions(nextFileset, {
+        baseOptions: { modelAssetPath },
+        runningMode: "VIDEO",
+        numPoses: 1,
+      });
+      poseDelegate = "CPU";
+    }
+  })().catch((error) => {
+    poseLandmarkerPromise = undefined;
+    throw error;
+  });
+  await poseLandmarkerPromise;
 }
 
 async function ensureFaceLandmarker(): Promise<void> {
   if (faceLandmarker || faceUnavailable) return;
-  const modelAssetPath = process.env.NEXT_PUBLIC_FACE_MODEL_PATH || "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
-  if (!modelAssetPath) return;
-  try {
-    const [{ FaceLandmarker }, nextFileset] = await Promise.all([import("@mediapipe/tasks-vision"), ensureFileset()]);
+  faceLandmarkerPromise ??= (async () => {
+    const modelAssetPath = process.env.NEXT_PUBLIC_FACE_MODEL_PATH || "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
+    if (!modelAssetPath) return;
     try {
-      faceLandmarker = await FaceLandmarker.createFromOptions(nextFileset, {
-        baseOptions: { modelAssetPath, delegate: "GPU" },
-        runningMode: "VIDEO",
-        numFaces: 1,
-        outputFaceBlendshapes: true,
-      });
-      faceDelegate = "GPU";
+      const [{ FaceLandmarker }, nextFileset] = await Promise.all([import("@mediapipe/tasks-vision"), ensureFileset()]);
+      try {
+        faceLandmarker = await FaceLandmarker.createFromOptions(nextFileset, {
+          baseOptions: { modelAssetPath, delegate: "GPU" },
+          runningMode: "VIDEO",
+          numFaces: 1,
+          outputFaceBlendshapes: true,
+        });
+        faceDelegate = "GPU";
+      } catch {
+        faceLandmarker = await FaceLandmarker.createFromOptions(nextFileset, {
+          baseOptions: { modelAssetPath },
+          runningMode: "VIDEO",
+          numFaces: 1,
+          outputFaceBlendshapes: true,
+        });
+        faceDelegate = "CPU";
+      }
     } catch {
-      faceLandmarker = await FaceLandmarker.createFromOptions(nextFileset, {
-        baseOptions: { modelAssetPath },
-        runningMode: "VIDEO",
-        numFaces: 1,
-        outputFaceBlendshapes: true,
-      });
-      faceDelegate = "CPU";
+      faceUnavailable = true;
     }
-  } catch {
-    faceUnavailable = true;
-  }
+  })();
+  await faceLandmarkerPromise;
 }
 
 function summarizeVideoSamples(samples: VisionMetrics[], lastError: Error | undefined): VisionMetrics {
