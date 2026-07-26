@@ -43,7 +43,7 @@ export async function createLiveVisionAnalyzer(): Promise<LiveVisionAnalyzer> {
 }
 
 function beginBenignTfliteLogFilter(): void {
-  if (typeof window === "undefined" || process.env.NODE_ENV !== "development") return;
+  if (typeof window === "undefined") return;
   if (!originalConsoleError) {
     originalConsoleError = console.error;
     console.error = (...args: unknown[]) => {
