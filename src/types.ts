@@ -170,6 +170,7 @@ export interface VisionMetrics {
     confidence: number;
   };
   pose?: { shoulderTilt: number; armSpread: number };
+  hand?: { gesture: string; confidence: number };
   gesture?: string;
   source: "mediapipe" | "unavailable";
   diagnostics?: string;

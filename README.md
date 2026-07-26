@@ -83,6 +83,7 @@ Optional public variables:
 - `NEXT_PUBLIC_SITE_URL` for a custom canonical domain outside Vercel's automatic production URL
 - `NEXT_PUBLIC_MEDIAPIPE_WASM_PATH`
 - `NEXT_PUBLIC_POSE_MODEL_PATH`
+- `NEXT_PUBLIC_GESTURE_MODEL_PATH`
 - `NEXT_PUBLIC_FACE_MODEL_PATH`
 
 ## Project Layout

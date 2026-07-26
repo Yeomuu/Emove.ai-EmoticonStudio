@@ -102,7 +102,7 @@ function actionResult(vision: VisionMetrics, warning?: string): EmotionAnalysisR
   const shoulderTilt = vision.pose?.shoulderTilt ?? 0;
   let emotion: Emotion = "unknown";
   let confidence = 0;
-  if (vision.gesture === "Raised_Hand" || armSpread > .62) {
+  if (["Raised_Hand", "Victory", "Thumb_Up"].includes(vision.gesture ?? "") || armSpread > .62) {
     emotion = "happy";
     confidence = .38 + Math.min(.12, armSpread * .12);
   } else if (shoulderTilt > .12) {

@@ -7,6 +7,7 @@ import { circularBatch, isAnimatedSticker, shuffled } from "../src/services/anim
 import { persistGeneratedAsset } from "../src/services/asset-storage";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
 import { SHOWCASE_IDLE_TIMEOUT_MS, watchForInactivity } from "../src/services/inactivity";
+import { selectDominantHandGesture } from "../src/services/vision";
 import { isSameOriginRequest } from "../src/app/api/openai/[...path]/route";
 import { previewLayerOrder } from "../src/store";
 import type { StickerItem } from "../src/types";
@@ -42,6 +43,26 @@ describe("showcase inactivity timer", () => {
     vi.advanceTimersByTime(1);
     expect(onIdle).toHaveBeenCalledTimes(1);
     stopWatching();
+  });
+});
+
+describe("MediaPipe hand gesture consensus", () => {
+  it("keeps a sustained V sign ahead of the raised-arm fallback", () => {
+    const samples = [
+      ...Array.from({ length: 18 }, () => ({ gesture: "Victory", confidence: .82 })),
+      ...Array.from({ length: 7 }, () => ({ gesture: "Open_Palm", confidence: .89 })),
+    ];
+    expect(selectDominantHandGesture(samples, 36)).toEqual({
+      gesture: "Victory",
+      confidence: expect.closeTo(.82, 5),
+    });
+  });
+
+  it("ignores a brief low-confidence V-shaped false positive", () => {
+    expect(selectDominantHandGesture([
+      { gesture: "Victory", confidence: .48 },
+      { gesture: "Victory", confidence: .47 },
+    ], 40)).toBeUndefined();
   });
 });
 

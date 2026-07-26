@@ -476,7 +476,7 @@ export function InputPage() {
                 <Icon name="layers" size={24} />
                 <div>
                   <h4>포즈 상세 정보</h4>
-                  <p style={{ color: "#aaa6b4", fontSize: "13px" }}>{visionMetrics.value.source === "mediapipe" ? "MediaPipe 기반 관절 랜드마크 분석 완료" : "동작 감지 실패 - 기본 자세로 생성됩니다."}</p>
+                  <p style={{ color: "#aaa6b4", fontSize: "13px" }}>{describePoseDetail(visionMetrics.value)}</p>
                 </div>
               </div>
               <div className="step-nav-actions" style={{ display: "flex", gap: "12px" }}>
@@ -690,10 +690,23 @@ function WorkProcessScreen({ title, label, percent }: ProcessState) {
 
 function describePose(metrics: VisionMetrics): string {
   if (metrics.source !== "mediapipe") return "행동 미분석";
-  if (metrics.gesture === "Raised_Hand") return "손을 든 인사 행동";
+  if (metrics.gesture === "Victory") return "브이(V) 사인 행동";
+  if (metrics.gesture === "Thumb_Up") return "엄지 척 행동";
+  if (metrics.gesture === "Thumb_Down") return "엄지를 내린 행동";
+  if (metrics.gesture === "Pointing_Up") return "위쪽을 가리키는 행동";
+  if (metrics.gesture === "ILoveYou") return "사랑해 손동작";
+  if (metrics.gesture === "Closed_Fist") return "주먹을 쥔 행동";
+  if (metrics.gesture === "Open_Palm") return "손바닥을 펼친 행동";
+  if (metrics.gesture === "Raised_Hand") return "손을 든 행동";
   if ((metrics.pose?.armSpread ?? 0) > .62) return "양팔을 펼친 행동";
   if ((metrics.pose?.shoulderTilt ?? 0) > .12) return "상체가 기운 행동";
   return "상체 중심의 자연스러운 행동";
+}
+
+function describePoseDetail(metrics: VisionMetrics): string {
+  if (metrics.source !== "mediapipe") return "동작 감지 실패 - 다시 촬영해 주세요.";
+  if (metrics.hand) return `MediaPipe 손 제스처·관절 분석 완료 · 신뢰도 ${Math.round(metrics.hand.confidence * 100)}%`;
+  return "MediaPipe 관절 랜드마크 분석 완료 · 손 모양 미검출";
 }
 
 function describeFaceUse(current: Emotion, metrics: VisionMetrics): string {
