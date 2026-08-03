@@ -14,6 +14,7 @@ import { saveProject } from "../services/repository";
 import { animationExtension, animationMimeType, publishAnimationForQr } from "../services/share";
 import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, editingProject, effectColor, emotion, emoticonTitle, exportAnimationFormat, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, sanitizeAssetUrl, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
 import type { AnimationFormat, EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
+import characterMain from "../assets/images/character-main.webp";
 
 const layerIcons: Record<LayerKind, "image" | "star" | "layers" | "edit"> = { "background-effects": "image", character: "layers", "accent-effects": "star", text: "edit" };
 const ai = getAIProvider();
@@ -197,56 +198,400 @@ export function EditPage() {
     else { window.location.href = `mailto:?subject=${encodeURIComponent("EMOVE 이모티콘")}&body=${encodeURIComponent(`${format} 다운로드: ${exportShareUrl.value ?? window.location.href}`)}`; }
   };
 
+
   return (
     <>
       <div className={`editor-page is-layer-${activeLayerId ?? "none"}`}>
         <header className="screen-brief edit-brief">
-          <span>03</span>
-          <h1>이모티콘의 이펙트와 텍스트를 자유롭게 수정하세요.</h1>
-          <p>1024×1024 export canvas</p>
+          <h1>이모티콘의 이펙트와 텍스트를<br/>자유롭게 수정하세요.</h1>
         </header>
+
         <header className="editor-toolbar glass-panel"><div className="editor-title-group"><span className="eyebrow">STEP 03 · EDIT</span><strong>{emotionMeta[emotion.value].label} 모션 편집</strong><label className="emoticon-title-control"><span>NAME</span><input value={emoticonTitle.value} maxLength={28} onChange={(event) => (emoticonTitle.value = event.currentTarget.value)} aria-label="이모티콘 저장 이름" /></label></div><div className="toolbar-actions"><span className="save-state">{lastSaved.value ? `${lastSaved.value} 저장됨` : "저장 전"}</span><button className="button secondary" type="button" onClick={save} disabled={exporting || generatingEffect}><Icon name="save" />{exporting ? "저장 중" : "저장"}</button><button className="button primary" type="button" onClick={openExport} disabled={exporting || generatingEffect}><Icon name="download" />{exporting ? `${exportLabel} 만드는 중` : "내보내기"}</button></div></header>
+
+        {/* Edit 화면 전체 그리드 구조 */}
         <div className="editor-grid">
-          <Panel title="Core effect" meta="VOICE → VISUAL" className="effect-settings">
-            <div className="effect-hero"><span style={{ background: `${effectColor.value}24` }}><Icon name="star" size={28} /></span><div><small>RECOMMENDED</small><strong>{coreEffect.value}</strong><p>음성 감정에서 제안된 하나의 핵심 효과예요.</p></div></div>
-            <div className="field-group"><span className="field-label">코어 이펙트 생성 세트</span><div className="preset-list">{effectPresets.map((preset) => <button key={preset} type="button" className={coreEffect.value === preset ? "active" : ""} onClick={() => chooseCoreEffect(preset)}><i style={{ background: effectColor.value }} />{preset}</button>)}</div></div>
-            <label className="color-field"><span><b>이펙트 컬러</b><em>{effectColor.value.toUpperCase()}</em></span><input type="color" value={effectColor.value} onChange={(event) => (effectColor.value = event.currentTarget.value)} /></label>
-            <label className="range-field"><span>부가 이펙트 밀도 <strong>{density}</strong></span><input type="range" min="20" max="100" value={density} onChange={(event) => setDensity(Number(event.currentTarget.value))} /></label>
-            <button className="button subtle full" type="button" onClick={generateCoreEffect} disabled={generatingEffect || exporting}><Icon name={generatingEffect ? "reload" : "star"} className={generatingEffect ? "spin" : ""} />{generatingEffect ? "이펙트 생성 중" : "코어 이펙트 생성"}</button>
-            <div className="effect-note"><Icon name="check" /><span>코어 이펙트는 별도 레이어로 생성하고, 부가 이펙트만 고정 별 파츠로 유지합니다.</span></div>
+
+          {/* 1. 레이어 선택 페널 */}
+          <Panel className="layer-settings">
+
+              {/* 레이어 목록 */}
+              <aside className="layer-list">
+
+                {displayedLayers.map((layer, index) => (
+                  <div
+                    key={layer.id}
+                    data-layer-id={layer.id}
+                    role="group"
+                    aria-label={`${layer.label} 레이어`}
+                    className={`layer-row ${
+                      activeLayer.value === layer.id ? "active" : ""
+                    } ${
+                      dragId === layer.id ? "is-dragging" : ""
+                    } ${
+                      dropTarget?.id === layer.id
+                        ? `drop-${dropTarget.position}`
+                        : ""
+                    }`}
+                    onClick={() => (activeLayer.value = layer.id)}
+                    onFocusCapture={() => (activeLayer.value = layer.id)}
+                  >
+
+                    <button
+                      className="drag-handle-button"
+                      type="button"
+                      aria-label={`${layer.label} 레이어 선택 및 순서 이동`}
+                      onPointerDown={(event) =>
+                        beginLayerDrag(event, layer.id)
+                      }
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "ArrowUp" ||
+                          event.key === "ArrowDown"
+                        ) {
+                          event.preventDefault();
+                          event.stopPropagation();
+
+                          moveLayer(
+                            layer.id,
+                            event.key === "ArrowUp" ? -1 : 1
+                          );
+
+                          notify(
+                            `${layer.label} 레이어 순서를 옮겼어요.`
+                          );
+                        }
+                      }}
+                    >
+                      <Icon
+                        name="drag"
+                        className="drag-handle"
+                        draggable={false}
+                      />
+                    </button>
+
+                    <span className="layer-title">
+                      <strong>{layer.label}</strong>
+                    </span>
+
+                  </div>
+                ))}
+
+              </aside>
+
+              {/* 레이어 속성 */}
+              <section className="layer-editor">
+
+                {activeLayerId === "character" && (
+                  <section className="character-panel">
+
+                    {/* 캐릭터 미리보기 */}
+                    <div className="character-preview-section">
+
+                      <h3 className="character-section-title">
+                        캐릭터 정보
+                      </h3>
+
+                      <div className="character-preview">
+
+                        <span className="character-tag">
+                          남극의 펭귄
+                        </span>
+
+                        <img
+                          src={
+                            selectedCharacter.value?.sourceAsset
+                              ? sanitizeAssetUrl(selectedCharacter.value.sourceAsset)
+                              : "/assets/images/character-main.webp"
+                          }
+                          alt={selectedCharacter.value?.name ?? "캐릭터"}
+                          className="character-image"
+                        />
+
+                      </div>
+
+                    </div>
+
+                    {/* 우측 : 캐릭터 정보 */}
+                    <div className="character-info">
+
+                      <div className="character-group">
+                        <h3>캐릭터 타입</h3>
+
+                        <div className="option-row">
+                          <button className="property-value">동물</button>
+
+                          <span className="arrow">▶</span>
+
+                          <button className="property-value">펭귄</button>
+                        </div>
+                      </div>
+
+                      <div className="character-group">
+                        <h3>생성 스타일</h3>
+
+                        <div className="option-row">
+                          <button className="property-value">3D</button>
+                          <button className="property-value">Soft 3D</button>
+                        </div>
+                      </div>
+
+                      <div className="character-group">
+                        <h3>컬러 팔레트</h3>
+
+                        <div className="palette-row">
+
+                          <span className="palette-name">
+                            Soft Pastel
+                          </span>
+
+                          <button className="color mint"></button>
+                          <button className="color purple"></button>
+                          <button className="color pink"></button>
+                          <button className="color yellow"></button>
+                          <button className="color blue"></button>
+
+                        </div>
+                      </div>
+
+                    </div>
+
+                  </section>
+                )}
+
+                {activeLayerId === "accent-effects" && (
+                  <>
+                    ...
+                  </>
+                )}
+
+                {activeLayerId === "background-effects" && (
+                  <>
+                    ...
+                  </>
+                )}
+
+                {activeLayerId === "text" && (
+                  <div className="text-style-controls">
+                  <label className="text-field">
+                    <span>텍스트 내용</span>
+                    <textarea
+                      rows={3}
+                      value={transcript.value}
+                      onChange={(event) =>
+                        (transcript.value = event.currentTarget.value)
+                      }
+                    />
+                  </label>
+
+                  <div className="text-control-grid">
+
+                    <label className="control-item">
+                      <span>폰트 스타일</span>
+                      <select
+                        value={textFont.value}
+                        onChange={(event) =>
+                          (textFont.value =
+                            event.currentTarget.value as TextFont)
+                        }>
+                        <option value="Pretendard">Pretendard</option>
+                        <option value="Paperlogy">Paperlogy</option>
+                      </select>
+                    </label>
+
+                    <label className="control-item">
+                      <span>말풍선 모양</span>
+                      <select
+                        value={textBoxShape.value}
+                        onChange={(event) =>
+                          (textBoxShape.value =
+                            event.currentTarget.value as TextBoxShape)
+                        }
+                      >
+                        <option value="pill">둥근 pill</option>
+                        <option value="rounded">라운드</option>
+                        <option value="caption">말풍선</option>
+                      </select>
+                    </label>
+
+                    <label className="control-item color-picker">
+                      <span>텍스트 색상</span>
+                      <select></select>
+                    </label>
+
+                  </div>
+                </div>
+                )}
+
+              </section>
+
           </Panel>
 
-          <section className="editor-stage-wrap"><div className="editor-stage glass-panel"><Stage /><div className="stage-rulers"><span>EXPORT {EXPORT_SIZE}</span><span>LOOP</span></div></div><p className="canvas-help">행동 프레임은 유지하면서 레이어 위치와 크기만 같은 좌표계로 조정합니다.</p><LoopPreview /></section>
+          {/* 2. 에디터 스테이지 */}
+          <div className="editor-stage"><Stage />
 
-          <Panel title="Layer properties" meta="CANVAS SYNC" className="layer-properties">
-            <div className="selected-layer"><Icon name={activeLayerId ? layerIcons[activeLayerId] : "layers"} /><div><small>{activeLayerId ? "SELECTED LAYER" : "NO LAYER SELECTED"}</small><strong>{active?.label ?? "레이어를 선택해 주세요"}</strong></div></div>
-            {activeLayerId && transform ? <div className="property-grid"><label><span>X</span><input type="number" value={Math.round(transform.x)} onChange={(event) => updateLayerTransform(activeLayerId, { x: Number(event.currentTarget.value) })} /></label><label><span>Y</span><input type="number" value={Math.round(transform.y)} onChange={(event) => updateLayerTransform(activeLayerId, { y: Number(event.currentTarget.value) })} /></label><label><span>크기 %</span><input type="number" min="25" max="240" value={Math.round(transform.scale * 100)} onChange={(event) => updateLayerTransform(activeLayerId, { scale: Number(event.currentTarget.value) / 100 })} /></label><label><span>회전 °</span><input type="number" value={Math.round(transform.rotation)} onChange={(event) => updateLayerTransform(activeLayerId, { rotation: Number(event.currentTarget.value) })} /></label></div> : <p className="no-layer-selected">캔버스 요소나 타임라인 레이어를 선택하면 위치, 크기, 회전을 조정할 수 있어요.</p>}
-            {activeLayerId === "text" ? <div className="text-style-controls">
-              <label className="text-field"><span>문구</span><textarea rows={3} value={transcript.value} onChange={(event) => (transcript.value = event.currentTarget.value)} /></label>
-              <div className="text-control-grid">
-                <label><span>말풍선 모양</span><select value={textBoxShape.value} onChange={(event) => (textBoxShape.value = event.currentTarget.value as TextBoxShape)}><option value="pill">둥근 pill</option><option value="rounded">라운드 박스</option><option value="caption">꼬리 말풍선</option></select></label>
-                <label><span>텍스트 폰트</span><select value={textFont.value} onChange={(event) => (textFont.value = event.currentTarget.value as TextFont)}><option value="Pretendard">Pretendard</option><option value="Paperlogy">Paperlogy</option></select></label>
-              </div>
-            </div> : null}
-            {activeLayerId && active ? <div className="field-group"><span className="field-label">레이어 상태</span><div className="state-buttons"><button type="button" onClick={() => toggleLayer(activeLayerId, "visible")}><Icon name="image" />{active.visible ? "표시 중" : "숨김"}</button><button type="button" onClick={() => toggleLayer(activeLayerId, "locked")}><Icon name={active.locked ? "lock" : "unlock"} />{active.locked ? "잠김" : "편집 가능"}</button></div></div> : null}
-            <button className="button subtle full" type="button" onClick={() => navigate("/input")}><Icon name="previous" />입력 다시 분석</button>
-          </Panel>
+              {/* 스테이지 - 레이어 정보 패널 */}
+              <Panel className="layer-properties">
+
+                  <div className="layer-properties-header">
+                    <h3>레이어 위치 및 변환</h3>
+                  </div>
+
+                {activeLayerId && transform ? (
+                  <div className="property-grid">
+                    <label>
+                      <span>X</span>
+                      <input
+                        type="number"
+                        value={Math.round(transform.x)}
+                        onChange={(event) =>
+                          updateLayerTransform(activeLayerId, {
+                            x: Number(event.currentTarget.value),
+                          })
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      <span>Y</span>
+                      <input
+                        type="number"
+                        value={Math.round(transform.y)}
+                        onChange={(event) =>
+                          updateLayerTransform(activeLayerId, {
+                            y: Number(event.currentTarget.value),
+                          })
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      <span>크기(%)</span>
+                      <input
+                        type="number"
+                        min="25"
+                        max="240"
+                        value={Math.round(transform.scale * 100)}
+                        onChange={(event) =>
+                          updateLayerTransform(activeLayerId, {
+                            scale: Number(event.currentTarget.value) / 100,
+                          })
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      <span>회전(°)</span>
+                      <input
+                        type="number"
+                        value={Math.round(transform.rotation)}
+                        onChange={(event) =>
+                          updateLayerTransform(activeLayerId, {
+                            rotation: Number(event.currentTarget.value),
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <p className="no-layer-selected">
+                    캔버스 요소나 타임라인 레이어를 선택하면 위치, 크기,
+                    회전을 조정할 수 있어요.
+                  </p>
+                )}
+
+                {activeLayerId && active ? (
+                  <div className="field-group">
+                    <span className="field-label">레이어 상태</span>
+
+                    <div className="state-buttons">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toggleLayer(activeLayerId, "visible")
+                        }
+                      >
+                        {active.visible ? "표시" : "숨김"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toggleLayer(activeLayerId, "locked")
+                        }
+                      >
+                        {active.locked ? "잠김" : "편집"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+              </Panel>
+          
+          </div>
+
+
         </div>
 
-        <section className="timeline glass-panel">
-          <header><div><Icon name="layers" /><strong>4-Layer & 5-Frame editor</strong><span>위 레이어가 캔버스에서도 앞에 표시됩니다</span></div><div><button className="icon-button" type="button" onClick={() => (selectedFrame.value = Math.max(0, selectedFrame.value - 1))}><Icon name="previous" /></button><span>FRAME {selectedFrame.value + 1} / 5</span><button className="icon-button" type="button" onClick={() => (selectedFrame.value = Math.min(4, selectedFrame.value + 1))}><Icon name="next" /></button></div></header>
-          <div className="timeline-body">
-            <div className="layer-stack">
-              {displayedLayers.map((layer, index) => <div key={layer.id} data-layer-id={layer.id} role="group" aria-label={`${layer.label} 레이어`} className={`layer-row ${activeLayer.value === layer.id ? "active" : ""} ${dragId === layer.id ? "is-dragging" : ""} ${dropTarget?.id === layer.id ? `drop-${dropTarget.position}` : ""}`} onClick={() => (activeLayer.value = layer.id)} onFocusCapture={() => (activeLayer.value = layer.id)}>
-                <button className="drag-handle-button" type="button" aria-label={`${layer.label} 레이어 선택 및 순서 이동`} onPointerDown={(event) => beginLayerDrag(event, layer.id)} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); event.stopPropagation(); moveLayer(layer.id, event.key === "ArrowUp" ? -1 : 1); notify(`${layer.label} 레이어 순서를 옮겼어요.`); } }}><Icon name="drag" className="drag-handle" draggable={false} /></button>
-                <span className="layer-icon"><Icon name={layerIcons[layer.id]} /></span><span className="layer-copy"><strong>{layer.label}</strong><small>{layer.description}</small></span><span className="layer-order">{4 - index}</span><span className="layer-controls"><button type="button" className="layer-control-button" aria-label={`${layer.label} 레이어 ${layer.visible ? "숨기기" : "표시하기"}`} aria-pressed={layer.visible} onClick={(event) => { event.stopPropagation(); toggleLayer(layer.id, "visible"); }}><Icon name={layer.visible ? "check" : "close"} size={13} /></button><button type="button" className="layer-control-button" aria-label={`${layer.label} 레이어 ${layer.locked ? "잠금 해제" : "잠그기"}`} aria-pressed={layer.locked} onClick={(event) => { event.stopPropagation(); toggleLayer(layer.id, "locked"); }}><Icon name={layer.locked ? "lock" : "unlock"} size={14} /></button></span><span className="layer-move"><button type="button" className="layer-control-button" aria-label={`${layer.label} 레이어 앞으로 이동`} onClick={(event) => { event.stopPropagation(); moveLayer(layer.id, -1); }}><Icon name="previous" size={13} className="rotate-up" /></button><button type="button" className="layer-control-button" aria-label={`${layer.label} 레이어 뒤로 이동`} onClick={(event) => { event.stopPropagation(); moveLayer(layer.id, 1); }}><Icon name="next" size={13} className="rotate-down" /></button></span>
-              </div>)}
-              <p className={`layer-drag-guide ${dragId ? "active" : ""}`} aria-live="polite">{dragId ? dropTarget ? `${layers.value.find((layer) => layer.id === dragId)?.label} → ${layers.value.find((layer) => layer.id === dropTarget.id)?.label} ${dropTarget.position === "before" ? "위" : "아래"}` : "다른 레이어 행 위로 끌어주세요" : "점 핸들을 끌면 놓일 위치를 미리 볼 수 있어요"}</p>
+        {/* 타임라인 패널 */}
+        <div className="timeline">
+
+          <header>
+            <div>
+              <h1>프레임</h1>
             </div>
-            <div className="frame-track"><div className="frame-grid">{frameImages.value.map((image, index) => <button key={`${image}-${index}`} type="button" className={selectedFrame.value === index ? "active" : ""} onClick={() => (selectedFrame.value = index)}><img src={image} alt={`${index + 1}번째 동작 프레임`} /><span>FRAME {String(index + 1).padStart(2, "0")}</span></button>)}</div></div>
+
+            <div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() =>
+                  (selectedFrame.value =
+                    selectedFrame.value === 0 ? 4 : selectedFrame.value - 1)
+                }
+              >
+                <Icon name="previous" />
+              </button>
+
+             <span className="frame-counter">
+                FRAME {selectedFrame.value + 1} / 5
+              </span>
+
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() =>
+                  (selectedFrame.value =
+                    selectedFrame.value === 4 ? 0 : selectedFrame.value + 1)
+                }
+              >
+                <Icon name="next" />
+              </button>
+            </div>
+          </header>
+
+          {/* 다섯 프레임 타임라인 */}
+          <div className="timeline-body">
+              {Array.from({ length: FRAME_COUNT }).map((_, index) => { const image = frameImages.value[index]; const hasImage = !!image;
+            return ( <button
+            key={index}
+            type="button"
+            className={selectedFrame.value === index ? "active" : ""}
+            onClick={() => (selectedFrame.value = index)}
+            >
+<img
+  src={hasImage ? image : characterMain.src}
+  alt={`${index + 1}번째 프레임`}
+  className={!hasImage ? "placeholder" : ""}
+/>
+            <span>{index + 1}</span></button>);})}
           </div>
-        </section>
+
+
+        </div>
+
         {dragId && dragPoint ? <div className="layer-drag-preview" style={{ left: dragPoint.x + 14, top: dragPoint.y + 14 }}><Icon name={layerIcons[dragId]} /><span><strong>{layers.value.find((layer) => layer.id === dragId)?.label}</strong><small>놓을 위치 미리보기</small></span></div> : null}
+
       </div>
       {exportModalOpen.value && exportGifBlob.value ? <div className="modal-backdrop" onClick={(event) => event.target === event.currentTarget && (exportModalOpen.value = false)}><section className="export-modal glass-panel" role="dialog" aria-modal="true" aria-label={`${exportLabel} 내보내기`}><header><div><span className="eyebrow">EXPORT COMPLETE</span><h2>{exportLabel}가 준비됐어요.</h2></div><button className="icon-button" type="button" onClick={() => (exportModalOpen.value = false)}><Icon name="close" /></button></header><div className="export-preview">{exportPreviewUrl ? <img src={exportPreviewUrl} alt={`완성된 ${exportLabel}`} /> : null}{qr ? <div className="qr-card"><img src={qr} alt={`${exportAnimationFormat.value} 다운로드 QR 코드`} /><span>모바일에서 바로 보기</span></div> : null}</div><p>{EXPORT_SIZE}×{EXPORT_SIZE} · {FRAME_COUNT} frames · {frameDelayMs.value}ms/frame · {exportLabel}{exportShareUrl.value ? " · QR 공유 링크" : " · 공유 API 연결 시 QR 생성"}</p><div className="export-actions"><button className="button secondary" type="button" onClick={() => downloadBlob(exportGifBlob.value!, `${safeFileName(emoticonTitle.value || "emove")}.${exportExtension}`)}><Icon name="download" />기기에 저장</button><button className="button primary" type="button" onClick={share}><Icon name="next" />메일·앱으로 보내기</button></div></section></div> : null}
     </>

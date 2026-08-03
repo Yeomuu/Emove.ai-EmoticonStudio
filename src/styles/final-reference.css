@@ -49,7 +49,6 @@
   .screen-brief h1,
   .character-flow-title,
   .character-result-title,
-  .edit-brief h1
 ) {
   width: fit-content;
   max-width: 100%;
@@ -234,12 +233,6 @@
   }
 }
 
-.library-page .carousel-card.active .action-buttons .btn-edit {
-  border-color: rgba(245, 243, 255, .18) !important;
-  background: rgba(10, 9, 18, .26) !important;
-  color: #f8f6ff !important;
-}
-
 .home-nav-glyph,
 .home-profile-glyph {
   display: none;
@@ -318,11 +311,6 @@ html[data-theme="light"] .library-page .carousel-card.active .card-hover-title {
   text-shadow: none;
 }
 
-html[data-theme="light"] .library-page .carousel-card.inactive .card-action-overlay {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 42%, rgba(255, 255, 255, .96) 100%) !important;
-  color: #2b2540 !important;
-}
-
 html[data-theme="light"] .library-page .carousel-card.inactive .card-hover-title {
   color: #2b2540 !important;
   text-shadow: none !important;
@@ -340,19 +328,6 @@ html[data-theme="light"] .library-page .card-hover-group {
   color: rgba(43, 37, 64, .54);
 }
 
-html[data-theme="light"] .editor-page :where(
-  .text-field textarea,
-  .text-control-grid select,
-  .property-grid input,
-  .emoticon-title-control input,
-  .state-buttons button
-) {
-  border-color: rgba(55, 48, 85, .14) !important;
-  background: rgba(255, 255, 255, .76) !important;
-  color: #29243b !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .92), 0 5px 14px rgba(42, 37, 62, .035) !important;
-}
-
 html[data-theme="light"] .home-highlight-word::before {
   background:
     linear-gradient(90deg, rgba(115, 93, 255, .12), rgba(131, 108, 255, .36) 38%, rgba(169, 145, 255, .3) 76%, rgba(115, 93, 255, .13)),
@@ -366,13 +341,6 @@ html[data-theme="light"] .home-highlight-word::before {
     clip-path: inset(0 0 0 0);
     opacity: .48;
   }
-}
-
-html[data-theme="light"] .editor-page :where(
-  .text-field textarea,
-  .emoticon-title-control input
-)::placeholder {
-  color: rgba(43, 37, 64, .38) !important;
 }
 
 @media (min-width: 1101px) and (min-height: 760px) {

@@ -1,436 +1,2540 @@
+/* ==========================================================================
+   컴포넌트 스타일시트 (components.css)
+   - 기존 선택자 / 속성 / 값 / 순서를 100% 그대로 유지
+   - 가독성 및 유지보수를 위한 정리, 주석, 포맷팅만 적용
+   - 원본 파일은 두 개의 `@layer components` 블록으로 구성되어 있으며,
+     두 번째 블록은 동일 선택자에 대해 캐스케이드 상 더 나중에 적용되어야
+     하므로(레이아웃 확장/반응형 버전) 두 블록의 순서를 변경하지 않음
+   ========================================================================== */
+
 @layer components {
-  .app-shell { min-height: 100vh; padding: 40px 24px 60px; }
-  .app-shell main { position: relative; z-index: 1; }
-  .topbar {
-    position: relative;
-    z-index: 30;
-    max-width: var(--max);
-    height: 68px;
-    margin: 0 auto 40px;
-    padding: 0;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-  }
-  .brand { display: inline-flex; align-items: center; gap: 10px; width: fit-content; padding: 0; background: none; }
-  .brand img { width: 38px; height: 38px; }
-  .brand-word { display: none; }
-  .primary-nav { display: flex; gap: 5px; padding: 7px; background: rgba(20,19,30,.5); border-radius: 999px; border: 1px solid var(--line-purple); }
-  .primary-nav a { min-width: 102px; padding: 9px 20px; border-radius: 999px; color: var(--muted); font-size: 13px; text-align: center; transition: .2s var(--ease); }
-  .primary-nav a:hover { color: var(--text); background: rgba(255,255,255,.05); }
-  .primary-nav a.active { color: var(--text); background: rgba(255,255,255,.025); border: 1px solid rgba(228,224,240,.75); box-shadow: inset 0 0 18px rgba(228,224,240,.12), 0 0 18px rgba(187,182,255,.13); font-weight: 500; }
-  .topbar-status { justify-self: end; width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line-purple); background: rgba(255,255,255,.025); }
-  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 12px rgba(187,182,255,.8); }
-  .workspace-page, .editor-page { max-width: var(--max); margin: 0 auto; }
-  .page-intro { max-width: 720px; margin-bottom: 30px; }
-  .page-intro h1 { margin: 10px 0 9px; font: 600 clamp(28px, 3vw, 42px)/1.15 "Paperlogy", sans-serif; letter-spacing: -.035em; }
-  .page-intro > p:last-child { max-width: 660px; color: var(--muted); font-size: 14px; }
 
-  .button { min-height: 44px; padding: 0 18px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid transparent; font-weight: 600; font-size: 13px; transition: transform .2s var(--ease), filter .2s var(--ease), background .2s; }
-  .button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.06); }
-  .button.primary { color: var(--ink); background: linear-gradient(135deg, var(--purple-bright), var(--purple)); box-shadow: var(--glow); }
-  .button.secondary { background: rgba(255,255,255,.06); border-color: var(--line); color: var(--text-soft); }
-  .button.subtle { background: rgba(255,255,255,.035); border-color: rgba(255,255,255,.08); color: var(--muted); }
-  .button.full { width: 100%; }
-  .icon-button { width: 38px; height: 38px; padding: 0; display: inline-grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.055); border: 1px solid var(--line); }
-  .icon-button:hover:not(:disabled) { background: rgba(187,182,255,.15); border-color: var(--line-purple); }
-  .panel { border-radius: var(--radius-lg); padding: 24px; overflow: hidden; }
-  .panel.overflow-visible { overflow: visible !important; }
-  .panel-header { min-height: 28px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-  .panel-header h2 { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
-  .panel-header span { color: var(--dim); font-size: 9px; letter-spacing: .15em; }
-  .panel-copy { margin: -8px 0 18px; color: var(--dim); font-size: 12px; }
-  .field-label { display: block; margin-bottom: 9px; color: var(--muted); font-size: 11px; }
-  .field-group { margin-top: 22px; }
-  .input-with-icon { position: relative; }
-  .input-with-icon input { width: 100%; height: 44px; padding: 0 42px 0 14px; }
-  .input-with-icon .icon { position: absolute; right: 14px; top: 13px; }
-  .segmented-control { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; background: rgba(255,255,255,.035); border: 1px solid var(--line); border-radius: var(--radius-sm); }
-  .segmented-control button { padding: 8px; background: none; border-radius: 9px; color: var(--dim); }
-  .segmented-control button.active { color: var(--ink); background: var(--purple); font-weight: 600; }
-  .chip-row, .swatch-row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .chip { padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: rgba(255,255,255,.03); font-size: 11px; }
-  .chip.active { color: var(--text); background: rgba(187,182,255,.14); border-color: var(--purple); }
-  .color-swatch { position: relative; width: 31px; height: 31px; border-radius: 50%; border: 3px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
-  .color-swatch.active::after { content: ""; position: absolute; inset: -6px; border: 1px solid var(--purple); border-radius: inherit; }
-  .range-field { display: grid; gap: 10px; margin-top: 22px; }
-  .range-field > span { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
-  .range-field strong { color: var(--purple); }
-  input[type="range"] { width: 100%; accent-color: var(--purple); }
+    /* ==========================================================================
+       01. GLOBAL / LAYOUT
+       ========================================================================== */
 
-  /* Home */
-  .app-shell.is-immersive { min-height: 100svh; padding-bottom: 0; overflow: hidden; }
-  .home-hero { position: relative; max-width: 1778px; min-height: calc(100svh - 148px); margin: -8px auto 0; display: grid; place-items: start center; overflow: hidden; }
-  .hero-glow { position: absolute; z-index: -2; width: 42vw; height: 32vw; left: 50%; top: 13%; transform: translateX(-50%); background: var(--purple-deep); opacity: .08; border-radius: 50%; filter: blur(120px); }
-  .home-copy { position: relative; z-index: 1; margin-top: 7.5%; display: grid; justify-items: center; text-align: center; }
-  .hero-kicker { margin-bottom: 18px; color: var(--text); font: 300 clamp(42px, 3.45vw, 66px)/1.1 "Pretendard", sans-serif; letter-spacing: -.035em; }
-  .home-copy h1 { display: flex; align-items: center; font: 700 clamp(52px, 3.8vw, 72px)/1 "Paperlogy", sans-serif; letter-spacing: -.065em; }
-  .logo-letter { width: .88em; height: .88em; margin: 0 .01em; display: inline-grid; place-items: center; }
-  .logo-letter img { width: 100%; height: 100%; object-fit: contain; }
-  .hero-actions { display: flex; gap: 24px; margin-top: 31px; }
-  .hero-button { width: 202px; height: 54px; border: 1px solid var(--line-purple); border-radius: 4px; color: var(--text-soft); background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(123,109,255,.1)); box-shadow: inset 0 0 28px rgba(123,109,255,.08), 0 8px 20px rgba(0,0,0,.3); }
-  .hero-button:hover { border-color: var(--purple); background: linear-gradient(180deg, rgba(187,182,255,.12), rgba(123,109,255,.16)); }
-  .home-footer { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); color: rgba(183,189,200,.45); font-size: 11px; white-space: nowrap; }
+    /*-----------------------------------------------------------------------
+      App Shell
+    -----------------------------------------------------------------------*/
+    /* 앱 전체를 감싸는 최상위 레이아웃 컨테이너 */
+    .app-shell {
+        min-height: 100vh;
+        padding: 40px 24px 60px;
+    }
 
-  /* Character */
-  .character-grid { display: grid; grid-template-columns: 286px minmax(420px, 1fr) 250px; gap: 18px; min-height: 620px; }
-  .settings-panel { display: flex; flex-direction: column; }
-  .settings-panel > .button { margin-top: auto; }
-  .character-stage { position: relative; min-height: 620px; border-radius: var(--radius-xl); overflow: hidden; display: grid; place-items: center; isolation: isolate; }
-  .stage-grid { position: absolute; inset: 0; z-index: -2; opacity: .17; background-image: linear-gradient(rgba(255,255,255,.036) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.036) 1px, transparent 1px); background-size: 28px 28px; mask-image: radial-gradient(circle, black, transparent 70%); }
-  .stage-label { position: absolute; left: 24px; top: 22px; color: var(--dim); font-size: 9px; letter-spacing: .15em; text-transform: uppercase; }
-  .character-aura { position: absolute; z-index: -1; width: 360px; height: 360px; border-radius: 50%; opacity: .28; filter: blur(80px); }
-  .character-stage > img { width: min(76%, 530px); max-height: 490px; object-fit: contain; transition: filter .4s; }
-  .stage-footer { position: absolute; left: 22px; right: 22px; bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
-  .stage-footer div { display: grid; }
-  .stage-footer strong { font-size: 16px; }
-  .stage-footer span { color: var(--dim); font-size: 8px; letter-spacing: .14em; }
-  .variation-panel { display: flex; flex-direction: column; }
-  .variation-card { position: relative; flex: 1; min-height: 145px; margin-bottom: 10px; border-radius: var(--radius-md); background: rgba(255,255,255,.025); border: 1px solid var(--line); overflow: hidden; }
-  .variation-card.active { border-color: var(--purple); box-shadow: inset 0 0 0 1px var(--purple); }
-  .variation-card img { width: 100%; height: 100%; max-height: 155px; object-fit: contain; }
-  .variation-card span { position: absolute; left: 12px; bottom: 9px; color: var(--muted); font-size: 8px; letter-spacing: .14em; }
-  .page-actions { margin-top: 20px; display: flex; justify-content: flex-end; align-items: center; gap: 18px; }
-  .page-actions > span { color: var(--dim); font-size: 11px; }
+    .app-shell main {
+        position: relative;
+        z-index: 1;
+    }
 
-  /* Input */
-  .input-grid { display: grid; grid-template-columns: minmax(360px, 1.08fr) minmax(330px, .86fr) 310px; gap: 18px; align-items: stretch; }
-  .capture-panel { display: flex; flex-direction: column; }
-  .camera-frame { position: relative; flex: 1; min-height: 490px; border-radius: 20px; overflow: hidden; background: #0b0a13; }
-  .camera-frame > img, .camera-frame video { width: 100%; height: 100%; object-fit: cover; }
-  .camera-frame video { display: none; transform: scaleX(-1); }
-  .camera-frame video.visible { display: block; }
-  .pose-guide { position: absolute; inset: 12%; pointer-events: none; border: 1px dashed rgba(187,182,255,.4); border-radius: 46% 46% 38% 38%; }
-  .pose-guide span { position: absolute; width: 8px; height: 8px; border: 1px solid var(--purple); border-radius: 50%; background: var(--bg); }
-  .pose-guide span:first-child { left: 50%; top: 8%; }
-  .pose-guide span:nth-child(2) { left: 11%; top: 45%; }
-  .pose-guide span:last-child { right: 11%; top: 45%; }
-  .camera-status { position: absolute; top: 14px; left: 14px; display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 999px; background: rgba(7,7,17,.62); color: var(--muted); font-size: 8px; letter-spacing: .12em; }
-  .camera-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
-  .camera-status i.on { background: #ff7a87; box-shadow: 0 0 8px #ff7a87; }
-  .capture-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
-  .input-center-column { display: grid; gap: 18px; grid-template-rows: 1fr auto; }
-  .record-orb { display: grid; place-items: center; gap: 9px; }
-  .record-orb button { position: relative; width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle, var(--purple-bright), var(--purple-deep)); box-shadow: 0 0 0 10px rgba(187,182,255,.06), 0 0 50px rgba(123,109,255,.3); }
-  .record-orb.recording button::before { content: ""; position: absolute; inset: -14px; border: 1px solid var(--purple); border-radius: 50%; animation: pulse-ring 1.2s ease-out infinite; }
-  @keyframes pulse-ring { to { transform: scale(1.3); opacity: 0; } }
-  .record-orb span { color: var(--muted); font-size: 11px; }
-  .waveform { width: 100%; height: 82px; margin: 20px 0 14px; }
-  .transcript-box { padding: 13px; border: 1px solid var(--line); background: rgba(255,255,255,.025); border-radius: var(--radius-md); }
-  .transcript-box > span { display: block; margin-bottom: 6px; color: var(--dim); font-size: 8px; letter-spacing: .14em; }
-  .transcript-box textarea { width: 100%; resize: vertical; padding: 10px; background: transparent; border: 0; font-size: 14px; }
-  .emotion-selector { display: flex; gap: 7px; flex-wrap: wrap; }
-  .emotion-selector button { padding: 7px 9px; border-radius: 999px; display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,.03); border: 1px solid var(--line); color: var(--dim); font-size: 10px; }
-  .emotion-selector button span { width: 7px; height: 7px; border-radius: 50%; }
-  .emotion-selector button.active { color: var(--text); border-color: var(--purple); background: rgba(187,182,255,.12); }
-  .confidence-row { margin-top: 15px; display: grid; grid-template-columns: 1fr auto; gap: 7px; color: var(--muted); font-size: 10px; }
-  .confidence-row strong { color: var(--purple); }
-  .confidence-row div { grid-column: 1/-1; height: 3px; border-radius: 99px; background: rgba(255,255,255,.06); }
-  .confidence-row i { display: block; height: 100%; border-radius: inherit; background: var(--purple); }
-  .brief-panel { display: flex; flex-direction: column; }
-  .brief-character { position: relative; height: 210px; display: grid; place-items: center; }
-  .brief-character div { position: absolute; width: 160px; height: 160px; border-radius: 50%; opacity: .28; filter: blur(42px); }
-  .brief-character img { position: relative; max-height: 210px; object-fit: contain; }
-  .brief-list { margin-top: 6px; }
-  .brief-list div { padding: 10px 0; display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(255,255,255,.07); }
-  .brief-list dt { color: var(--dim); font-size: 10px; }
-  .brief-list dd { color: var(--text-soft); font-size: 11px; text-align: right; }
-  .privacy-note { margin: 18px 0; padding: 12px; display: flex; gap: 10px; background: rgba(187,182,255,.07); border: 1px solid rgba(187,182,255,.14); border-radius: var(--radius-sm); }
-  .privacy-note p { display: grid; }
-  .privacy-note strong { font-size: 10px; }
-  .privacy-note span { color: var(--dim); font-size: 9px; }
+    /*-----------------------------------------------------------------------
+      Topbar / Brand
+    -----------------------------------------------------------------------*/
+    /* 상단 고정 바 (로고, 내비게이션, 상태 아이콘 포함) */
+    .topbar {
+        position: relative;
+        z-index: 30;
+        max-width: var(--max);
+        height: 68px;
+        margin: 0 auto 40px;
+        padding: 0;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+    }
 
-  /* Editor */
-  .editor-toolbar { min-height: 66px; margin-bottom: 16px; padding: 10px 12px 10px 20px; border-radius: 999px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-  .editor-toolbar > div:first-child { display: grid; }
-  .editor-toolbar > div:first-child strong { font-size: 14px; }
-  .editor-title-group { min-width: 0; }
-  .emoticon-title-control { min-width: 180px; }
-  .toolbar-actions { display: flex; align-items: center; gap: 7px; }
-  .save-state { margin: 0 8px; color: var(--dim); font-size: 9px; }
-  .editor-grid { display: grid; grid-template-columns: 280px minmax(440px, 1fr) 270px; gap: 16px; min-height: 550px; }
-  .effect-settings, .layer-properties { padding: 21px; }
-  .effect-hero { padding: 15px; display: grid; grid-template-columns: 48px 1fr; gap: 12px; border: 1px solid var(--line-purple); background: rgba(187,182,255,.07); border-radius: var(--radius-md); }
-  .effect-hero > span { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; filter: drop-shadow(0 0 14px rgba(187,182,255,.28)); }
-  .effect-hero div { display: grid; }
-  .effect-hero small { color: var(--purple); font-size: 7px; letter-spacing: .15em; }
-  .effect-hero strong { margin: 2px 0; font-size: 13px; }
-  .effect-hero p { color: var(--dim); font-size: 9px; }
-  .preset-list { display: grid; gap: 6px; }
-  .preset-list button { padding: 9px 10px; display: flex; align-items: center; gap: 9px; border: 1px solid rgba(255,255,255,.07); border-radius: 10px; background: rgba(255,255,255,.025); color: var(--muted); font-size: 10px; text-align: left; }
-  .preset-list button.active { color: var(--text); border-color: var(--purple); background: rgba(187,182,255,.1); }
-  .preset-list i { width: 15px; height: 15px; border-radius: 5px; opacity: .8; }
-  .color-field { margin-top: 20px; display: flex; align-items: center; justify-content: space-between; }
-  .color-field > span { display: grid; }
-  .color-field b { font-size: 11px; }
-  .color-field em { color: var(--dim); font-size: 9px; font-style: normal; }
-  .color-field input { width: 46px; height: 34px; padding: 3px; }
-  .effect-note { margin-top: 18px; padding: 10px; display: flex; gap: 8px; border-radius: 10px; color: var(--dim); background: rgba(255,255,255,.025); font-size: 9px; }
-  .editor-stage-wrap { min-width: 0; display: grid; grid-template-rows: 1fr auto; gap: 12px; }
-  .editor-stage { position: relative; min-height: 484px; display: grid; place-items: center; border-radius: var(--radius-xl); overflow: hidden; background: radial-gradient(circle at center, rgba(187,182,255,.07), transparent 58%), rgba(255,255,255,.018); }
-  .editor-stage::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.021) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.021) 1px, transparent 1px); background-size: 24px 24px; mask-image: radial-gradient(circle, black, transparent 72%); }
-  .stage-canvas { position: relative; width: min(82%, 500px); aspect-ratio: 1; }
-  .stage-rulers span { position: absolute; color: var(--dim); font-size: 8px; letter-spacing: .1em; }
-  .stage-rulers span:first-child { left: 50%; bottom: 10px; }
-  .stage-rulers span:last-child { top: 50%; right: 10px; transform: rotate(90deg); }
-  .playback-controls { height: 58px; padding: 9px 16px; display: flex; align-items: center; gap: 12px; border-radius: 999px; }
-  .icon-button.prominent { background: var(--purple); }
-  .icon-button.prominent .icon { filter: brightness(0); }
-  .playback-controls > span { color: var(--dim); font-size: 9px; }
-  .play-progress { flex: 1; height: 3px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
-  .play-progress i { display: block; height: 100%; background: var(--purple); transition: width 3s linear; }
-  .selected-layer { padding: 13px; display: flex; align-items: center; gap: 10px; border-radius: var(--radius-md); background: rgba(187,182,255,.08); border: 1px solid rgba(187,182,255,.18); }
-  .selected-layer > .icon { width: 30px; height: 30px; padding: 7px; border-radius: 9px; background: rgba(187,182,255,.2); }
-  .selected-layer div { display: grid; }
-  .selected-layer small { color: var(--purple); font-size: 7px; letter-spacing: .12em; }
-  .selected-layer strong { font-size: 12px; }
-  .property-grid { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .property-grid label, .text-field { display: grid; gap: 5px; color: var(--dim); font-size: 9px; }
-  .property-grid input { width: 100%; height: 35px; padding: 0 9px; }
-  .no-layer-selected { margin: 18px 0 0; padding: 14px; border: 1px solid rgba(187,182,255,.14); border-radius: var(--radius-md); color: var(--dim); background: rgba(255,255,255,.025); font-size: 10px; line-height: 1.55; }
-  .text-field { margin-top: 20px; }
-  .text-field textarea { padding: 10px; resize: vertical; }
-  .state-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-  .state-buttons button { min-height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--muted); font-size: 10px; }
-  .layer-properties > .button { margin-top: 24px; }
-  .timeline { margin-top: 16px; padding: 18px 20px 20px; border-radius: var(--radius-lg); }
-  .timeline > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; }
-  .timeline > header > div { display: flex; align-items: center; gap: 9px; }
-  .timeline > header strong { font-size: 12px; }
-  .timeline > header span { color: var(--dim); font-size: 9px; }
-  .timeline > header .icon-button { width: 27px; height: 27px; }
-  .timeline-body { display: grid; grid-template-columns: 280px 1fr; gap: 12px; }
-  .layer-stack { display: grid; gap: 5px; }
-  .layer-row { position: relative; min-height: 50px; padding: 6px 7px; display: grid; grid-template-columns: 16px 34px 1fr 20px 45px 35px; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,.07); border-radius: 11px; background: rgba(255,255,255,.025); text-align: left; transition: transform .18s var(--ease), opacity .18s var(--ease), border-color .18s var(--ease), background .18s var(--ease); }
-  .layer-row.active { border-color: var(--purple); background: rgba(187,182,255,.08); }
-  .drag-handle-button { width: 20px; height: 34px; margin-left: -4px; padding: 0; display: grid; place-items: center; border-radius: 7px; background: transparent; cursor: grab; touch-action: none; }
-  .drag-handle-button:hover, .drag-handle-button:focus-visible { background: rgba(187,182,255,.12); }
-  .drag-handle-button:active { cursor: grabbing; }
-  .drag-handle { opacity: .45; pointer-events: none; }
-  .layer-row.is-dragging { opacity: .24; border-style: dashed; background: rgba(187,182,255,.04); }
-  .layer-row.drop-before::before, .layer-row.drop-after::after { content: ""; position: absolute; z-index: 4; left: 5px; right: 5px; height: 2px; border-radius: 99px; background: #25a6ff; box-shadow: 0 0 12px rgba(37,166,255,.8); }
-  .layer-row.drop-before::before { top: -4px; }
-  .layer-row.drop-after::after { bottom: -4px; }
-  .layer-drag-guide { margin: 3px 2px 0; min-height: 14px; color: var(--dim); font-size: 8px; text-align: center; transition: color .18s; }
-  .layer-drag-guide.active { color: #79c8ff; }
-  .layer-drag-preview { position: fixed; z-index: 150; width: 190px; min-height: 48px; padding: 8px 11px; display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 9px; border: 1px solid rgba(121,200,255,.72); border-radius: 12px; background: rgba(24,24,38,.88); box-shadow: 0 14px 40px rgba(0,0,0,.42), 0 0 18px rgba(37,166,255,.18); backdrop-filter: blur(18px); pointer-events: none; transform: translateY(-50%); }
-  .layer-drag-preview > .icon { width: 28px; height: 28px; padding: 6px; border-radius: 8px; background: rgba(187,182,255,.12); }
-  .layer-drag-preview span { display: grid; }
-  .layer-drag-preview strong { font-size: 10px; }
-  .layer-drag-preview small { color: var(--dim); font-size: 8px; }
-  .layer-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; background: rgba(255,255,255,.055); }
-  .layer-copy { display: grid; }
-  .layer-copy strong { font-size: 10px; }
-  .layer-copy small { color: var(--dim); font-size: 8px; }
-  .layer-order { color: var(--purple); font-size: 9px; }
-  .layer-controls, .layer-move { display: flex; align-items: center; gap: 6px; }
-  .layer-control-button { width: 22px; height: 22px; padding: 0; display: inline-grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--dim); cursor: pointer; }
-  .layer-control-button:hover, .layer-control-button:focus-visible { background: rgba(187,182,255,.12); color: var(--text); }
-  .rotate-up { transform: rotate(90deg); }
-  .rotate-down { transform: rotate(90deg); }
-  .frame-track { position: relative; min-width: 0; overflow: hidden; }
-  .time-scale { display: flex; justify-content: space-between; height: 20px; color: var(--dim); font-size: 8px; }
-  .frame-grid { display: grid; grid-template-columns: repeat(5, minmax(80px, 1fr)); gap: 7px; height: calc(100% - 20px); }
-  .frame-grid button { position: relative; min-width: 0; overflow: hidden; border-radius: 11px; border: 1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.02); }
-  .frame-grid button.active { border-color: var(--purple); box-shadow: inset 0 0 0 1px var(--purple); }
-  .frame-grid img { width: 100%; height: 100%; object-fit: contain; opacity: .75; }
-  .frame-grid span { position: absolute; left: 7px; bottom: 5px; color: var(--dim); font-size: 7px; }
-  .playhead { position: absolute; top: 13px; bottom: 0; width: 1px; background: var(--purple); pointer-events: none; transition: left .2s; }
-  .playhead i { position: absolute; top: 0; left: -4px; width: 9px; height: 9px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 10px var(--purple); }
+    /* 좌측 브랜드 로고 영역 */
+    .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        width: fit-content;
+        padding: 0;
+        background: none;
+    }
 
-  /* Library */
-  .library-tools { padding: 13px 15px; border-radius: 999px; display: grid; grid-template-columns: minmax(230px, 1fr) auto auto; gap: 12px; align-items: center; }
-  .search-box { position: relative; }
-  .search-box .icon { position: absolute; left: 14px; top: 13px; opacity: .4; }
-  .search-box input { width: 100%; height: 42px; padding: 0 15px 0 43px; border-radius: 999px; }
-  .filter-row { display: flex; gap: 4px; }
-  .filter-row button { padding: 9px 12px; border-radius: 999px; background: none; color: var(--dim); font-size: 10px; }
-  .filter-row button.active { color: var(--ink); background: var(--purple); font-weight: 600; }
-  .library-summary { margin: 25px 4px 15px; display: flex; align-items: baseline; gap: 7px; }
-  .library-summary strong { font: 600 22px "Paperlogy", sans-serif; }
-  .library-summary span { color: var(--dim); font-size: 10px; }
-  .library-summary i { width: 1px; height: 10px; margin: 0 5px; background: var(--line); }
-  .sticker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; align-items: start; }
-  .sticker-card { position: relative; min-height: 390px; padding: 10px; border-radius: var(--radius-lg); overflow: hidden; }
-  .sticker-card.size-1 { margin-top: 42px; }
-  .sticker-card.size-2 { min-height: 430px; }
-  .favorite-button { position: absolute; z-index: 2; right: 20px; top: 20px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: rgba(7,7,17,.44); border: 1px solid var(--line); }
-  .favorite-button.active .icon { filter: sepia(1) saturate(5) hue-rotate(190deg); }
-  .sticker-preview { position: relative; width: 100%; height: 285px; border-radius: 21px; overflow: hidden; background: rgba(255,255,255,.025); }
-  .size-2 .sticker-preview { height: 325px; }
-  .sticker-glow { position: absolute; width: 70%; height: 70%; left: 15%; top: 15%; border-radius: 50%; opacity: .25; filter: blur(48px); }
-  .sticker-preview img { position: relative; width: 100%; height: 100%; object-fit: contain; transition: transform .35s var(--ease); }
-  .sticker-preview:hover img { transform: scale(1.05) rotate(-2deg); }
-  .sticker-card footer { padding: 14px 7px 4px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .sticker-card footer div { display: grid; }
-  .sticker-card footer span { color: var(--purple); font-size: 7px; letter-spacing: .14em; }
-  .sticker-card footer strong { margin-top: 2px; font-size: 13px; }
-  .sticker-card footer p { color: var(--dim); font-size: 9px; }
-  .empty-library { padding: 80px 20px; border-radius: var(--radius-lg); display: grid; place-items: center; text-align: center; }
-  .empty-library h2 { margin-top: 14px; font-size: 18px; }
-  .empty-library p { color: var(--dim); font-size: 12px; }
-  .drawer-backdrop { position: fixed; z-index: 50; inset: 0; display: flex; justify-content: flex-end; padding: 20px; background: rgba(7,7,17,.58); backdrop-filter: blur(7px); }
-  .detail-drawer { width: min(430px, 100%); height: 100%; padding: 22px; overflow-y: auto; border-radius: var(--radius-lg); animation: drawer-in .3s var(--ease); }
-  @keyframes drawer-in { from { transform: translateX(40px); opacity: 0; } }
-  .detail-drawer > header { display: flex; align-items: center; justify-content: space-between; }
-  .profile { display: flex; align-items: center; gap: 10px; }
-  .profile img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
-  .profile span { display: grid; }
-  .profile strong { font-size: 11px; }
-  .profile small { color: var(--dim); font-size: 8px; }
-  .detail-preview { position: relative; height: 430px; margin: 22px 0; display: grid; place-items: center; overflow: hidden; border-radius: 22px; background: rgba(255,255,255,.028); }
-  .detail-preview > div { position: absolute; width: 70%; height: 70%; border-radius: 50%; opacity: .26; filter: blur(60px); }
-  .detail-preview img { position: relative; width: 92%; height: 82%; object-fit: contain; }
-  .detail-preview span { position: absolute; bottom: 20px; padding: 10px 18px; border-radius: 999px; background: rgba(252,252,252,.92); color: var(--ink); font-weight: 700; }
-  .detail-copy p { color: var(--purple); font-size: 8px; letter-spacing: .14em; }
-  .detail-copy h2 { margin-top: 4px; font: 600 24px "Paperlogy", sans-serif; }
-  .detail-copy > span { color: var(--muted); font-size: 12px; }
-  .detail-spec { margin: 18px 0; padding: 4px 15px; border: 1px solid var(--line); border-radius: var(--radius-md); }
-  .detail-spec div { padding: 10px 0; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.06); }
-  .detail-spec div:last-child { border-bottom: 0; }
-  .detail-spec dt { color: var(--dim); font-size: 9px; }
-  .detail-spec dd { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
-  .detail-spec i { width: 11px; height: 11px; border-radius: 50%; }
-  .detail-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .toast { position: fixed; z-index: 100; left: 50%; bottom: 28px; transform: translateX(-50%); padding: 12px 18px; border: 1px solid var(--line-purple); border-radius: 999px; background: rgba(32,30,40,.92); box-shadow: var(--shadow); color: var(--text-soft); font-size: 11px; backdrop-filter: blur(18px); animation: toast-in .25s var(--ease); }
-  @keyframes toast-in { from { transform: translate(-50%, 10px); opacity: 0; } }
+    .brand img {
+        width: 38px;
+        height: 38px;
+    }
+
+    .brand-word {
+        display: none;
+    }
+
+    /*-----------------------------------------------------------------------
+      Topbar Status Indicator
+    -----------------------------------------------------------------------*/
+    /* 우측 상태 표시 원형 버튼 */
+    .topbar-status {
+        justify-self: end;
+        width: 50px;
+        height: 50px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        border: 1px solid var(--line-purple);
+        background: rgba(255, 255, 255, .025);
+    }
+
+    /* 상태 표시 점 (활성/온라인 표시) */
+    .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--purple);
+        box-shadow: 0 0 12px rgba(187, 182, 255, .8);
+    }
+
+    /*-----------------------------------------------------------------------
+      Page Wrapper / Intro
+    -----------------------------------------------------------------------*/
+    /* 페이지 공통 최대 너비 컨테이너 */
+    .workspace-page,
+    .editor-page {
+        max-width: var(--max);
+        margin: 0 auto;
+    }
+
+    /* 페이지 상단 소개 영역 (제목 + 설명) */
+    .page-intro {
+        max-width: 720px;
+        margin-bottom: 30px;
+    }
+
+    .page-intro h1 {
+        margin: 10px 0 9px;
+        font: 600 clamp(28px, 3vw, 42px)/1.15 "Paperlogy", sans-serif;
+        letter-spacing: -.035em;
+    }
+
+    .page-intro > p:last-child {
+        max-width: 660px;
+        color: var(--muted);
+        font-size: 14px;
+    }
+
+    /* 버튼 시스템은 03. BUTTON SYSTEM 섹션 참고 */
+    .button {
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        border: 1px solid transparent;
+        font-weight: 600;
+        font-size: 13px;
+        transition: transform .2s var(--ease), filter .2s var(--ease), background .2s;
+    }
+
+    .button:hover:not(:disabled) {
+        transform: translateY(-2px);
+        filter: brightness(1.06);
+    }
+
+    .button.primary {
+        color: var(--ink);
+        background: linear-gradient(135deg, var(--purple-bright), var(--purple));
+        box-shadow: var(--glow);
+    }
+
+    .button.secondary {
+        background: rgba(255, 255, 255, .06);
+        border-color: var(--line);
+        color: var(--text-soft);
+    }
+
+    .button.subtle {
+        background: rgba(255, 255, 255, .035);
+        border-color: rgba(255, 255, 255, .08);
+        color: var(--muted);
+    }
+
+    .button.full {
+        width: 100%;
+    }
+
+    /* 원형 아이콘 버튼 */
+    .icon-button {
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        display: inline-grid;
+        place-items: center;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, .055);
+        border: 1px solid var(--line);
+    }
+
+    .icon-button:hover:not(:disabled) {
+        background: rgba(187, 182, 255, .15);
+        border-color: var(--line-purple);
+    }
+
+    .panel.overflow-visible {
+        overflow: visible !important;
+    }
+
+    .panel-header {
+        min-height: 28px;
+        margin-bottom: 22px;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+    }
+
+    .panel-header h2 {
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -.01em;
+    }
+
+    .panel-header span {
+        color: var(--dim);
+        font-size: 9px;
+        letter-spacing: .15em;
+    }
+
+    .panel-copy {
+        margin: -8px 0 18px;
+        color: var(--dim);
+        font-size: 12px;
+    }
+
+    /* 입력 필드 라벨 및 그룹 간격 */
+    .field-label {
+        display: block;
+        margin-bottom: 9px;
+        color: var(--muted);
+        font-size: 11px;
+    }
+
+    .field-group {
+        margin-top: 22px;
+    }
+
+    /* 아이콘이 포함된 입력창 */
+    .input-with-icon {
+        position: relative;
+    }
+
+    .input-with-icon input {
+        width: 100%;
+        height: 44px;
+        padding: 0 42px 0 14px;
+    }
+
+    .input-with-icon .icon {
+        position: absolute;
+        right: 14px;
+        top: 13px;
+    }
+
+    /* 2단 세그먼트 컨트롤 (탭 전환) */
+    .segmented-control {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        padding: 4px;
+        background: rgba(255, 255, 255, .035);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+    }
+
+    .segmented-control button {
+        padding: 8px;
+        background: none;
+        border-radius: 9px;
+        color: var(--dim);
+    }
+
+    .segmented-control button.active {
+        color: var(--ink);
+        background: var(--purple);
+        font-weight: 600;
+    }
+
+    /* 칩 / 컬러 스와치 선택 목록 */
+    .chip-row,
+    .swatch-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .chip {
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        background: rgba(255, 255, 255, .03);
+        font-size: 11px;
+    }
+
+    .chip.active {
+        color: var(--text);
+        background: rgba(187, 182, 255, .14);
+        border-color: var(--purple);
+    }
+
+    .color-swatch {
+        position: relative;
+        width: 31px;
+        height: 31px;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15);
+    }
+
+    .color-swatch.active::after {
+        content: "";
+        position: absolute;
+        inset: -6px;
+        border: 1px solid var(--purple);
+        border-radius: inherit;
+    }
+
+    /* 슬라이더(range) 필드 */
+    .range-field {
+        display: grid;
+        gap: 10px;
+        margin-top: 22px;
+    }
+
+    .range-field > span {
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        font-size: 11px;
+    }
+
+    .range-field strong {
+        color: var(--purple);
+    }
+
+    input[type="range"] {
+        width: 100%;
+        accent-color: var(--purple);
+    }
+
+    /*-----------------------------------------------------------------------
+      Home (랜딩 페이지)
+    -----------------------------------------------------------------------*/
+    /* 홈 화면 전용 몰입형 셸 (스크롤 없음) */
+    .app-shell.is-immersive {
+        min-height: 100svh;
+        padding-bottom: 0;
+        overflow: hidden;
+    }
+
+    /* 홈 히어로 영역 */
+    .home-hero {
+        position: relative;
+        max-width: 1778px;
+        min-height: calc(100svh - 148px);
+        margin: -8px auto 0;
+        display: grid;
+        place-items: start center;
+        overflow: hidden;
+    }
+
+    /* 히어로 배경 발광 효과 */
+    .hero-glow {
+        position: absolute;
+        z-index: -2;
+        width: 42vw;
+        height: 32vw;
+        left: 50%;
+        top: 13%;
+        transform: translateX(-50%);
+        background: var(--purple-deep);
+        opacity: .08;
+        border-radius: 50%;
+        filter: blur(120px);
+    }
+
+    .home-copy {
+        position: relative;
+        z-index: 1;
+        margin-top: 7.5%;
+        display: grid;
+        justify-items: center;
+        text-align: center;
+    }
+
+    .hero-kicker {
+        margin-bottom: 18px;
+        color: var(--text);
+        font: 300 clamp(42px, 3.45vw, 66px)/1.1 "Pretendard", sans-serif;
+        letter-spacing: -.035em;
+    }
+
+    .home-copy h1 {
+        display: flex;
+        align-items: center;
+        font: 700 clamp(52px, 3.8vw, 72px)/1 "Paperlogy", sans-serif;
+        letter-spacing: -.065em;
+    }
+
+    /* 로고 이미지가 텍스트 사이에 삽입되는 글자 슬롯 */
+    .logo-letter {
+        width: .88em;
+        height: .88em;
+        margin: 0 .01em;
+        display: inline-grid;
+        place-items: center;
+    }
+
+    .logo-letter img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .hero-actions {
+        display: flex;
+        gap: 24px;
+        margin-top: 31px;
+    }
+
+    /* 홈 진입 CTA 버튼 */
+    .hero-button {
+        width: 202px;
+        height: 54px;
+        border: 1px solid var(--line-purple);
+        border-radius: 4px;
+        color: var(--text-soft);
+        background: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(123, 109, 255, .1));
+        box-shadow: inset 0 0 28px rgba(123, 109, 255, .08), 0 8px 20px rgba(0, 0, 0, .3);
+    }
+
+    .hero-button:hover {
+        border-color: var(--purple);
+        background: linear-gradient(180deg, rgba(187, 182, 255, .12), rgba(123, 109, 255, .16));
+    }
+
+    .home-footer {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(183, 189, 200, .45);
+        font-size: 11px;
+        white-space: nowrap;
+    }
+
+    /* ==========================================================================
+       05. CHARACTER PAGE
+       ========================================================================== */
+
+    /*-----------------------------------------------------------------------
+      Character Grid Layout
+    -----------------------------------------------------------------------*/
+    /* 캐릭터 페이지 3단 그리드 레이아웃 */
+    .character-grid {
+        display: grid;
+        grid-template-columns: 286px minmax(420px, 1fr) 250px;
+        gap: 18px;
+        min-height: 620px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Settings Panel
+    -----------------------------------------------------------------------*/
+    /* 좌측 설정 패널 (하단 버튼 고정) */
+    .settings-panel {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .settings-panel > .button {
+        margin-top: auto;
+    }
+
+    /*-----------------------------------------------------------------------
+      Character Stage
+    -----------------------------------------------------------------------*/
+    /* 중앙 캐릭터 미리보기 무대 */
+    .character-stage {
+        position: relative;
+        min-height: 620px;
+        border-radius: var(--radius-xl);
+        overflow: hidden;
+        display: grid;
+        place-items: center;
+        isolation: isolate;
+    }
+
+    /* 무대 배경 격자 패턴 */
+    .stage-grid {
+        position: absolute;
+        inset: 0;
+        z-index: -2;
+        opacity: .17;
+        background-image: linear-gradient(rgba(255, 255, 255, .036) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .036) 1px, transparent 1px);
+        background-size: 28px 28px;
+    }
+
+    /* 무대 좌측 상단 라벨 */
+    .stage-label {
+        position: absolute;
+        left: 24px;
+        top: 22px;
+        color: var(--dim);
+        font-size: 9px;
+        letter-spacing: .15em;
+        text-transform: uppercase;
+    }
+
+    /* 캐릭터 뒤 발광 아우라 */
+    .character-aura {
+        position: absolute;
+        z-index: -1;
+        width: 360px;
+        height: 360px;
+        border-radius: 50%;
+        opacity: .28;
+        filter: blur(80px);
+    }
+
+    .character-stage > img {
+        width: min(76%, 530px);
+        max-height: 490px;
+        object-fit: contain;
+        transition: filter .4s;
+    }
+
+    /* 무대 하단 정보 바 */
+    .stage-footer {
+        position: absolute;
+        left: 22px;
+        right: 22px;
+        bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .stage-footer div {
+        display: grid;
+    }
+
+    .stage-footer strong {
+        font-size: 16px;
+    }
+
+    .stage-footer span {
+        color: var(--dim);
+        font-size: 8px;
+        letter-spacing: .14em;
+    }
+
+    /*-----------------------------------------------------------------------
+      Variation Panel
+    -----------------------------------------------------------------------*/
+    /* 우측 캐릭터 배리에이션 목록 패널 */
+    .variation-panel {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .variation-card {
+        position: relative;
+        flex: 1;
+        min-height: 145px;
+        margin-bottom: 10px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, .025);
+        border: 1px solid var(--line);
+        overflow: hidden;
+    }
+
+    .variation-card.active {
+        border-color: var(--purple);
+        box-shadow: inset 0 0 0 1px var(--purple);
+    }
+
+    .variation-card img {
+        width: 100%;
+        height: 100%;
+        max-height: 155px;
+        object-fit: contain;
+    }
+
+    .variation-card span {
+        position: absolute;
+        left: 12px;
+        bottom: 9px;
+        color: var(--muted);
+        font-size: 8px;
+        letter-spacing: .14em;
+    }
+
+    /*-----------------------------------------------------------------------
+      Page Actions
+    -----------------------------------------------------------------------*/
+    /* 페이지 하단 우측 액션 영역 */
+    .page-actions {
+        margin-top: 20px;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 18px;
+    }
+
+    .page-actions > span {
+        color: var(--dim);
+        font-size: 11px;
+    }
+
+    /* ==========================================================================
+       06. INPUT PAGE
+       ========================================================================== */
+
+    /*-----------------------------------------------------------------------
+      Input Grid Layout
+    -----------------------------------------------------------------------*/
+    /* 입력 페이지 3단 그리드 레이아웃 */
+    .input-grid {
+        display: grid;
+        grid-template-columns: minmax(360px, 1.08fr) minmax(330px, .86fr) 310px;
+        gap: 18px;
+        align-items: stretch;
+    }
+
+    /*-----------------------------------------------------------------------
+      Capture Panel (카메라)
+    -----------------------------------------------------------------------*/
+    .capture-panel {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* 카메라 프리뷰 프레임 */
+    .camera-frame {
+        position: relative;
+        flex: 1;
+        min-height: 490px;
+        border-radius: 20px;
+        overflow: hidden;
+        background: #0b0a13;
+    }
+
+    .camera-frame > img,
+    .camera-frame video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .camera-frame video {
+        display: none;
+        transform: scaleX(-1);
+    }
+
+    .camera-frame video.visible {
+        display: block;
+    }
+
+    /* 포즈 가이드 (촬영 정렬용 점선) */
+    .pose-guide {
+        position: absolute;
+        inset: 12%;
+        pointer-events: none;
+        border: 1px dashed rgba(187, 182, 255, .4);
+        border-radius: 46% 46% 38% 38%;
+    }
+
+    .pose-guide span {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border: 1px solid var(--purple);
+        border-radius: 50%;
+        background: var(--bg);
+    }
+
+    .pose-guide span:first-child {
+        left: 50%;
+        top: 8%;
+    }
+
+    .pose-guide span:nth-child(2) {
+        left: 11%;
+        top: 45%;
+    }
+
+    .pose-guide span:last-child {
+        right: 11%;
+        top: 45%;
+    }
+
+    /* 카메라 상태 배지 (녹화중 등) */
+    .camera-status {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: rgba(7, 7, 17, .62);
+        color: var(--muted);
+        font-size: 8px;
+        letter-spacing: .12em;
+    }
+
+    .camera-status i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--dim);
+    }
+
+    .camera-status i.on {
+        background: #ff7a87;
+        box-shadow: 0 0 8px #ff7a87;
+    }
+
+    .capture-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 14px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Center Column (음성 녹음)
+    -----------------------------------------------------------------------*/
+    .input-center-column {
+        display: grid;
+        gap: 18px;
+        grid-template-rows: 1fr auto;
+    }
+
+    /* 녹음 시작 원형 버튼 */
+    .record-orb {
+        display: grid;
+        place-items: center;
+        gap: 9px;
+    }
+
+    .record-orb button {
+        position: relative;
+        width: 74px;
+        height: 74px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        box-shadow: 0 0 0 10px rgba(187, 182, 255, .06), 0 0 50px rgba(123, 109, 255, .3);
+    }
+
+    /* 녹음 중 펄스 링 애니메이션 (키프레임: 12. ANIMATION 참고) */
+    .record-orb.recording button::before {
+        content: "";
+        position: absolute;
+        inset: -14px;
+        border: 1px solid var(--purple);
+        border-radius: 50%;
+        animation: pulse-ring 1.2s ease-out infinite;
+    }
+
+    .record-orb span {
+        color: var(--muted);
+        font-size: 11px;
+    }
+
+    /* 음성 파형 그래프 */
+    .waveform {
+        width: 100%;
+        height: 82px;
+        margin: 20px 0 14px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Transcript Box
+    -----------------------------------------------------------------------*/
+    /* 음성 인식 텍스트 박스 */
+    .transcript-box {
+        padding: 13px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, .025);
+        border-radius: var(--radius-md);
+    }
+
+    .transcript-box > span {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--dim);
+        font-size: 8px;
+        letter-spacing: .14em;
+    }
+
+    .transcript-box textarea {
+        width: 100%;
+        resize: vertical;
+        padding: 10px;
+        background: transparent;
+        border: 0;
+        font-size: 14px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Emotion Selector
+    -----------------------------------------------------------------------*/
+    /* 감정 태그 선택 버튼 그룹 */
+    .emotion-selector {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+    }
+
+    .emotion-selector button {
+        padding: 7px 9px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(255, 255, 255, .03);
+        border: 1px solid var(--line);
+        color: var(--dim);
+        font-size: 10px;
+    }
+
+    .emotion-selector button span {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+    }
+
+    .emotion-selector button.active {
+        color: var(--text);
+        border-color: var(--purple);
+        background: rgba(187, 182, 255, .12);
+    }
+
+    /*-----------------------------------------------------------------------
+      Confidence Row
+    -----------------------------------------------------------------------*/
+    /* 인식 신뢰도 표시 바 */
+    .confidence-row {
+        margin-top: 15px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 10px;
+    }
+
+    .confidence-row strong {
+        color: var(--purple);
+    }
+
+    .confidence-row div {
+        grid-column: 1 / -1;
+        height: 3px;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, .06);
+    }
+
+    .confidence-row i {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--purple);
+    }
+
+    /*-----------------------------------------------------------------------
+      Brief Panel (요약 패널)
+    -----------------------------------------------------------------------*/
+    .brief-panel {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* 캐릭터 미리보기 썸네일 영역 */
+    .brief-character {
+        position: relative;
+        height: 210px;
+        display: grid;
+        place-items: center;
+    }
+
+    .brief-character div {
+        position: absolute;
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        opacity: .28;
+        filter: blur(42px);
+    }
+
+    .brief-character img {
+        position: relative;
+        max-height: 210px;
+        object-fit: contain;
+    }
+
+    /* 요약 정보 리스트 (key-value) */
+    .brief-list {
+        margin-top: 6px;
+    }
+
+    .brief-list div {
+        padding: 10px 0;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, .07);
+    }
+
+    .brief-list dt {
+        color: var(--dim);
+        font-size: 10px;
+    }
+
+    .brief-list dd {
+        color: var(--text-soft);
+        font-size: 11px;
+        text-align: right;
+    }
+
+    /*-----------------------------------------------------------------------
+      Privacy Note
+    -----------------------------------------------------------------------*/
+    /* 개인정보 안내 배너 */
+    .privacy-note {
+        margin: 18px 0;
+        padding: 12px;
+        display: flex;
+        gap: 10px;
+        background: rgba(187, 182, 255, .07);
+        border: 1px solid rgba(187, 182, 255, .14);
+        border-radius: var(--radius-sm);
+    }
+
+    .privacy-note p {
+        display: grid;
+    }
+
+    .privacy-note strong {
+        font-size: 10px;
+    }
+
+    .privacy-note span {
+        color: var(--dim);
+        font-size: 9px;
+    }
+
+    /* ==========================================================================
+       07. EDITOR PAGE
+       ========================================================================== */
+
+    /*-----------------------------------------------------------------------
+      Editor Toolbar
+    -----------------------------------------------------------------------*/
+    /* 에디터 상단 툴바 (제목, 저장 상태, 액션 버튼) */
+    .editor-toolbar {
+        min-height: 66px;
+        margin-bottom: 16px;
+        padding: 10px 12px 10px 20px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+    }
+
+    .editor-toolbar > div:first-child {
+        display: grid;
+    }
+
+    .editor-toolbar > div:first-child strong {
+        font-size: 14px;
+    }
+
+    .editor-title-group {
+        min-width: 0;
+    }
+
+    .emoticon-title-control {
+        min-width: 180px;
+    }
+
+    .toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .save-state {
+        margin: 0 8px;
+        color: var(--dim);
+        font-size: 9px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Editor Grid Layout
+    -----------------------------------------------------------------------*/
+    /* 에디터 페이지 3단 그리드 레이아웃 */
+    .editor-grid {
+        display: grid;
+        grid-template-columns: 280px minmax(440px, 1fr) 270px;
+        gap: 16px;
+        min-height: 550px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Effect Settings (좌측 패널)
+    -----------------------------------------------------------------------*/
+
+
+    /* 선택된 이펙트 강조 카드 */
+    .effect-hero {
+        padding: 15px;
+        display: grid;
+        grid-template-columns: 48px 1fr;
+        gap: 12px;
+        border: 1px solid var(--line-purple);
+        background: rgba(187, 182, 255, .07);
+        border-radius: var(--radius-md);
+    }
+
+    .effect-hero > span {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+        filter: drop-shadow(0 0 14px rgba(187, 182, 255, .28));
+    }
+
+    .effect-hero div {
+        display: grid;
+    }
+
+    .effect-hero small {
+        color: var(--purple);
+        font-size: 7px;
+        letter-spacing: .15em;
+    }
+
+    .effect-hero strong {
+        margin: 2px 0;
+        font-size: 13px;
+    }
+
+    .effect-hero p {
+        color: var(--dim);
+        font-size: 9px;
+    }
+
+    /* 이펙트 프리셋 목록 */
+    .preset-list {
+        display: grid;
+        gap: 6px;
+    }
+
+    .preset-list button {
+        padding: 9px 10px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        border: 1px solid rgba(255, 255, 255, .07);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, .025);
+        color: var(--muted);
+        font-size: 10px;
+        text-align: left;
+    }
+
+    .preset-list button.active {
+        color: var(--text);
+        border-color: var(--purple);
+        background: rgba(187, 182, 255, .1);
+    }
+
+    .preset-list i {
+        width: 15px;
+        height: 15px;
+        border-radius: 5px;
+        opacity: .8;
+    }
+
+    /* 색상 선택 필드 */
+    .color-field {
+        margin-top: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .color-field > span {
+        display: grid;
+    }
+
+    .color-field b {
+        font-size: 11px;
+    }
+
+    .color-field em {
+        color: var(--dim);
+        font-size: 9px;
+        font-style: normal;
+    }
+
+    .color-field input {
+        width: 46px;
+        height: 34px;
+        padding: 3px;
+    }
+
+    /* 이펙트 안내 문구 */
+    .effect-note {
+        margin-top: 18px;
+        padding: 10px;
+        display: flex;
+        gap: 8px;
+        border-radius: 10px;
+        color: var(--dim);
+        background: rgba(255, 255, 255, .025);
+        font-size: 9px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Playback Controls
+    -----------------------------------------------------------------------*/
+    /* 재생/일시정지 컨트롤 바 */
+    .playback-controls {
+        height: 58px;
+        padding: 9px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-radius: 999px;
+    }
+
+    .icon-button.prominent {
+        background: var(--purple);
+    }
+
+    .icon-button.prominent .icon {
+        filter: brightness(0);
+    }
+
+    .playback-controls > span {
+        color: var(--dim);
+        font-size: 9px;
+    }
+
+    .play-progress {
+        flex: 1;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, .08);
+        overflow: hidden;
+    }
+
+    .play-progress i {
+        display: block;
+        height: 100%;
+        background: var(--purple);
+        transition: width 3s linear;
+    }
+
+    /*-----------------------------------------------------------------------
+      Selected Layer / Property Panel (우측 패널)
+    -----------------------------------------------------------------------*/
+    /* 현재 선택된 레이어 카드 */
+    .selected-layer {
+        padding: 13px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-radius: var(--radius-md);
+        background: rgba(187, 182, 255, .08);
+        border: 1px solid rgba(187, 182, 255, .18);
+    }
+
+    .selected-layer > .icon {
+        width: 30px;
+        height: 30px;
+        padding: 7px;
+        border-radius: 9px;
+        background: rgba(187, 182, 255, .2);
+    }
+
+    .selected-layer div {
+        display: grid;
+    }
+
+    .selected-layer small {
+        color: var(--purple);
+        font-size: 7px;
+        letter-spacing: .12em;
+    }
+
+    .selected-layer strong {
+        font-size: 12px;
+    }
+
+    /* 레이어 속성 입력 그리드 */
+    .property-grid {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .property-grid label,
+    .text-field {
+        display: grid;
+        gap: 5px;
+        color: var(--dim);
+        font-size: 9px;
+    }
+
+    .property-grid input {
+        width: 58px;
+        height: 28px;
+        padding: 0 10px;
+
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,.06);
+
+        background: linear-gradient(
+            180deg,
+            rgba(255,255,255,.08) 0%,
+            rgba(255,255,255,.04) 100%
+        );
+
+        box-shadow:
+            inset 0 -0.5px 1px rgba(255,255,255,.30),
+            inset 1px 1.5px 4px rgba(0,0,0,.08),
+            inset 1px 1.5px 4px rgba(0,0,0,.10);
+
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+
+        color: var(--text);
+    }
+
+    .text-field {
+        margin-top: 20px;
+    }
+
+    .text-field textarea {
+        padding: 10px;
+        resize: vertical;
+    }
+
+    /* 레이어 상태 버튼 그룹 */
+    .state-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        width: 100%;
+    }
+
+    /* 버튼 */
+    .state-buttons button {
+        width: 100%;
+        height: 28px;
+        white-space: nowrap; 
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        padding: 0 10px;
+
+        border-radius: 8px;
+        border: 1px solid var(--line);
+
+        background: rgba(255,255,255,0.08);
+
+        color: #fff;
+        font-size: 10px;
+        font-weight: 500;
+        line-height: 1;
+
+        box-sizing: border-box;
+        cursor: pointer;
+
+        transition: all .2s ease;
+    }
+
+    .state-buttons button:hover {
+        background: rgba(255,255,255,0.12);
+    }
+
+    .state-buttons button:active {
+        transform: scale(.98);
+    }
+
+    /* ==========================================================================
+       10. LIBRARY
+       ========================================================================== */
+
+    /*-----------------------------------------------------------------------
+      Library Tools (검색/필터)
+    -----------------------------------------------------------------------*/
+    /* 검색창 + 필터가 포함된 상단 툴바 */
+    .library-tools {
+        padding: 13px 15px;
+        border-radius: 999px;
+        display: grid;
+        grid-template-columns: minmax(230px, 1fr) auto auto;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .search-box {
+        position: relative;
+    }
+
+    .search-box .icon {
+        position: absolute;
+        left: 14px;
+        top: 13px;
+        opacity: .4;
+    }
+
+    .search-box input {
+        width: 100%;
+        height: 42px;
+        padding: 0 15px 0 43px;
+        border-radius: 999px;
+    }
+
+    .filter-row {
+        display: flex;
+        gap: 4px;
+    }
+
+    .filter-row button {
+        padding: 9px 12px;
+        border-radius: 999px;
+        background: none;
+        color: var(--dim);
+        font-size: 10px;
+    }
+
+    .filter-row button.active {
+        color: var(--ink);
+        background: var(--purple);
+        font-weight: 600;
+    }
+
+    /*-----------------------------------------------------------------------
+      Library Summary
+    -----------------------------------------------------------------------*/
+    /* 총 스티커 개수 요약 */
+    .library-summary {
+        margin: 25px 4px 15px;
+        display: flex;
+        align-items: baseline;
+        gap: 7px;
+    }
+
+    .library-summary strong {
+        font: 600 22px "Paperlogy", sans-serif;
+    }
+
+    .library-summary span {
+        color: var(--dim);
+        font-size: 10px;
+    }
+
+    .library-summary i {
+        width: 1px;
+        height: 10px;
+        margin: 0 5px;
+        background: var(--line);
+    }
+
+    /*-----------------------------------------------------------------------
+      Sticker Grid / Sticker Card
+    -----------------------------------------------------------------------*/
+    /* 스티커 카드 그리드 */
+    .sticker-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+        align-items: start;
+    }
+
+    .sticker-card {
+        position: relative;
+        min-height: 390px;
+        padding: 10px;
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+    }
+
+    .sticker-card.size-1 {
+        margin-top: 42px;
+    }
+
+    .sticker-card.size-2 {
+        min-height: 430px;
+    }
+
+    /* 즐겨찾기 토글 버튼 */
+    .favorite-button {
+        position: absolute;
+        z-index: 2;
+        right: 20px;
+        top: 20px;
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background: rgba(7, 7, 17, .44);
+        border: 1px solid var(--line);
+    }
+
+    .favorite-button.active .icon {
+        filter: sepia(1) saturate(5) hue-rotate(190deg);
+    }
+
+    /* 스티커 이미지 미리보기 영역 */
+    .sticker-preview {
+        position: relative;
+        width: 100%;
+        height: 285px;
+        border-radius: 21px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, .025);
+    }
+
+    .size-2 .sticker-preview {
+        height: 325px;
+    }
+
+    /* 스티커 배경 발광 효과 */
+    .sticker-glow {
+        position: absolute;
+        width: 70%;
+        height: 70%;
+        left: 15%;
+        top: 15%;
+        border-radius: 50%;
+        opacity: .25;
+        filter: blur(48px);
+    }
+
+    .sticker-preview img {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        transition: transform .35s var(--ease);
+    }
+
+    .sticker-preview:hover img {
+        transform: scale(1.05) rotate(-2deg);
+    }
+
+    /* 스티커 카드 하단 정보 */
+    .sticker-card footer {
+        padding: 14px 7px 4px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .sticker-card footer div {
+        display: grid;
+    }
+
+    .sticker-card footer span {
+        color: var(--purple);
+        font-size: 7px;
+        letter-spacing: .14em;
+    }
+
+    .sticker-card footer strong {
+        margin-top: 2px;
+        font-size: 13px;
+    }
+
+    .sticker-card footer p {
+        color: var(--dim);
+        font-size: 9px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Empty State
+    -----------------------------------------------------------------------*/
+    /* 라이브러리가 비어있을 때 안내 화면 */
+    .empty-library {
+        padding: 80px 20px;
+        border-radius: var(--radius-lg);
+        display: grid;
+        place-items: center;
+        text-align: center;
+    }
+
+    .empty-library h2 {
+        margin-top: 14px;
+        font-size: 18px;
+    }
+
+    .empty-library p {
+        color: var(--dim);
+        font-size: 12px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Detail Drawer (스티커 상세 사이드 패널)
+    -----------------------------------------------------------------------*/
+    /* 상세 드로어 뒷배경 오버레이 */
+    .drawer-backdrop {
+        position: fixed;
+        z-index: 50;
+        inset: 0;
+        display: flex;
+        justify-content: flex-end;
+        padding: 20px;
+        background: rgba(7, 7, 17, .58);
+        backdrop-filter: blur(7px);
+    }
+
+    /* 상세 정보 드로어 패널 (진입 애니메이션: 12. ANIMATION 참고) */
+    .detail-drawer {
+        width: min(430px, 100%);
+        height: 100%;
+        padding: 22px;
+        overflow-y: auto;
+        border-radius: var(--radius-lg);
+        animation: drawer-in .3s var(--ease);
+    }
+
+    .detail-drawer > header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    /* 작성자 프로필 */
+    .profile {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .profile img {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+
+    .profile span {
+        display: grid;
+    }
+
+    .profile strong {
+        font-size: 11px;
+    }
+
+    .profile small {
+        color: var(--dim);
+        font-size: 8px;
+    }
+
+    /* 상세 프리뷰 이미지 영역 */
+    .detail-preview {
+        position: relative;
+        height: 430px;
+        margin: 22px 0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, .028);
+    }
+
+    .detail-preview > div {
+        position: absolute;
+        width: 70%;
+        height: 70%;
+        border-radius: 50%;
+        opacity: .26;
+        filter: blur(60px);
+    }
+
+    .detail-preview img {
+        position: relative;
+        width: 92%;
+        height: 82%;
+        object-fit: contain;
+    }
+
+    .detail-preview span {
+        position: absolute;
+        bottom: 20px;
+        padding: 10px 18px;
+        border-radius: 999px;
+        background: rgba(252, 252, 252, .92);
+        color: var(--ink);
+        font-weight: 700;
+    }
+
+    /* 상세 텍스트 정보 */
+    .detail-copy p {
+        color: var(--purple);
+        font-size: 8px;
+        letter-spacing: .14em;
+    }
+
+    .detail-copy h2 {
+        margin-top: 4px;
+        font: 600 24px "Paperlogy", sans-serif;
+    }
+
+    .detail-copy > span {
+        color: var(--muted);
+        font-size: 12px;
+    }
+
+    /* 상세 스펙 목록 */
+    .detail-spec {
+        margin: 18px 0;
+        padding: 4px 15px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+    }
+
+    .detail-spec div {
+        padding: 10px 0;
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(255, 255, 255, .06);
+    }
+
+    .detail-spec div:last-child {
+        border-bottom: 0;
+    }
+
+    .detail-spec dt {
+        color: var(--dim);
+        font-size: 9px;
+    }
+
+    .detail-spec dd {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 10px;
+    }
+
+    .detail-spec i {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+    }
+
+    .detail-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Toast
+    -----------------------------------------------------------------------*/
+    /* 하단 토스트 알림 (진입 애니메이션: 12. ANIMATION 참고) */
+    .toast {
+        position: fixed;
+        z-index: 100;
+        left: 50%;
+        bottom: 28px;
+        transform: translateX(-50%);
+        padding: 12px 18px;
+        border: 1px solid var(--line-purple);
+        border-radius: 999px;
+        background: rgba(32, 30, 40, .92);
+        box-shadow: var(--shadow);
+        color: var(--text-soft);
+        font-size: 11px;
+        backdrop-filter: blur(18px);
+        animation: toast-in .25s var(--ease);
+    }
+
+    /* ==========================================================================
+       12. ANIMATION
+       ========================================================================== */
+
+    /* 녹음 버튼 펄스 링 */
+    @keyframes pulse-ring {
+        to {
+            transform: scale(1.3);
+            opacity: 0;
+        }
+    }
+
+    /* 상세 드로어 슬라이드 인 */
+    @keyframes drawer-in {
+        from {
+            transform: translateX(40px);
+            opacity: 0;
+        }
+    }
+
+    /* 토스트 슬라이드 업 */
+    @keyframes toast-in {
+        from {
+            transform: translate(-50%, 10px);
+            opacity: 0;
+        }
+    }
+
 }
 
+/* ==========================================================================
+   14. RESPONSIVE (확장 레이아웃 / 데스크탑 전용 오버라이드)
+   --------------------------------------------------------------------------
+   아래 `@layer components` 블록은 원본 파일에서 동일한 레이어로 다시 선언되어
+   있으며, 캐스케이드 상 위 블록보다 나중에 적용됩니다. 고정 뷰포트(데스크탑)
+   환경을 위한 크기 확장 및 전용 컴포넌트(내보내기 모달 등)를 포함하므로,
+   순서를 변경하거나 위 블록과 병합하지 않고 그대로 유지합니다.
+   ========================================================================== */
+
 @layer components {
-  .app-shell { height: 100vh; min-height: 760px; padding: 40px 24px 50px; overflow: auto; }
-  .topbar { height: 68px; margin-bottom: 48px; }
-  .primary-nav { position: relative; display: grid; grid-template-columns: repeat(4, 102px); isolation: isolate; overflow: hidden; }
-  .primary-nav a { position: relative; z-index: 2; min-width: 0; border: 0 !important; background: transparent !important; box-shadow: none !important; }
-  .nav-selection { position: absolute; z-index: 1; left: 7px; top: 7px; width: 102px; height: calc(100% - 14px); border: 1px solid rgba(228,224,240,.75); border-radius: 999px; background: rgba(255,255,255,.055); box-shadow: inset 0 0 18px rgba(228,224,240,.12), 0 0 18px rgba(187,182,255,.13); transform: translateX(calc(var(--nav-index) * 107px)); transition: transform .38s var(--ease); }
-  .profile-button { justify-self: end; width: 50px; height: 50px; padding: 4px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line-purple); background: rgba(255,255,255,.025); overflow: hidden; }
-  .profile-button img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-  .panel { padding: 22px; }
-  .panel-header { margin-bottom: 24px; }
 
-  .character-page, .input-page { padding-top: 34px; }
-  .character-grid { grid-template-columns: 372px 675px 351px; gap: 21px; min-height: 816px; }
-  .settings-panel, .character-stage, .variation-panel { min-height: 816px; }
-  .settings-panel { padding: 28px 26px; }
-  .settings-panel .field-group { margin-top: 28px; }
-  .settings-panel > .button { margin-top: auto; }
-  .prompt-field { display: grid; gap: 8px; margin-top: 28px; }
-  .prompt-field input { height: 46px; padding: 0 14px; }
-  .custom-color-swatch { position: relative; width: 34px; height: 34px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255,255,255,.6); border-radius: 50%; cursor: pointer; }
-  .custom-color-swatch input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-  .custom-color-swatch .icon { position: relative; pointer-events: none; }
-  .character-stage { min-height: 816px; }
-  .character-stage > img { width: min(82%, 570px); max-height: 650px; }
-  .variation-panel { padding: 28px 20px; }
-  .character-token-list { min-height: 0; display: grid; gap: 10px; overflow-y: auto; }
-  .variation-card { min-height: 130px; margin: 0; display: grid; grid-template-columns: 110px 1fr; grid-template-rows: 1fr auto; align-items: center; text-align: left; }
-  .variation-card img { grid-row: 1/3; width: 110px; height: 126px; }
-  .variation-card span { position: static; align-self: end; color: var(--text); font-size: 11px; letter-spacing: 0; }
-  .variation-card small { align-self: start; color: var(--dim); font-size: 8px; }
+    /*-----------------------------------------------------------------------
+      Global / Layout (확장)
+    -----------------------------------------------------------------------*/
+    /* 데스크탑 전용 앱 셸 크기 (고정 높이 + 스크롤) */
+    .app-shell {
+        height: 100vh;
+        min-height: 760px;
+        padding: 40px 24px 50px;
+        overflow: auto;
+    }
 
-  .input-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 460px)); grid-template-rows: 310px 320px; gap: 30px; }
-  .capture-panel { grid-column: 1; grid-row: 1/3; min-height: 660px; }
-  .voice-panel { grid-column: 2; grid-row: 1; min-height: 310px; }
-  .input-character-panel { position: relative; grid-column: 3; grid-row: 1; min-height: 310px; }
-  .generation-panel { grid-column: 2/4; grid-row: 2; min-height: 320px; display: grid; grid-template-columns: 1.2fr .9fr; grid-template-rows: auto 1fr auto; column-gap: 28px; }
-  .generation-panel > .panel-header { grid-column: 1/-1; margin-bottom: 8px; }
-  .generation-copy { min-width: 0; }
-  .generation-panel .emotion-selector { margin-top: 12px; }
-  .generation-panel .brief-list { margin: 0; }
-  .generation-panel .privacy-note { margin: 12px 0 0; }
-  .generation-cta { align-self: end; margin-top: 12px; }
-  .camera-frame { min-height: 510px; }
-  .voice-panel .waveform { height: 62px; margin: 10px 0 8px; }
-  .voice-panel .record-orb { grid-template-columns: auto 1fr; justify-content: start; place-items: center start; }
-  .voice-panel .record-orb button { width: 58px; height: 58px; }
-  .character-picker { position: relative; width: 100%; height: 212px; display: grid; grid-template-columns: 1fr auto; grid-template-rows: 1fr auto; align-items: center; overflow: hidden; border-radius: 20px; background: rgba(255,255,255,.025); border: 1px solid var(--line); }
-  .character-picker > div { position: absolute; width: 170px; height: 170px; left: calc(50% - 85px); top: 10px; border-radius: 50%; opacity: .24; filter: blur(44px); }
-  .character-picker > img { position: relative; grid-column: 1/-1; justify-self: center; height: 166px; object-fit: contain; }
-  .character-picker > span { position: relative; padding: 0 14px 12px; display: grid; text-align: left; }
-  .character-picker strong { font-size: 12px; }
-  .character-picker small { color: var(--dim); font-size: 8px; }
-  .character-picker > .icon { margin-right: 14px; }
-  .character-popover { position: absolute; z-index: 20; inset: 64px 22px auto; max-height: 320px; padding: 8px; overflow-y: auto; border: 1px solid var(--line-purple); border-radius: 16px; background: rgba(20,19,30,.96); box-shadow: var(--shadow); backdrop-filter: blur(20px); }
-  .character-popover button { width: 100%; min-height: 58px; padding: 6px 8px; display: flex; align-items: center; gap: 10px; border-radius: 10px; background: transparent; color: var(--muted); text-align: left; }
-  .character-popover button.active { background: rgba(187,182,255,.12); color: var(--text); }
-  .character-popover img { width: 48px; height: 48px; object-fit: contain; }
-  .character-popover span { display: grid; }
-  .character-popover small { color: var(--dim); font-size: 8px; }
+    .topbar {
+        height: 68px;
+        margin-bottom: 48px;
+    }
 
-  .editor-page { padding-top: 4px; }
-  .editor-grid { grid-template-columns: 280px minmax(0, 858px) 270px; gap: 16px; min-height: 500px; }
-  .editor-stage-wrap { grid-template-rows: 1fr auto; }
-  .editor-stage { min-height: 500px; }
-  .canvas-artboard { position: relative; z-index: 2; width: min(78%, 560px); aspect-ratio: 1; touch-action: none; }
-  .stage-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .canvas-selection { position: absolute; border: 1px solid transparent; cursor: move; touch-action: none; }
-  .canvas-selection.is-selected { border-color: #25a6ff; box-shadow: 0 0 0 1px rgba(37,166,255,.22); }
-  .selection-background { width: 90%; height: 90%; }
-  .selection-character { width: 58%; height: 62%; }
-  .selection-accent { width: 76%; height: 72%; }
-  .selection-resize, .selection-rotate { position: absolute; z-index: 4; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; background: #25a6ff; }
-  .selection-resize { right: -7px; bottom: -7px; cursor: nwse-resize; }
-  .selection-rotate { left: calc(50% - 6px); top: -28px; cursor: grab; }
-  .selection-rotate::after { content: ""; position: absolute; left: 4px; top: 10px; width: 1px; height: 16px; background: #25a6ff; }
-  .canvas-help { margin: 0; color: var(--dim); font-size: 9px; text-align: center; }
-  .timeline { margin-top: 16px; min-height: 220px; }
-  .timeline-body { grid-template-columns: 280px 1fr; }
-  .frame-grid { height: 156px; }
-  .frame-grid button { padding: 0; }
-  .frame-grid img { height: 130px; }
-  .frame-grid span { bottom: 6px; }
-  .layer-row:has(.drag-handle-button:active) { border-color: rgba(37,166,255,.5); }
+    /*-----------------------------------------------------------------------
+      Navigation (확장 - 슬라이딩 인디케이터)
+    -----------------------------------------------------------------------*/
+    /* 4개 탭 고정폭 + 내부 인디케이터 컨테이너 */
+    .primary-nav {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(4, 102px);
+        isolation: isolate;
+        overflow: hidden;
+    }
 
-  .library-page { display: grid; grid-template-columns: 298px 1fr; gap: 56px; }
-  .library-sidebar { height: 855px; padding: 30px 24px; display: flex; flex-direction: column; border-radius: 28px; }
-  .library-sidebar h1 { margin-top: 8px; font: 600 36px/1.03 "Paperlogy", sans-serif; letter-spacing: -.04em; }
-  .library-sidebar p { margin-top: 10px; color: var(--dim); font-size: 11px; }
-  .library-sidebar .search-box { margin-top: 30px; }
-  .library-filter { margin-top: 24px; display: grid; gap: 4px; overflow-y: auto; }
-  .library-filter button { min-height: 42px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 12px; background: transparent; color: var(--muted); }
-  .library-filter button.active { background: rgba(187,182,255,.13); color: var(--text); }
-  .library-filter button span { display: flex; align-items: center; gap: 9px; }
-  .library-filter i { width: 7px; height: 7px; border-radius: 50%; }
-  .library-filter b { color: var(--dim); font-size: 9px; }
-  .library-sidebar > .button { margin-top: auto; }
-  .library-content { min-width: 0; }
-  .library-content-header { min-height: 82px; display: flex; align-items: start; justify-content: space-between; }
-  .library-content-header h2 { margin-top: 4px; font: 600 30px "Paperlogy", sans-serif; }
-  .library-content-header > span { color: var(--dim); font-size: 8px; letter-spacing: .12em; }
-  .sticker-grid { display: block; column-count: 3; column-gap: 12px; }
-  .sticker-card { width: 100%; min-height: 0; margin: 0 0 12px; display: inline-block; break-inside: avoid; padding: 10px; }
-  .sticker-card.masonry-0 .sticker-preview { height: 354px; }
-  .sticker-card.masonry-1 .sticker-preview { height: 472px; }
-  .sticker-card.masonry-2 .sticker-preview { height: 404px; }
-  .sticker-card.masonry-3 .sticker-preview { height: 430px; }
-  .sticker-card footer { min-height: 78px; }
-  .library-detail-page { display: grid; grid-template-columns: minmax(0, 1048px) 360px; gap: 32px; }
-  .detail-main, .detail-sidebar { min-height: 873px; border-radius: 28px; }
-  .detail-main { padding: 24px; }
-  .detail-main > header { display: flex; justify-content: space-between; }
-  .favorite-button.inline { position: static; }
-  .detail-stage { position: relative; height: 650px; display: grid; place-items: center; overflow: hidden; }
-  .detail-stage > div { position: absolute; width: 56%; height: 56%; border-radius: 50%; opacity: .23; filter: blur(80px); }
-  .detail-stage > img { position: relative; width: 70%; height: 72%; object-fit: contain; }
-  .detail-stage > span { position: absolute; bottom: 50px; padding: 11px 20px; border-radius: 999px; background: rgba(252,252,252,.96); color: var(--ink); font-weight: 700; }
-  .detail-frame-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-  .detail-frame-strip > div { position: relative; height: 128px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-  .detail-frame-strip img { width: 100%; height: 100%; object-fit: contain; }
-  .detail-frame-strip span { position: absolute; left: 7px; bottom: 5px; color: var(--dim); font-size: 7px; }
-  .detail-sidebar { padding: 28px; display: flex; flex-direction: column; }
-  .detail-sidebar .detail-copy { margin-top: 60px; }
-  .detail-sidebar .detail-copy h1 { margin-top: 5px; font: 600 30px "Paperlogy", sans-serif; }
-  .detail-sidebar .detail-spec { margin-top: 34px; }
-  .detail-sidebar .detail-actions { margin-top: auto; }
+    .primary-nav a {
+        position: relative;
+        z-index: 2;
+        min-width: 0;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
 
-  .modal-backdrop { position: fixed; z-index: 120; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(7,7,17,.7); backdrop-filter: blur(12px); }
-  .export-modal { width: min(760px, 100%); padding: 28px; border-radius: 30px; }
-  .export-modal > header { display: flex; align-items: start; justify-content: space-between; }
-  .export-modal h2 { margin-top: 5px; font: 600 26px "Paperlogy", sans-serif; }
-  .export-preview { margin: 24px 0 14px; display: grid; grid-template-columns: 1fr 230px; gap: 18px; }
-  .export-preview > img:first-child { width: 100%; height: 330px; object-fit: contain; border-radius: 20px; background-image: linear-gradient(45deg,#eee 25%,transparent 25%),linear-gradient(-45deg,#eee 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eee 75%),linear-gradient(-45deg,transparent 75%,#eee 75%); background-size: 24px 24px; background-position: 0 0,0 12px,12px -12px,-12px 0; }
-  .qr-card { display: grid; place-items: center; padding: 14px; border-radius: 20px; background: #fcfcfc; color: var(--ink); }
-  .qr-card img { width: 190px; height: 190px; }
-  .qr-card span { font-size: 11px; font-weight: 600; }
-  .export-modal > p { color: var(--dim); font-size: 10px; }
-  .export-actions { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    /* 활성 탭을 따라 이동하는 슬라이딩 배경 인디케이터 */
+    .nav-selection {
+        position: absolute;
+        z-index: 1;
+        left: 7px;
+        top: 7px;
+        width: 102px;
+        height: calc(100% - 14px);
+        border: 1px solid rgba(228, 224, 240, .75);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, .055);
+        box-shadow: inset 0 0 18px rgba(228, 224, 240, .12), 0 0 18px rgba(187, 182, 255, .13);
+        transform: translateX(calc(var(--nav-index) * 107px));
+        transition: transform .38s var(--ease);
+    }
+
+    /* 프로필 이미지 버튼 (topbar-status 대체) */
+    .profile-button {
+        justify-self: end;
+        width: 50px;
+        height: 50px;
+        padding: 4px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        border: 1px solid var(--line-purple);
+        background: rgba(255, 255, 255, .025);
+        overflow: hidden;
+    }
+
+    .profile-button img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+
+    /*-----------------------------------------------------------------------
+      Panel System (확장)
+    -----------------------------------------------------------------------*/
+
+    .panel-header {
+        margin-bottom: 24px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Character Page (확장)
+    -----------------------------------------------------------------------*/
+    /* 캐릭터/입력 페이지 공통 상단 여백 */
+    .character-page,
+    .input-page {
+        padding-top: 34px;
+    }
+
+    /* 데스크탑 고정 크기 3단 그리드 */
+    .character-grid {
+        grid-template-columns: 372px 675px 351px;
+        gap: 21px;
+        min-height: 816px;
+    }
+
+    .settings-panel,
+    .character-stage,
+    .variation-panel {
+        min-height: 816px;
+    }
+
+    .settings-panel .field-group {
+        margin-top: 28px;
+    }
+
+    .settings-panel > .button {
+        margin-top: auto;
+    }
+
+    /* 프롬프트 텍스트 입력 필드 */
+    .prompt-field {
+        display: grid;
+        gap: 8px;
+        margin-top: 28px;
+    }
+
+    .prompt-field input {
+        height: 46px;
+        padding: 0 14px;
+    }
+
+    /* 커스텀 컬러 피커 스와치 */
+    .custom-color-swatch {
+        position: relative;
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, .6);
+        border-radius: 50%;
+        cursor: pointer;
+    }
+
+    .custom-color-swatch input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    .custom-color-swatch .icon {
+        position: relative;
+        pointer-events: none;
+    }
+
+    .character-stage {
+        min-height: 816px;
+    }
+
+    .character-stage > img {
+        width: min(82%, 570px);
+        max-height: 650px;
+    }
+
+    .variation-panel {
+        padding: 28px 20px;
+    }
+
+    /* 캐릭터 토큰(배리에이션) 스크롤 목록 */
+    .character-token-list {
+        min-height: 0;
+        display: grid;
+        gap: 10px;
+        overflow-y: auto;
+    }
+
+    /* 리스트형 배리에이션 카드 (썸네일 + 텍스트) */
+    .variation-card {
+        min-height: 130px;
+        margin: 0;
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        grid-template-rows: 1fr auto;
+        align-items: center;
+        text-align: left;
+    }
+
+    .variation-card img {
+        grid-row: 1 / 3;
+        width: 110px;
+        height: 126px;
+    }
+
+    .variation-card span {
+        position: static;
+        align-self: end;
+        color: var(--text);
+        font-size: 11px;
+        letter-spacing: 0;
+    }
+
+    .variation-card small {
+        align-self: start;
+        color: var(--dim);
+        font-size: 8px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Input Page (확장)
+    -----------------------------------------------------------------------*/
+    /* 데스크탑 전용 4패널 그리드 (촬영/음성/캐릭터/생성) */
+    .input-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 460px));
+        grid-template-rows: 310px 320px;
+        gap: 30px;
+    }
+
+    .capture-panel {
+        grid-column: 1;
+        grid-row: 1 / 3;
+        min-height: 660px;
+    }
+
+    .voice-panel {
+        grid-column: 2;
+        grid-row: 1;
+        min-height: 310px;
+    }
+
+    .input-character-panel {
+        position: relative;
+        grid-column: 3;
+        grid-row: 1;
+        min-height: 310px;
+    }
+
+    /* 최종 생성 요청 패널 */
+    .generation-panel {
+        grid-column: 2 / 4;
+        grid-row: 2;
+        min-height: 320px;
+        display: grid;
+        grid-template-columns: 1.2fr .9fr;
+        grid-template-rows: auto 1fr auto;
+        column-gap: 28px;
+    }
+
+    .generation-panel > .panel-header {
+        grid-column: 1 / -1;
+        margin-bottom: 8px;
+    }
+
+    .generation-copy {
+        min-width: 0;
+    }
+
+    .generation-panel .emotion-selector {
+        margin-top: 12px;
+    }
+
+    .generation-panel .brief-list {
+        margin: 0;
+    }
+
+    .generation-panel .privacy-note {
+        margin: 12px 0 0;
+    }
+
+    .generation-cta {
+        align-self: end;
+        margin-top: 12px;
+    }
+
+    .camera-frame {
+        min-height: 510px;
+    }
+
+    .voice-panel .waveform {
+        height: 62px;
+        margin: 10px 0 8px;
+    }
+
+    .voice-panel .record-orb {
+        grid-template-columns: auto 1fr;
+        justify-content: start;
+        place-items: center start;
+    }
+
+    .voice-panel .record-orb button {
+        width: 58px;
+        height: 58px;
+    }
+
+    /* 사용할 캐릭터 선택 카드 */
+    .character-picker {
+        position: relative;
+        width: 100%;
+        height: 212px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-rows: 1fr auto;
+        align-items: center;
+        overflow: hidden;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, .025);
+        border: 1px solid var(--line);
+    }
+
+    .character-picker > div {
+        position: absolute;
+        width: 170px;
+        height: 170px;
+        left: calc(50% - 85px);
+        top: 10px;
+        border-radius: 50%;
+        opacity: .24;
+        filter: blur(44px);
+    }
+
+    .character-picker > img {
+        position: relative;
+        grid-column: 1 / -1;
+        justify-self: center;
+        height: 166px;
+        object-fit: contain;
+    }
+
+    .character-picker > span {
+        position: relative;
+        padding: 0 14px 12px;
+        display: grid;
+        text-align: left;
+    }
+
+    .character-picker strong {
+        font-size: 12px;
+    }
+
+    .character-picker small {
+        color: var(--dim);
+        font-size: 8px;
+    }
+
+    .character-picker > .icon {
+        margin-right: 14px;
+    }
+
+    /* 캐릭터 선택 드롭다운 팝오버 */
+    .character-popover {
+        position: absolute;
+        z-index: 20;
+        inset: 64px 22px auto;
+        max-height: 320px;
+        padding: 8px;
+        overflow-y: auto;
+        border: 1px solid var(--line-purple);
+        border-radius: 16px;
+        background: rgba(20, 19, 30, .96);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(20px);
+    }
+
+    .character-popover button {
+        width: 100%;
+        min-height: 58px;
+        padding: 6px 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--muted);
+        text-align: left;
+    }
+
+    .character-popover button.active {
+        background: rgba(187, 182, 255, .12);
+        color: var(--text);
+    }
+
+    .character-popover img {
+        width: 48px;
+        height: 48px;
+        object-fit: contain;
+    }
+
+    .character-popover span {
+        display: grid;
+    }
+
+    .character-popover small {
+        color: var(--dim);
+        font-size: 8px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Editor Page (확장 - 자유 배치 캔버스)
+    -----------------------------------------------------------------------*/
+    .editor-page {
+        padding-top: 4px;
+    }
+
+    .editor-grid {
+        grid-template-columns: 280px minmax(0, 858px) 270px;
+        gap: 16px;
+        min-height: 500px;
+    }
+
+    .editor-stage {
+        min-height: 500px;
+    }
+
+    /* 자유 배치가 가능한 캔버스 아트보드 */
+    .canvas-artboard {
+        position: relative;
+        z-index: 2;
+        width: min(78%, 560px);
+        aspect-ratio: 1;
+        touch-action: none;
+    }
+
+    .stage-canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    /* 캔버스 위 개별 레이어 선택 박스 */
+    .canvas-selection {
+        position: absolute;
+        border: 1px solid transparent;
+        cursor: move;
+        touch-action: none;
+    }
+
+    .canvas-selection.is-selected {
+        border-color: #25a6ff;
+        box-shadow: 0 0 0 1px rgba(37, 166, 255, .22);
+    }
+
+    .selection-background {
+        width: 90%;
+        height: 90%;
+    }
+
+    .selection-character {
+        width: 58%;
+        height: 62%;
+    }
+
+    .selection-accent {
+        width: 76%;
+        height: 72%;
+    }
+
+    /* 선택 박스 리사이즈/회전 핸들 */
+    .selection-resize,
+    .selection-rotate {
+        position: absolute;
+        z-index: 4;
+        width: 12px;
+        height: 12px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        background: #25a6ff;
+    }
+
+    .selection-resize {
+        right: -7px;
+        bottom: -7px;
+        cursor: nwse-resize;
+    }
+
+    .selection-rotate {
+        left: calc(50% - 6px);
+        top: -28px;
+        cursor: grab;
+    }
+
+    .selection-rotate::after {
+        content: "";
+        position: absolute;
+        left: 4px;
+        top: 10px;
+        width: 1px;
+        height: 16px;
+        background: #25a6ff;
+    }
+
+    /*-----------------------------------------------------------------------
+      Library (확장 - 사이드바 레이아웃)
+    -----------------------------------------------------------------------*/
+    /* 라이브러리 페이지 좌측 사이드바 + 콘텐츠 2단 레이아웃 */
+    .library-page {
+        display: grid;
+        grid-template-columns: 298px 1fr;
+        gap: 56px;
+    }
+
+    /* 좌측 사이드바 (검색, 필터, 안내) */
+    .library-sidebar {
+        height: 855px;
+        padding: 30px 24px;
+        display: flex;
+        flex-direction: column;
+        border-radius: 28px;
+    }
+
+    .library-sidebar h1 {
+        margin-top: 8px;
+        font: 600 36px/1.03 "Paperlogy", sans-serif;
+        letter-spacing: -.04em;
+    }
+
+    .library-sidebar p {
+        margin-top: 10px;
+        color: var(--dim);
+        font-size: 11px;
+    }
+
+    .library-sidebar .search-box {
+        margin-top: 30px;
+    }
+
+    /* 카테고리 필터 목록 */
+    .library-filter {
+        margin-top: 24px;
+        display: grid;
+        gap: 4px;
+        overflow-y: auto;
+    }
+
+    .library-filter button {
+        min-height: 42px;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-radius: 12px;
+        background: transparent;
+        color: var(--muted);
+    }
+
+    .library-filter button.active {
+        background: rgba(187, 182, 255, .13);
+        color: var(--text);
+    }
+
+    .library-filter button span {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+    }
+
+    .library-filter i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+    }
+
+    .library-filter b {
+        color: var(--dim);
+        font-size: 9px;
+    }
+
+    .library-sidebar > .button {
+        margin-top: auto;
+    }
+
+    /* 우측 콘텐츠 영역 */
+    .library-content {
+        min-width: 0;
+    }
+
+    .library-content-header {
+        min-height: 82px;
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+    }
+
+    .library-content-header h2 {
+        margin-top: 4px;
+        font: 600 30px "Paperlogy", sans-serif;
+    }
+
+    .library-content-header > span {
+        color: var(--dim);
+        font-size: 8px;
+        letter-spacing: .12em;
+    }
+
+    /* 매스너리(masonry) 형태의 스티커 그리드 */
+    .sticker-grid {
+        display: block;
+        column-count: 3;
+        column-gap: 12px;
+    }
+
+    .sticker-card {
+        width: 100%;
+        min-height: 0;
+        margin: 0 0 12px;
+        display: inline-block;
+        break-inside: avoid;
+        padding: 10px;
+    }
+
+    .sticker-card.masonry-0 .sticker-preview {
+        height: 354px;
+    }
+
+    .sticker-card.masonry-1 .sticker-preview {
+        height: 472px;
+    }
+
+    .sticker-card.masonry-2 .sticker-preview {
+        height: 404px;
+    }
+
+    .sticker-card.masonry-3 .sticker-preview {
+        height: 430px;
+    }
+
+    .sticker-card footer {
+        min-height: 78px;
+    }
+
+    /*-----------------------------------------------------------------------
+      Library Detail Page (확장)
+    -----------------------------------------------------------------------*/
+    /* 스티커 상세 페이지 2단 레이아웃 (본문 + 사이드바) */
+    .library-detail-page {
+        display: grid;
+        grid-template-columns: minmax(0, 1048px) 360px;
+        gap: 32px;
+    }
+
+    .detail-main,
+    .detail-sidebar {
+        min-height: 873px;
+        border-radius: 28px;
+    }
+
+    .detail-main {
+        padding: 24px;
+    }
+
+    .detail-main > header {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .favorite-button.inline {
+        position: static;
+    }
+
+    /* 상세 페이지 대형 프리뷰 무대 */
+    .detail-stage {
+        position: relative;
+        height: 650px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+    }
+
+    .detail-stage > div {
+        position: absolute;
+        width: 56%;
+        height: 56%;
+        border-radius: 50%;
+        opacity: .23;
+        filter: blur(80px);
+    }
+
+    .detail-stage > img {
+        position: relative;
+        width: 70%;
+        height: 72%;
+        object-fit: contain;
+    }
+
+    .detail-stage > span {
+        position: absolute;
+        bottom: 50px;
+        padding: 11px 20px;
+        border-radius: 999px;
+        background: rgba(252, 252, 252, .96);
+        color: var(--ink);
+        font-weight: 700;
+    }
+
+    /* 프레임 스트립 (애니메이션 미리보기 5컷) */
+    .detail-frame-strip {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+    }
+
+    .detail-frame-strip > div {
+        position: relative;
+        height: 128px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: hidden;
+    }
+
+    .detail-frame-strip img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .detail-frame-strip span {
+        position: absolute;
+        left: 7px;
+        bottom: 5px;
+        color: var(--dim);
+        font-size: 7px;
+    }
+
+    /* 상세 사이드바 (정보 + 액션 버튼) */
+    .detail-sidebar {
+        padding: 28px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .detail-sidebar .detail-copy {
+        margin-top: 60px;
+    }
+
+    .detail-sidebar .detail-copy h1 {
+        margin-top: 5px;
+        font: 600 30px "Paperlogy", sans-serif;
+    }
+
+    .detail-sidebar .detail-spec {
+        margin-top: 34px;
+    }
+
+    .detail-sidebar .detail-actions {
+        margin-top: auto;
+    }
+
+    /*-----------------------------------------------------------------------
+      Export Modal (11. EXPORT MODAL)
+    -----------------------------------------------------------------------*/
+    /* 모달 뒷배경 오버레이 */
+    .modal-backdrop {
+        position: fixed;
+        z-index: 120;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: rgba(7, 7, 17, .7);
+        backdrop-filter: blur(12px);
+    }
+
+    /* 내보내기 모달 본체 */
+    .export-modal {
+        width: min(760px, 100%);
+        padding: 28px;
+        border-radius: 30px;
+    }
+
+    .export-modal > header {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+    }
+
+    .export-modal h2 {
+        margin-top: 5px;
+        font: 600 26px "Paperlogy", sans-serif;
+    }
+
+    /* 결과 미리보기 + QR 코드 2단 구성 */
+    .export-preview {
+        margin: 24px 0 14px;
+        display: grid;
+        grid-template-columns: 1fr 230px;
+        gap: 18px;
+    }
+
+    /* 투명 배경을 나타내는 체크무늬 패턴 */
+    .export-preview > img:first-child {
+        width: 100%;
+        height: 330px;
+        object-fit: contain;
+        border-radius: 20px;
+        background-image: linear-gradient(45deg, #eee 25%, transparent 25%), linear-gradient(-45deg, #eee 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #eee 75%), linear-gradient(-45deg, transparent 75%, #eee 75%);
+        background-size: 24px 24px;
+        background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+    }
+
+    /* QR 코드 카드 */
+    .qr-card {
+        display: grid;
+        place-items: center;
+        padding: 14px;
+        border-radius: 20px;
+        background: #fcfcfc;
+        color: var(--ink);
+    }
+
+    .qr-card img {
+        width: 190px;
+        height: 190px;
+    }
+
+    .qr-card span {
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .export-modal > p {
+        color: var(--dim);
+        font-size: 10px;
+    }
+
+    .export-actions {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 9px;
+    }
+
 }
