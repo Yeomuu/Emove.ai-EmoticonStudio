@@ -5,6 +5,12 @@ import { keyOutConnectedGreen } from "../src/services/image-processing";
 import { synchronizedCaptureIssue } from "../src/services/media";
 import { encodeApngPngFrames, encodeGifFrames } from "../src/services/renderer";
 import { circularBatch, isAnimatedSticker, shuffled } from "../src/services/animated-library";
+import {
+  advanceShowcaseBodies,
+  createShowcaseBodies,
+  moveDraggedShowcaseBody,
+  releaseDraggedShowcaseBody,
+} from "../src/services/showcase-physics";
 import { persistGeneratedAsset } from "../src/services/asset-storage";
 import { deleteRemoteLibraryItem, loadRemoteProjects, loadRemoteStickers, syncStickerToRemote } from "../src/services/remote-store";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
@@ -506,6 +512,52 @@ describe("four layer edit contract", () => {
     expect(previewLayerOrder(initialLayers, "character", "text", "before").map((layer) => layer.id)).toEqual([
       "character", "text", "accent-effects", "background-effects",
     ]);
+  });
+});
+
+describe("showcase floating interaction", () => {
+  const bounds = { width: 1280, height: 720 };
+
+  it("starts every animated item with a left-to-right and top-to-bottom drift", () => {
+    const bodies = createShowcaseBodies(["a", "b", "c"], bounds, () => .5);
+    expect(bodies).toHaveLength(3);
+    bodies.forEach((body) => {
+      expect(body.vx).toBeGreaterThan(0);
+      expect(body.vy).toBeGreaterThan(0);
+      expect(body.x).toBeGreaterThan(0);
+      expect(body.y).toBeGreaterThan(0);
+    });
+  });
+
+  it("pushes an emoticon away when the pointer reaches its visible bounds", () => {
+    const [body] = createShowcaseBodies(["a"], bounds, () => .5);
+    body.x = 400;
+    body.y = 300;
+    const initialVelocity = body.vx;
+
+    advanceShowcaseBodies([body], bounds, { active: true, x: 380, y: 300 }, .05, 1);
+    expect(body.vx).toBeGreaterThan(initialVelocity);
+  });
+
+  it("keeps a dragged emoticon inside the stage and resumes forward flow after release", () => {
+    const [body] = createShowcaseBodies(["a"], bounds, () => .5);
+    moveDraggedShowcaseBody(body, bounds, -100, 900, .016);
+    expect(body.x).toBeGreaterThan(0);
+    expect(body.y).toBeLessThan(bounds.height);
+
+    releaseDraggedShowcaseBody(body);
+    expect(body.vx).toBeGreaterThan(0);
+    expect(body.vy).toBeGreaterThan(0);
+  });
+
+  it("wraps right and bottom exits back to the left and top edges", () => {
+    const [body] = createShowcaseBodies(["a"], bounds, () => .5);
+    body.x = bounds.width + body.size;
+    body.y = bounds.height + body.size;
+
+    advanceShowcaseBodies([body], bounds, { active: false, x: 0, y: 0 }, .016, 2);
+    expect(body.x).toBeLessThan(0);
+    expect(body.y).toBeLessThan(0);
   });
 });
 
