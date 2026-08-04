@@ -1,6 +1,7 @@
 import { computed, signal } from "./lib/signals";
 import { createMotionBrief, defaultCharacterTokens, emotionMeta, imageAssets, initialLayers, starterStickers } from "./data";
-import type { AnimationFormat, BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, LayerKind, LayerTransform, MotionStyle, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
+import { emptyEmotionScores } from "./emotion-taxonomy";
+import type { AccentEffect, AnimationFormat, BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, LayerKind, LayerTransform, MotionStyle, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
 
 const emptyCharacter: CharacterToken = {
   id: "character-empty",
@@ -26,16 +27,17 @@ const emptyCharacter: CharacterToken = {
 export const characterName = signal("");
 export const characterPrompt = signal("");
 export const characterTone = signal("#BBB6FF");
-export const characterStyle = signal<"2D" | "3D">("3D");
+export const characterStyle = signal<"2D" | "3D">("2D");
 export const characters = signal<CharacterToken[]>(defaultCharacterTokens.map((item) => ({ ...item })));
 export const selectedCharacterId = signal(defaultCharacterTokens[0]?.id ?? "");
 export const selectedCharacter = computed(() => characters.value.find((item) => item.id === selectedCharacterId.value) ?? emptyCharacter);
 
-export const emotion = signal<Emotion>("unknown");
-export const expressionEmotion = signal<Emotion>("unknown");
-export const effectColor = signal(emotionMeta.unknown.color);
-export const coreEffect = signal(emotionMeta.unknown.effect);
-export const coreEffectImage = signal<string | null>(null);
+export const emotion = signal<Emotion>("neutral");
+export const expressionEmotion = signal<Emotion>("neutral");
+export const effectColor = signal(emotionMeta.neutral.color);
+export const coreEffect = signal(emotionMeta.neutral.effect);
+export const accentEffect = signal<AccentEffect>("sparkles");
+export const accentColor = signal(emotionMeta.neutral.color);
 export const sourceTranscript = signal("");
 export const transcript = signal("");
 export const emoticonTitle = signal("");
@@ -62,8 +64,8 @@ export const frameImages = signal<string[]>([]);
 export const visionMetrics = signal<VisionMetrics>({ source: "unavailable", gesture: "Not_Captured" });
 export const behaviorCapture = signal<BehaviorCapture>({
   id: "capture-empty", ownerId: null, poseSummary: "입력된 행동 없음", gesture: "Not_Captured",
-  expression: "unknown",
-  emotionScores: { angry: 0, disgusted: 0, fearful: 0, happy: 0, neutral: 0, other: 0, sad: 0, surprised: 0, unknown: 1 },
+  expression: "neutral",
+  emotionScores: { ...emptyEmotionScores(), neutral: 1 },
   sourceText: sourceTranscript.value, shortText: transcript.value,
   audio: { rms: audioRms.value, peak: audioPeak.value, energy: 0, capturedAt: new Date().toISOString() },
   createdAt: new Date().toISOString(),
@@ -77,7 +79,7 @@ export const exportShareUrl = signal<string | null>(null);
 export const exportGifBlob = signal<Blob | null>(null);
 export const exportAnimationFormat = signal<AnimationFormat>("APNG");
 
-export const motionBrief = computed(() => createMotionBrief(emotion.value, effectColor.value, sourceTranscript.value, transcript.value, motionIntensity.value, selectedCharacterId.value, frameDelayMs.value, coreEffect.value, expressionEmotion.value, behaviorCapture.value.poseSummary, motionStyle.value));
+export const motionBrief = computed(() => createMotionBrief(emotion.value, effectColor.value, sourceTranscript.value, transcript.value, motionIntensity.value, selectedCharacterId.value, frameDelayMs.value, coreEffect.value, expressionEmotion.value, behaviorCapture.value.poseSummary, motionStyle.value, accentEffect.value, accentColor.value));
 
 let toastTimer: number | undefined;
 export function notify(message: string): void {
@@ -91,7 +93,6 @@ export function setEmotion(next: Emotion): void {
   emotion.value = next;
   effectColor.value = emotionMeta[next].color;
   coreEffect.value = emotionMeta[next].effect;
-  coreEffectImage.value = null;
 }
 
 export function selectCharacter(id: string): void {
@@ -113,6 +114,8 @@ export function startNewEmoticonProject(): void {
   exportAnimationFormat.value = "APNG";
   exportShareUrl.value = null;
   exportModalOpen.value = false;
+  accentEffect.value = "sparkles";
+  accentColor.value = emotionMeta[emotion.value].color;
 }
 
 export function loadProjectForEditing(project: EmoticonProject): void {
@@ -127,16 +130,17 @@ export function loadProjectForEditing(project: EmoticonProject): void {
   characterStyle.value = project.characterToken.styleMode;
   emotion.value = project.motionBrief.emotion;
   expressionEmotion.value = project.motionBrief.expressionEmotion;
-  effectColor.value = project.motionBrief.effectColor;
-  coreEffect.value = project.motionBrief.coreEffect;
-  coreEffectImage.value = project.coreEffectImage ?? null;
+  effectColor.value = emotionMeta[emotion.value].color;
+  coreEffect.value = emotionMeta[emotion.value].effect;
+  accentEffect.value = project.motionBrief.accentEffect ?? "sparkles";
+  accentColor.value = project.motionBrief.accentColor ?? emotionMeta[emotion.value].color;
   sourceTranscript.value = project.motionBrief.sourceText;
   transcript.value = project.motionBrief.shortText;
   emoticonTitle.value = project.sticker.title;
   frameDelayMs.value = project.motionBrief.frameDelayMs;
   motionStyle.value = project.motionBrief.motionStyle ?? "smooth";
   behaviorCapture.value = { ...behaviorCapture.value, ...project.behaviorCapture };
-  layers.value = project.layers.map((layer) => ({ ...layer }));
+  layers.value = normalizeEditorLayers(project.layers);
   textBoxShape.value = project.textStyle.shape;
   textFont.value = project.textStyle.font;
   frameImages.value = project.frameImages.length ? [...project.frameImages] : Array.from({ length: 5 }, () => project.characterToken.sourceAsset);
@@ -151,6 +155,7 @@ export function loadProjectForEditing(project: EmoticonProject): void {
 }
 
 export function updateLayerTransform(id: LayerKind, update: Partial<LayerTransform>): void {
+  if (id === "background-effects") return;
   const frameIndex = Math.max(0, Math.min(4, selectedFrame.value));
   frameLayerTransforms.value = frameLayerTransforms.value.map((frame, index) => (
     index >= frameIndex ? { ...frame, [id]: { ...frame[id], ...update } } : frame
@@ -158,18 +163,21 @@ export function updateLayerTransform(id: LayerKind, update: Partial<LayerTransfo
 }
 
 export function updateLayerTransformForAllFrames(id: LayerKind, update: Partial<LayerTransform>): void {
+  if (id === "background-effects") return;
   frameLayerTransforms.value = frameLayerTransforms.value.map((frame) => ({ ...frame, [id]: { ...frame[id], ...update } }));
 }
 
 export function toggleLayer(id: LayerKind, key: "visible" | "locked"): void {
+  if (id === "background-effects") return;
   layers.value = layers.value.map((layer) => (layer.id === id ? { ...layer, [key]: !layer[key] } : layer));
 }
 
 export function moveLayer(id: LayerKind, direction: -1 | 1): void {
+  if (id === "background-effects") return;
   const list = [...layers.value];
   const index = list.findIndex((layer) => layer.id === id);
   const target = index + direction;
-  if (index < 0 || target < 0 || target >= list.length) return;
+  if (index < 0 || target < 0 || target >= list.length || list[target]?.id === "background-effects") return;
   [list[index], list[target]] = [list[target], list[index]];
   layers.value = list;
 }
@@ -179,13 +187,15 @@ export function reorderLayer(sourceId: LayerKind, targetId: LayerKind): void {
 }
 
 export function previewLayerOrder(list: EditorLayer[], sourceId: LayerKind, targetId: LayerKind, position: "before" | "after"): EditorLayer[] {
-  const source = list.find((layer) => layer.id === sourceId);
-  if (!source || sourceId === targetId) return [...list];
-  const remaining = list.filter((layer) => layer.id !== sourceId);
+  const normalized = normalizeEditorLayers(list);
+  if (sourceId === "background-effects" || targetId === "background-effects") return normalized;
+  const source = normalized.find((layer) => layer.id === sourceId);
+  if (!source || sourceId === targetId) return normalized;
+  const remaining = normalized.filter((layer) => layer.id !== sourceId);
   const targetIndex = remaining.findIndex((layer) => layer.id === targetId);
-  if (targetIndex < 0) return [...list];
+  if (targetIndex < 0) return normalized;
   remaining.splice(targetIndex + (position === "after" ? 1 : 0), 0, source);
-  return remaining;
+  return normalizeEditorLayers(remaining);
 }
 
 export function toggleFavorite(id: string): void {
@@ -207,12 +217,27 @@ function cloneFrameTransforms(source: Array<Record<LayerKind, LayerTransform>>):
     const sourceFrame = source[index];
     if (!sourceFrame) return frame;
     return {
-      "background-effects": { ...frame["background-effects"], ...sourceFrame["background-effects"] },
+      "background-effects": { ...defaultLayerTransforms["background-effects"] },
       character: { ...frame.character, ...sourceFrame.character },
       "accent-effects": { ...frame["accent-effects"], ...sourceFrame["accent-effects"] },
       text: { ...frame.text, ...sourceFrame.text },
     };
   });
+}
+
+export function normalizeEditorLayers(source: EditorLayer[]): EditorLayer[] {
+  const defaults = new Map(initialLayers.map((layer) => [layer.id, layer]));
+  const seen = new Set<LayerKind>();
+  const editable = source.flatMap((layer) => {
+    if (layer.id === "background-effects" || seen.has(layer.id) || !defaults.has(layer.id)) return [];
+    seen.add(layer.id);
+    return [{ ...defaults.get(layer.id)!, ...layer }];
+  });
+  initialLayers.forEach((layer) => {
+    if (layer.id !== "background-effects" && !seen.has(layer.id)) editable.push({ ...layer });
+  });
+  const background = defaults.get("background-effects")!;
+  return [...editable, { ...background, visible: true, locked: true }];
 }
 
 export function sanitizeAssetUrl(url: string | null | undefined): string {

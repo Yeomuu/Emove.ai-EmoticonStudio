@@ -19,6 +19,17 @@ type ImentivAudio = {
   id?: string;
   status?: string;
   average_audio_emotions?: Record<string, unknown> | null;
+  segment_text_emotions?: Array<Record<string, unknown>> | null;
+};
+
+type ImentivMultimodalAnalytics = {
+  status?: string;
+  emotion_analysis?: {
+    overall?: {
+      audio?: Record<string, unknown> | null;
+      text?: Record<string, unknown> | null;
+    };
+  };
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -38,12 +49,12 @@ export async function POST(request: Request): Promise<Response> {
   form.append("title", "EMOVE voice capture");
   form.append("audio_file", audio, safeAudioFileName(audio));
   form.append("speaker_diarization", "false");
-  form.append("text_emotion_analysis", "false");
+  form.append("text_emotion_analysis", "true");
   form.append("language", "ko");
 
   const response = await fetch(`${baseUrl()}/v2/audios`, {
     method: "POST",
-    headers: { "X-API-Key": apiKey },
+    headers: imentivHeaders(apiKey, request),
     body: form,
     signal: AbortSignal.timeout(30_000),
   });
@@ -63,7 +74,7 @@ export async function GET(request: Request): Promise<Response> {
   if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) return json(400, { error: "올바른 Imentiv 오디오 작업 ID가 필요합니다." });
 
   const response = await fetch(`${baseUrl()}/v1/audios/${encodeURIComponent(id)}`, {
-    headers: { "X-API-Key": apiKey },
+    headers: imentivHeaders(apiKey, request),
     cache: "no-store",
     signal: AbortSignal.timeout(20_000),
   });
@@ -72,10 +83,58 @@ export async function GET(request: Request): Promise<Response> {
 
   const status = normalizeStatus(payload && "status" in payload ? payload.status : undefined);
   if (status === "failed") return json(502, { status, error: "Imentiv 감정 분석 작업이 실패했습니다." });
-  const scores = normalizeImentivEmotionScores(payload && "average_audio_emotions" in payload ? payload.average_audio_emotions : null);
-  if (status !== "complete" || !scores) return json(200, { status: "pending" });
+  if (status !== "complete") return json(200, { status: "pending" });
+
+  const detailed = await fetchMultimodalAnalytics(id, apiKey, request);
+  const audioScores = detailed?.emotion_analysis?.overall?.audio
+    ?? (payload && "average_audio_emotions" in payload ? payload.average_audio_emotions : null);
+  const textScores = detailed?.emotion_analysis?.overall?.text
+    ?? aggregateSegmentTextEmotions(payload && "segment_text_emotions" in payload ? payload.segment_text_emotions : null);
+  const scores = normalizeImentivEmotionScores(audioScores, textScores);
+  if (!scores) return json(502, { status: "failed", error: "Imentiv 분석은 완료되었지만 감정 점수 결과가 비어 있습니다." });
   const [emotion, confidence] = dominantEmotion(scores);
-  return json(200, { status: "complete", emotion, confidence, scores });
+  return json(200, { status: "complete", emotion, confidence, scores, taxonomy: "emove-9-v1" });
+}
+
+async function fetchMultimodalAnalytics(id: string, apiKey: string, request: Request): Promise<ImentivMultimodalAnalytics | null> {
+  try {
+    const response = await fetch(`${baseUrl()}/v2/audios/${encodeURIComponent(id)}/multimodal-analytics`, {
+      headers: imentivHeaders(apiKey, request),
+      cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!response.ok) return null;
+    return await response.json() as ImentivMultimodalAnalytics;
+  } catch {
+    return null;
+  }
+}
+
+function aggregateSegmentTextEmotions(segments: Array<Record<string, unknown>> | null | undefined): Record<string, number> | null {
+  if (!segments?.length) return null;
+  const totals: Record<string, number> = {};
+  let found = false;
+  segments.forEach((segment) => {
+    const source = asScoreMap(segment.emotions) ?? asScoreMap(segment.text_emotions) ?? asScoreMap(segment);
+    if (!source) return;
+    Object.entries(source).forEach(([label, value]) => {
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return;
+      totals[label] = (totals[label] ?? 0) + value;
+      found = true;
+    });
+  });
+  return found ? totals : null;
+}
+
+function asScoreMap(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function imentivHeaders(apiKey: string, request: Request): Record<string, string> {
+  return {
+    "X-API-Key": apiKey,
+    Referer: request.headers.get("origin") || new URL(request.url).origin,
+  };
 }
 
 function normalizeStatus(status: string | undefined): "pending" | "complete" | "failed" {

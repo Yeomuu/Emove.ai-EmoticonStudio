@@ -13,8 +13,9 @@ export class AudioCapture {
   private animationFrame?: number;
   private rmsSamples: number[] = [];
   private peak = 0;
+  private onFrame?: (levels: number[], features: { rms: number; peak: number }) => void;
 
-  async start(onFrame: (levels: number[], features: { rms: number; peak: number }) => void): Promise<void> {
+  async prepare(onFrame: (levels: number[], features: { rms: number; peak: number }) => void): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("이 브라우저는 마이크 입력을 지원하지 않습니다.");
     if (typeof MediaRecorder === "undefined") throw new Error("이 브라우저는 음성 녹음을 지원하지 않습니다.");
     this.release();
@@ -35,9 +36,8 @@ export class AudioCapture {
       this.chunks = [];
       this.rmsSamples = [];
       this.peak = 0;
+      this.onFrame = onFrame;
       this.recorder.ondataavailable = (event) => event.data.size && this.chunks.push(event.data);
-      this.recorder.start(120);
-      this.startedAt = performance.now();
       this.context = new AudioContext();
       if (this.context.state === "suspended") await this.context.resume();
       const source = this.context.createMediaStreamSource(this.stream);
@@ -45,29 +45,41 @@ export class AudioCapture {
       this.analyser.fftSize = 256;
       this.analyser.smoothingTimeConstant = 0.66;
       source.connect(this.analyser);
-      const frequency = new Uint8Array(this.analyser.frequencyBinCount);
-      const time = new Uint8Array(this.analyser.fftSize);
-      const tick = () => {
-        if (!this.analyser) return;
-        this.analyser.getByteFrequencyData(frequency);
-        this.analyser.getByteTimeDomainData(time);
-        const rms = Math.sqrt(time.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / time.length);
-        const peak = Math.max(...time.map((value) => Math.abs((value - 128) / 128)));
-        this.rmsSamples.push(rms);
-        this.peak = Math.max(this.peak, peak);
-        const bins = Array.from({ length: 34 }, (_, index) => {
-          const start = Math.floor(index * frequency.length / 34);
-          const end = Math.max(start + 1, Math.floor((index + 1) * frequency.length / 34));
-          return Math.max(0.025, frequency.slice(start, end).reduce((sum, value) => sum + value, 0) / (end - start) / 255);
-        });
-        onFrame(bins, { rms, peak });
-        this.animationFrame = requestAnimationFrame(tick);
-      };
-      tick();
     } catch (error) {
       this.release();
       throw error;
     }
+  }
+
+  begin(): void {
+    if (!this.recorder || !this.analyser || !this.onFrame) throw new Error("마이크 녹음 준비가 완료되지 않았습니다.");
+    if (this.recorder.state !== "inactive") throw new Error("마이크 녹음이 이미 진행 중입니다.");
+    this.recorder.start(120);
+    this.startedAt = performance.now();
+    const frequency = new Uint8Array(this.analyser.frequencyBinCount);
+    const time = new Uint8Array(this.analyser.fftSize);
+    const tick = () => {
+      if (!this.analyser || !this.onFrame || this.recorder?.state === "inactive") return;
+      this.analyser.getByteFrequencyData(frequency);
+      this.analyser.getByteTimeDomainData(time);
+      const rms = Math.sqrt(time.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / time.length);
+      const peak = Math.max(...time.map((value) => Math.abs((value - 128) / 128)));
+      this.rmsSamples.push(rms);
+      this.peak = Math.max(this.peak, peak);
+      const bins = Array.from({ length: 34 }, (_, index) => {
+        const start = Math.floor(index * frequency.length / 34);
+        const end = Math.max(start + 1, Math.floor((index + 1) * frequency.length / 34));
+        return Math.max(0.025, frequency.slice(start, end).reduce((sum, value) => sum + value, 0) / (end - start) / 255);
+      });
+      this.onFrame(bins, { rms, peak });
+      this.animationFrame = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  async start(onFrame: (levels: number[], features: { rms: number; peak: number }) => void): Promise<void> {
+    await this.prepare(onFrame);
+    this.begin();
   }
 
   stop(): Promise<AudioCaptureResult> {
@@ -90,7 +102,7 @@ export class AudioCapture {
     this.stream?.getTracks().forEach((track) => track.stop());
     const context = this.context;
     if (context && context.state !== "closed") void context.close().catch(() => undefined);
-    this.stream = undefined; this.recorder = undefined; this.analyser = undefined; this.context = undefined; this.animationFrame = undefined;
+    this.stream = undefined; this.recorder = undefined; this.analyser = undefined; this.context = undefined; this.animationFrame = undefined; this.onFrame = undefined;
   }
 }
 
@@ -167,7 +179,7 @@ export class CameraCapture {
     );
   }
 
-  async record(video: HTMLVideoElement, durationMs = 5000, onProgress?: (progress: number) => void): Promise<CameraCaptureResult> {
+  async record(video: HTMLVideoElement, durationMs = 5000, onProgress?: (progress: number) => void, onRecordingStart?: () => void): Promise<CameraCaptureResult> {
     if (!this.stream || !video.videoWidth || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
       throw new Error("카메라 프레임이 아직 준비되지 않았습니다.");
     }
@@ -188,9 +200,17 @@ export class CameraCapture {
       ? new MediaRecorder(videoStream, { mimeType })
       : new MediaRecorder(videoStream);
     const chunks: Blob[] = [];
-    const startedAt = performance.now();
     recorder.ondataavailable = (event) => event.data.size && chunks.push(event.data);
+    const startedAt = performance.now();
     recorder.start(100);
+    try {
+      onRecordingStart?.();
+    } catch (error) {
+      const stopped = new Promise<void>((resolve) => { recorder.onstop = () => resolve(); });
+      recorder.stop();
+      await stopped;
+      throw error;
+    }
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -224,6 +244,16 @@ export class CameraCapture {
     this.stream = undefined;
     this.video = undefined;
   }
+}
+
+export function synchronizedCaptureIssue(video: CameraCaptureResult, audio: AudioCaptureResult, expectedDurationMs = 5000): string | null {
+  if (video.blob.size <= 0) return "카메라 녹화 데이터가 비어 있습니다. 다시 촬영해 주세요.";
+  if (audio.blob.size <= 0) return "마이크 녹음 데이터가 비어 있습니다. 다시 촬영해 주세요.";
+  const minimumDuration = expectedDurationMs * .8;
+  if (video.durationMs < minimumDuration) return "카메라 녹화가 5초보다 일찍 종료되었습니다. 다시 촬영해 주세요.";
+  if (audio.durationMs < minimumDuration) return "마이크 녹음이 5초보다 일찍 종료되었습니다. 다시 촬영해 주세요.";
+  if (Math.abs(video.durationMs - audio.durationMs) > 900) return "카메라와 마이크의 녹화 시간이 맞지 않습니다. 다시 촬영해 주세요.";
+  return null;
 }
 
 function supportedRecorderMimeType(candidates: string[]): string | undefined {

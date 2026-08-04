@@ -7,14 +7,14 @@ export const SHOWCASE_INTERVAL_MS = 20_000;
 
 export type AnimatedStickerCollection = {
   items: StickerItem[];
+  refresh: Promise<StickerItem[]>;
   release: () => void;
 };
 
 export async function loadAnimatedStickerCollection(): Promise<AnimatedStickerCollection> {
-  const [saved, projects, remote] = await Promise.all([
+  const [saved, projects] = await Promise.all([
     loadStickers(),
     loadProjects(),
-    loadRemoteStickers(),
   ]);
   const projectById = new Map(projects.map((project) => [project.id, project]));
   const objectUrls: string[] = [];
@@ -32,17 +32,32 @@ export async function loadAnimatedStickerCollection(): Promise<AnimatedStickerCo
     };
   });
 
-  const byId = new Map<string, StickerItem>();
-  [...local, ...(remote.enabled ? remote.stickers : [])]
-    .filter(isAnimatedSticker)
-    .forEach((item) => {
-      if (!byId.has(item.id)) byId.set(item.id, item);
-    });
+  const items = mergeAnimatedStickers(local, []);
+  const refresh = loadRemoteStickers()
+    .then((remote) => mergeAnimatedStickers(local, remote.enabled ? remote.stickers : []))
+    .catch(() => items);
 
   return {
-    items: [...byId.values()].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
+    items,
+    refresh,
     release: () => objectUrls.forEach((url) => URL.revokeObjectURL(url)),
   };
+}
+
+function mergeAnimatedStickers(local: StickerItem[], remote: StickerItem[]): StickerItem[] {
+  const byId = new Map<string, StickerItem>();
+  [...local, ...remote]
+    .filter(isAnimatedSticker)
+    .forEach((item) => {
+      const current = byId.get(item.id);
+      if (!current || recordTime(item) >= recordTime(current)) byId.set(item.id, item);
+    });
+  return [...byId.values()].sort((a, b) => recordTime(b) - recordTime(a));
+}
+
+function recordTime(item: StickerItem): number {
+  const parsed = Date.parse(item.updatedAt || item.createdAt);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function isAnimatedSticker(item: StickerItem): boolean {

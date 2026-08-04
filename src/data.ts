@@ -1,4 +1,6 @@
-import type { CharacterToken, EditorLayer, Emotion, MotionStyle, StickerItem } from "./types";
+import type { AccentEffect, CharacterToken, EditorLayer, Emotion, MotionStyle, StickerItem } from "./types";
+import { emotionEffectGuides, emotionMeta, emotionOrder } from "./emotion-taxonomy";
+export { emotionEffectGuides, emotionMeta, emotionOrder } from "./emotion-taxonomy";
 import characterImage from "./assets/images/character-main.webp";
 import detailProfileImage from "./assets/images/detail-profile.webp";
 import detailStickerImage from "./assets/images/detail-sticker.webp";
@@ -33,37 +35,11 @@ export const imageAssets = {
   ],
 } as const;
 
-export const emotionMeta: Record<Emotion, { label: string; effect: string; color: string; message: string; autoApply: boolean }> = {
-  angry: { label: "화남", effect: "플레임 버스트", color: "#FF7A87", message: "진짜 너무해!", autoApply: true },
-  disgusted: { label: "혐오", effect: "스모그 웨이브", color: "#A6D67A", message: "으, 싫어", autoApply: true },
-  fearful: { label: "두려움", effect: "쉐이크 링", color: "#8CA5FF", message: "너무 무서워", autoApply: true },
-  happy: { label: "기쁨", effect: "팝 스타", color: "#BBB6FF", message: "완전 좋아!", autoApply: true },
-  neutral: { label: "중립", effect: "소프트 웨이브", color: "#B7BDC8", message: "그렇구나", autoApply: true },
-  other: { label: "기타", effect: "사용자 선택", color: "#FFADE3", message: "이 감정은 뭐지?", autoApply: false },
-  sad: { label: "슬픔", effect: "레인 드롭", color: "#78A8FF", message: "조금 속상해", autoApply: true },
-  surprised: { label: "놀람", effect: "스파클 링", color: "#FFD36E", message: "헉, 정말?", autoApply: true },
-  unknown: { label: "미분류", effect: "사용자 선택", color: "#78D6C6", message: "말로 표현하기 어려워", autoApply: false },
-};
-
-export const emotionEffectGuides: Record<Emotion, { background: string; accent: string; motion: string; promptHint: string }> = {
-  angry: { background: "붉은 플레임 방사형 버스트", accent: "짧은 불꽃 조각", motion: "빠른 확대와 흔들림", promptHint: "flame burst, sharp red-orange radial energy" },
-  disgusted: { background: "올리브빛 스모그 웨이브", accent: "흐릿한 연기 입자", motion: "느린 좌우 흐름", promptHint: "soft smog wave, muted green haze" },
-  fearful: { background: "차가운 흔들림 링", accent: "가느다란 진동선", motion: "짧은 떨림과 수축", promptHint: "blue shake rings, nervous vibration" },
-  happy: { background: "보라색 팝 스타 글로우", accent: "작은 별과 점 입자", motion: "통통 튀는 확산", promptHint: "lavender pop stars, buoyant sparkle" },
-  neutral: { background: "은은한 소프트 웨이브", accent: "잔잔한 원형 파동", motion: "느린 호흡형 루프", promptHint: "soft neutral wave, calm circular ripple" },
-  other: { background: "사용자 선택형 믹스 글로우", accent: "작은 추상 입자", motion: "중간 속도 루프", promptHint: "custom abstract glow particles" },
-  sad: { background: "푸른 레인 드롭", accent: "작은 물방울", motion: "아래로 떨어지는 완만한 흐름", promptHint: "blue raindrops, gentle downward motion" },
-  surprised: { background: "노란 스파클 링", accent: "확산 링과 반짝임", motion: "순간 팽창 후 정지", promptHint: "yellow sparkle rings, sudden expansion" },
-  unknown: { background: "민트색 미분류 오라", accent: "불규칙한 작은 점", motion: "낮은 강도 부유", promptHint: "mint ambiguous aura, subtle floating dots" },
-};
-
-export const emotionOrder = ["angry", "disgusted", "fearful", "happy", "neutral", "other", "sad", "surprised", "unknown"] as const;
-
 export const initialLayers: EditorLayer[] = [
   { id: "text", label: "텍스트", description: "말풍선과 자막", visible: true, locked: false },
   { id: "accent-effects", label: "부가 이펙트", description: "별·스티커·강조", visible: true, locked: false },
   { id: "character", label: "캐릭터", description: "표정과 모션", visible: true, locked: false },
-  { id: "background-effects", label: "배경 이펙트", description: "핵심 감정 효과", visible: true, locked: false },
+  { id: "background-effects", label: "배경 이펙트", description: "감정별 고정 효과", visible: true, locked: true },
 ];
 
 const createdAt = "2026-06-23T12:00:00.000Z";
@@ -113,9 +89,7 @@ export const defaultCharacterTokens: CharacterToken[] = [
 
 export const starterStickers: StickerItem[] = [];
 
-export const effectPresets = ["팝 스타", "플레임 버스트", "스모그 웨이브", "쉐이크 링", "소프트 웨이브", "레인 드롭", "스파클 링"] as const;
-
-export function createMotionBrief(emotion: Emotion, color: string, sourceText: string, shortText: string, intensity: number, tokenId: string, frameDelayMs = 120, coreEffect?: string, expressionEmotion: Emotion = emotion, pose = "입력된 행동 없음", motionStyle: MotionStyle = "smooth"): import("./types").MotionBrief {
+export function createMotionBrief(emotion: Emotion, _color: string, sourceText: string, shortText: string, intensity: number, tokenId: string, frameDelayMs = 120, _coreEffect?: string, expressionEmotion: Emotion = emotion, pose = "입력된 행동 없음", motionStyle: MotionStyle = "smooth", accentEffect: AccentEffect = "sparkles", accentColor?: string): import("./types").MotionBrief {
   const meta = emotionMeta[emotion];
   const clampedIntensity = Math.max(0, Math.min(1, intensity));
   const tier: import("./types").ExaggerationTier = clampedIntensity < 0.45 ? "minimal" : clampedIntensity < 0.72 ? "emotional" : "full";
@@ -124,12 +98,14 @@ export function createMotionBrief(emotion: Emotion, color: string, sourceText: s
     shortText: shortText.trim(),
     expressionEmotion,
     emotion,
-    confidence: emotion === "other" || emotion === "unknown" ? 0.42 : 0.88,
+    confidence: 0.88,
     motionIntensity: clampedIntensity,
     exaggerationTier: tier,
     pose,
-    coreEffect: coreEffect ?? meta.effect,
-    effectColor: color,
+    coreEffect: meta.effect,
+    effectColor: meta.color,
+    accentEffect,
+    accentColor: accentColor ?? meta.color,
     duration: Math.max(0.35, Math.min(1.4, frameDelayMs * 5 / 1000)),
     frameDelayMs,
     motionStyle,

@@ -2,10 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMotionBrief, emotionMeta, initialLayers } from "../src/data";
 import { normalizePath } from "../src/router";
 import { keyOutConnectedGreen } from "../src/services/image-processing";
+import { synchronizedCaptureIssue } from "../src/services/media";
 import { encodeApngPngFrames, encodeGifFrames } from "../src/services/renderer";
 import { circularBatch, isAnimatedSticker, shuffled } from "../src/services/animated-library";
 import { persistGeneratedAsset } from "../src/services/asset-storage";
+import { deleteRemoteLibraryItem, loadRemoteProjects, loadRemoteStickers, syncStickerToRemote } from "../src/services/remote-store";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
+import { handleOpenAIRequest } from "../server/openai-api";
 import { SHOWCASE_IDLE_TIMEOUT_MS, watchForInactivity } from "../src/services/inactivity";
 import {
   BODY_GESTURES,
@@ -341,7 +344,7 @@ describe("animated showcase rotation", () => {
 
   it("accepts only non-default animated sticker assets", () => {
     const base: StickerItem = {
-      id: "animated-1", title: "움직이는 테스트", phrase: "", emotion: "happy", image: "thumb.png",
+      id: "animated-1", title: "움직이는 테스트", phrase: "", emotion: "joy", image: "thumb.png",
       animatedImage: "https://assets.example.test/emove.apng", animationFormat: "APNG", color: "#BBB6FF",
       favorite: false, ownerId: null, isDefault: false, isPublished: false, characterTokenId: "character-1",
       createdAt: "2026-07-13T00:00:00.000Z", updatedAt: "2026-07-13T00:00:00.000Z",
@@ -362,6 +365,125 @@ describe("generated asset persistence", () => {
   });
 });
 
+describe("shared Firebase library", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("writes every browser into the same public library without an auth token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ enabled: true, ownerId: "public" }), {
+      status: 201,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const sticker: StickerItem = {
+      id: "shared-sticker", title: "공용 이모티콘", phrase: "안녕", emotion: "joy",
+      image: "https://example.test/thumb.png", animatedImage: "https://example.test/shared.apng",
+      animationFormat: "APNG", color: "#BBB6FF", favorite: false, ownerId: "browser-specific-value",
+      isDefault: false, isPublished: true, characterTokenId: "character-1",
+      createdAt: "2026-08-01T00:00:00.000Z", updatedAt: "2026-08-01T00:00:00.000Z",
+    };
+
+    await expect(syncStickerToRemote(sticker)).resolves.toMatchObject({ enabled: true, ownerId: "public" });
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse(String(options?.body));
+    expect(body.payload.ownerId).toBe("public");
+    expect(options?.headers).toEqual({ "Content-Type": "application/json" });
+  });
+
+  it("hydrates the shared sticker favorite instead of resetting it per browser", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      enabled: true,
+      records: [{
+        id: "shared-sticker",
+        kind: "stickers",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        payload: {
+          id: "shared-sticker",
+          name: "공용 이모티콘",
+          projectId: "shared-project",
+          gifUrl: "https://example.test/shared.apng",
+          thumbnail: "https://example.test/shared.png",
+          favorite: true,
+          category: { emotion: "happy", group: "이모티콘 그룹" },
+          metadata: { format: "APNG", averageDelay: 120 },
+        },
+      }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    const result = await loadRemoteStickers();
+    expect(result.enabled).toBe(true);
+    expect(result.stickers[0]).toMatchObject({ id: "shared-sticker", emotion: "joy", favorite: true, ownerId: "public" });
+  });
+
+  it("deletes both sticker and project records for a shared emoticon", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ enabled: true, deletedAt: "2026-08-01T00:00:00.000Z" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(deleteRemoteLibraryItem("emoticon", "sticker-1", "project-1")).resolves.toMatchObject({ enabled: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(expect.arrayContaining([
+      "/api/library/stickers?id=sticker-1",
+      "/api/library/projects?id=project-1",
+    ]));
+    expect(fetchMock.mock.calls.every(([, options]) => options?.method === "DELETE")).toBe(true);
+  });
+
+  it("restores legacy shared projects so another browser can open the editor", async () => {
+    const transform = { x: 0, y: 0, scale: 1, rotation: 0 };
+    const layer = (type: string, layerOrder: number, assetUrl: string, extra = {}) => ({ type, layerOrder, assetUrl, transform, ...extra });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      records: [{
+        id: "project-1",
+        kind: "projects",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        payload: {
+          project: {
+            id: "project-1",
+            generatedPrompt: "기쁜 인사",
+            frames: Array.from({ length: 5 }, (_, frameIndex) => ({
+              frameIndex,
+              delay: 120,
+              layers: [
+                layer("text", 0, "text-layer", { content: "안녕!", style: { shape: "pill", font: "Pretendard" } }),
+                layer("accentEffect", 1, "procedural-accent-effect"),
+                layer("character", 2, `https://example.test/frame-${frameIndex}.png`),
+                layer("backgroundEffect", 3, "procedural-background-effect"),
+              ],
+            })),
+            metadata: { format: "APNG", createdAt: "2026-07-01T00:00:00.000Z" },
+          },
+          sticker: {
+            id: "sticker-1", name: "안녕!", projectId: "project-1", gifUrl: "https://example.test/sticker.apng",
+            thumbnail: "https://example.test/thumb.png", category: { emotion: "happy" }, metadata: { format: "APNG" },
+          },
+          character: {
+            id: "character-1", name: "공용 캐릭터", imageUrl: "https://example.test/character.png", styleMode: "3D",
+          },
+          capture: {
+            id: "capture-1", behavior: { expression: "happy", gesture: "Victory", emotionKey: "happy", poseData: { poseSummary: "브이 포즈" } },
+            voice: { speechText: "안녕", voiceIntensity: .5, waveformData: [.3, .5, .4] }, metadata: { capturedAt: "2026-07-01T00:00:00.000Z" },
+          },
+        },
+      }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    const result = await loadRemoteProjects();
+    expect(result.projects[0]).toMatchObject({
+      id: "project-1",
+      ownerId: "public",
+      sticker: { id: "sticker-1" },
+      characterToken: { id: "character-1" },
+      frameImages: expect.arrayContaining(["https://example.test/frame-0.png"]),
+      motionBrief: { shortText: "안녕!", pose: "브이 포즈" },
+    });
+    expect(result.projects[0].frameLayerTransforms).toHaveLength(5);
+  });
+});
+
 describe("four layer edit contract", () => {
   it("contains the required layers in top-to-bottom editor order", () => {
     expect(initialLayers.map((layer) => layer.id)).toEqual([
@@ -371,45 +493,110 @@ describe("four layer edit contract", () => {
       "background-effects",
     ]);
     expect(new Set(initialLayers.map((layer) => layer.id)).size).toBe(4);
+    expect(initialLayers.at(-1)).toMatchObject({ id: "background-effects", visible: true, locked: true });
   });
 
-  it("previews before and after insertion without losing a layer", () => {
+  it("reorders editable layers while keeping the fixed background at the bottom", () => {
     expect(previewLayerOrder(initialLayers, "background-effects", "text", "before").map((layer) => layer.id)).toEqual([
-      "background-effects", "text", "accent-effects", "character",
+      "text", "accent-effects", "character", "background-effects",
     ]);
     expect(previewLayerOrder(initialLayers, "text", "background-effects", "after").map((layer) => layer.id)).toEqual([
-      "accent-effects", "character", "background-effects", "text",
+      "text", "accent-effects", "character", "background-effects",
+    ]);
+    expect(previewLayerOrder(initialLayers, "character", "text", "before").map((layer) => layer.id)).toEqual([
+      "character", "text", "accent-effects", "background-effects",
     ]);
   });
 });
 
+describe("OpenAI image-cost boundary", () => {
+  it("does not expose a generated background-effect route", async () => {
+    const response = await handleOpenAIRequest(new Request("http://localhost/api/openai/effect", { method: "POST" }), {
+      OPENAI_API_KEY: "sk-test-only-not-a-real-key",
+    });
+    expect(response?.status).toBe(404);
+    expect(await response?.json()).toMatchObject({ error: "지원하지 않는 OpenAI 경로입니다." });
+  });
+});
+
+describe("synchronized camera and microphone capture", () => {
+  const video = (durationMs = 5020, bytes = 8) => ({ blob: new Blob([new Uint8Array(bytes)], { type: "video/webm" }), durationMs, dataUrl: "data:image/jpeg;base64,AA==" });
+  const audio = (durationMs = 4980, bytes = 8) => ({ blob: new Blob([new Uint8Array(bytes)], { type: "audio/webm" }), durationMs, features: { rms: .4, peak: .6, energy: .44, capturedAt: "2026-08-04T00:00:00.000Z" } });
+
+  it("accepts one five-second session when both streams are present and aligned", () => {
+    expect(synchronizedCaptureIssue(video(), audio(), 5000)).toBeNull();
+  });
+
+  it("rejects missing, truncated, or desynchronized media before analysis", () => {
+    expect(synchronizedCaptureIssue(video(5020, 0), audio(), 5000)).toContain("카메라 녹화 데이터");
+    expect(synchronizedCaptureIssue(video(), audio(3200), 5000)).toContain("마이크 녹음이 5초보다 일찍");
+    expect(synchronizedCaptureIssue(video(5200), audio(4100), 5000)).toContain("녹화 시간이 맞지");
+  });
+});
+
 describe("emotion motion brief", () => {
-  it("keeps the generated core effect while accepting a user color", () => {
-    const brief = createMotionBrief("happy", "#112233", "오늘 진짜 너무 좋아", "완전 좋아!", .72, "default-penguin-soft3d");
-    expect(brief.coreEffect).toBe(emotionMeta.happy.effect);
-    expect(brief.effectColor).toBe("#112233");
+  it("locks the background preset and color while preserving editable accent settings", () => {
+    const brief = createMotionBrief("joy", "#112233", "오늘 진짜 너무 좋아", "완전 좋아!", .72, "default-penguin-soft3d", 120, "legacy-generated-effect", "joy", "양손 만세", "dynamic", "hearts", "#44CCFF");
+    expect(brief.coreEffect).toBe(emotionMeta.joy.effect);
+    expect(brief.effectColor).toBe(emotionMeta.joy.color);
+    expect(brief.accentEffect).toBe("hearts");
+    expect(brief.accentColor).toBe("#44CCFF");
     expect(brief.frameDelayMs).toBe(120);
     expect(brief.duration).toBe(0.6);
     expect(brief.confidence).toBeGreaterThan(0.8);
   });
 
-  it("exposes the exact nine emotion2vec+ output labels", () => {
-    expect(Object.keys(emotionMeta)).toEqual(["angry", "disgusted", "fearful", "happy", "neutral", "other", "sad", "surprised", "unknown"]);
+  it("exposes the exact nine EMOVE emotion matrix labels", () => {
+    expect(Object.keys(emotionMeta)).toEqual(["happiness", "joy", "admiration", "neutral", "surprise", "tension", "sadness", "anger", "anxiety"]);
+    expect(Object.values(emotionMeta).map((item) => item.label)).toEqual(["행복", "기쁨", "감탄", "중립", "놀람", "긴장", "슬픔", "분노", "불안"]);
   });
 
-  it("normalizes Imentiv nuanced voice labels into the EMOVE emotion contract", () => {
+  it("normalizes Imentiv nuanced labels into the nine-category EMOVE contract", () => {
     const scores = normalizeImentivEmotionScores({
-      joy: 44,
-      excitement: { score: 16 },
-      sadness: 20,
-      surprise: 10,
-      curiosity: 10,
+      love: 20,
+      joy: 40,
+      admiration: 20,
+      nervousness: 20,
     });
     expect(scores).not.toBeNull();
-    expect(scores?.happy).toBeCloseTo(.6);
-    expect(scores?.sad).toBeCloseTo(.2);
-    expect(scores?.surprised).toBeCloseTo(.2);
+    expect(scores?.happiness).toBeCloseTo(.2);
+    expect(scores?.joy).toBeCloseTo(.4);
+    expect(scores?.admiration).toBeCloseTo(.2);
+    expect(scores?.tension).toBeCloseTo(.2);
     expect(Object.values(scores ?? {}).reduce((sum, value) => sum + value, 0)).toBeCloseTo(1);
+  });
+
+  it("covers every official Imentiv acoustic emotion without leaving the EMOVE taxonomy", () => {
+    const scores = normalizeImentivEmotionScores({
+      Anger: 1,
+      Boredom: 1,
+      Disgust: 1,
+      Fear: 1,
+      Happiness: 1,
+      Neutral: 1,
+      Sadness: 1,
+      Surprise: 1,
+    });
+
+    expect(Object.keys(scores ?? {})).toEqual(Object.keys(emotionMeta));
+    expect(scores?.anger).toBeCloseTo(.25);
+    expect(scores?.neutral).toBeCloseTo(.25);
+    expect(scores?.anxiety).toBeCloseTo(.125);
+    expect(scores?.happiness).toBeCloseTo(.125);
+    expect(scores?.sadness).toBeCloseTo(.125);
+    expect(scores?.surprise).toBeCloseTo(.125);
+  });
+
+  it("keeps Imentiv vocal tone primary while using transcript emotion for nuance", () => {
+    const scores = normalizeImentivEmotionScores(
+      { happiness: 60, neutral: 40 },
+      { joy: 50, admiration: 25, nervousness: 25 },
+    );
+    expect(scores?.happiness).toBeCloseTo(.42);
+    expect(scores?.neutral).toBeCloseTo(.28);
+    expect(scores?.joy).toBeCloseTo(.15);
+    expect(scores?.admiration).toBeCloseTo(.075);
+    expect(scores?.tension).toBeCloseTo(.075);
   });
 });
 

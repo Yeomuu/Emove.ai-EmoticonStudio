@@ -3,27 +3,28 @@ import { Icon } from "../components/Icon";
 import { Panel } from "../components/Shell";
 import { Stage } from "../components/Stage";
 import { EXPORT_SIZE, FRAME_COUNT } from "../constants";
-import { effectPresets, emotionMeta } from "../data";
-import { navigate } from "../router";
-import { getAIProvider } from "../services/ai-provider";
-import { waitForImageAssets } from "../services/asset-readiness";
+import { emotionMeta } from "../data";
 import { persistGeneratedAsset } from "../services/asset-storage";
 import { syncProjectToRemote } from "../services/remote-store";
 import { downloadBlob, exportAnimation, renderFrame, renderFrameDataUrl } from "../services/renderer";
 import { saveProject } from "../services/repository";
 import { animationExtension, animationMimeType, publishAnimationForQr } from "../services/share";
-import { activeLayer, behaviorCapture, coreEffect, coreEffectImage, editingProject, effectColor, emotion, emoticonTitle, exportAnimationFormat, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, sanitizeAssetUrl, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
-import type { AnimationFormat, EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
+import { accentColor, accentEffect, activeLayer, behaviorCapture, editingProject, effectColor, emotion, emoticonTitle, exportAnimationFormat, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, sanitizeAssetUrl, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
+import type { AccentEffect, AnimationFormat, EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
 import characterMain from "../assets/images/character-main.webp";
 
 const layerIcons: Record<LayerKind, "image" | "star" | "layers" | "edit"> = { "background-effects": "image", character: "layers", "accent-effects": "star", text: "edit" };
-const ai = getAIProvider();
+const accentOptions: Array<{ value: AccentEffect; label: string }> = [
+  { value: "none", label: "없음" },
+  { value: "sparkles", label: "반짝임" },
+  { value: "hearts", label: "하트 스티커" },
+  { value: "stars", label: "별 스티커" },
+  { value: "motion-lines", label: "모션 라인" },
+];
 
 export function EditPage() {
   const [exporting, setExporting] = useState(false); const [density, setDensity] = useState(64); const [qr, setQr] = useState<string>();
   const [exportPreviewUrl, setExportPreviewUrl] = useState<string>();
-  const [generatingEffect, setGeneratingEffect] = useState(false);
-  const effectLockRef = useRef(false);
   const exportLockRef = useRef(false);
   const [dragId, setDragId] = useState<LayerKind>(); const [dragPreview, setDragPreview] = useState<EditorLayer[] | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: LayerKind; position: "before" | "after" } | null>(null); const [dragPoint, setDragPoint] = useState<{ x: number; y: number } | null>(null);
@@ -32,6 +33,11 @@ export function EditPage() {
   const displayedLayers = dragPreview ?? layers.value;
   const exportLabel = animationLabel(exportAnimationFormat.value);
   const exportExtension = animationExtension(exportAnimationFormat.value);
+  useEffect(() => {
+    if (frameImages.value.length > 0 || !selectedCharacter.value.sourceAsset) return;
+    const source = sanitizeAssetUrl(selectedCharacter.value.sourceAsset);
+    frameImages.value = Array.from({ length: FRAME_COUNT }, () => source);
+  }, []);
   useEffect(() => {
     if (!emoticonTitle.value.trim()) emoticonTitle.value = editingProject.value?.sticker.title || transcript.value.trim().slice(0, 12) || "새 이모티콘";
   }, []);
@@ -44,29 +50,8 @@ export function EditPage() {
     setExportPreviewUrl(previewUrl);
     return () => URL.revokeObjectURL(previewUrl);
   }, [exportModalOpen.value, exportGifBlob.value]);
-  const chooseCoreEffect = (preset: string) => {
-    coreEffect.value = preset;
-    coreEffectImage.value = null;
-  };
-  const generateCoreEffect = async () => {
-    if (effectLockRef.current || exportLockRef.current) return;
-    effectLockRef.current = true;
-    setGeneratingEffect(true);
-    try {
-      const generatedEffect = await ai.generateCoreEffect(motionBrief.value);
-      if (generatedEffect) await waitForImageAssets([generatedEffect]);
-      coreEffectImage.value = generatedEffect;
-      notify(generatedEffect ? "코어 이펙트 이미지가 화면에 준비되었습니다." : "생성형 코어 이펙트를 만들지 못해 로컬 이펙트로 미리봅니다.");
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "코어 이펙트 생성에 실패했습니다.");
-    } finally {
-      effectLockRef.current = false;
-      setGeneratingEffect(false);
-    }
-  };
-
   const beginLayerDrag = (event: ReactPointerEvent<HTMLButtonElement>, sourceId: LayerKind) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || sourceId === "background-effects") return;
     event.preventDefault(); event.stopPropagation();
     const handle = event.currentTarget as HTMLButtonElement; handle.setPointerCapture(event.pointerId);
     const original = [...layers.value]; const start = { x: event.clientX, y: event.clientY }; let currentPreview: EditorLayer[] | null = null; let moved = false;
@@ -95,7 +80,7 @@ export function EditPage() {
 
   const buildAndSave = async (): Promise<EmoticonProject> => {
     const original = editingProject.value;
-    const renderOptions = { characterUrl: sanitizeAssetUrl(selectedCharacter.value.sourceAsset), characterFrames: frameImages.value, coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, frameTransforms: frameLayerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: EXPORT_SIZE, height: EXPORT_SIZE };
+    const renderOptions = { characterUrl: sanitizeAssetUrl(selectedCharacter.value.sourceAsset), characterFrames: frameImages.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, frameTransforms: frameLayerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: EXPORT_SIZE, height: EXPORT_SIZE };
     const [animation, thumbnailSource] = await Promise.all([exportAnimation(renderOptions, "APNG"), renderFrameDataUrl(renderOptions, 0)]);
     const now = new Date().toISOString(); const id = original?.id ?? `emove-${Date.now()}`;
     const originalSticker = original?.sticker;
@@ -130,7 +115,7 @@ export function EditPage() {
       updatedAt: now,
     };
     const { videoBlob: _video, audioBlob: _audio, ...captureMeta } = behaviorCapture.value;
-    let project: EmoticonProject = { id, ownerId: original?.ownerId ?? sticker.ownerId, sticker, gifBlob: animation.blob, animationBlob: animation.blob, animationFormat: animation.format, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, coreEffectImage: coreEffectImage.value, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: original?.createdAt ?? now, updatedAt: now };
+    let project: EmoticonProject = { id, ownerId: original?.ownerId ?? sticker.ownerId, sticker, gifBlob: animation.blob, animationBlob: animation.blob, animationFormat: animation.format, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, coreEffectImage: null, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: original?.createdAt ?? now, updatedAt: now };
     let sync: Awaited<ReturnType<typeof syncProjectToRemote>> = { enabled: false };
     let remoteError: string | null = null;
     try {
@@ -167,7 +152,7 @@ export function EditPage() {
   };
 
   const save = async () => {
-    if (exportLockRef.current || effectLockRef.current) return;
+    if (exportLockRef.current) return;
     exportLockRef.current = true;
     setExporting(true);
     try { await buildAndSave(); }
@@ -175,7 +160,7 @@ export function EditPage() {
     finally { exportLockRef.current = false; setExporting(false); }
   };
   const openExport = async () => {
-    if (exportLockRef.current || effectLockRef.current) return;
+    if (exportLockRef.current) return;
     exportLockRef.current = true;
     setExporting(true);
     try {
@@ -206,7 +191,7 @@ export function EditPage() {
           <h1>이모티콘의 이펙트와 텍스트를<br/>자유롭게 수정하세요.</h1>
         </header>
 
-        <header className="editor-toolbar glass-panel"><div className="editor-title-group"><span className="eyebrow">STEP 03 · EDIT</span><strong>{emotionMeta[emotion.value].label} 모션 편집</strong><label className="emoticon-title-control"><span>NAME</span><input value={emoticonTitle.value} maxLength={28} onChange={(event) => (emoticonTitle.value = event.currentTarget.value)} aria-label="이모티콘 저장 이름" /></label></div><div className="toolbar-actions"><span className="save-state">{lastSaved.value ? `${lastSaved.value} 저장됨` : "저장 전"}</span><button className="button secondary" type="button" onClick={save} disabled={exporting || generatingEffect}><Icon name="save" />{exporting ? "저장 중" : "저장"}</button><button className="button primary" type="button" onClick={openExport} disabled={exporting || generatingEffect}><Icon name="download" />{exporting ? `${exportLabel} 만드는 중` : "내보내기"}</button></div></header>
+        <header className="editor-toolbar glass-panel"><div className="editor-title-group"><span className="eyebrow">STEP 03 · EDIT</span><strong>{emotionMeta[emotion.value].label} 모션 편집</strong><label className="emoticon-title-control"><span>NAME</span><input value={emoticonTitle.value} maxLength={28} onChange={(event) => (emoticonTitle.value = event.currentTarget.value)} aria-label="이모티콘 저장 이름" /></label></div><div className="toolbar-actions"><span className="save-state">{lastSaved.value ? `${lastSaved.value} 저장됨` : "저장 전"}</span><button className="button secondary" type="button" onClick={save} disabled={exporting}><Icon name="save" />{exporting ? "저장 중" : "저장"}</button><button className="button primary" type="button" onClick={openExport} disabled={exporting}><Icon name="download" />{exporting ? `${exportLabel} 만드는 중` : "내보내기"}</button></div></header>
 
         {/* Edit 화면 전체 그리드 구조 */}
         <div className="editor-grid">
@@ -240,6 +225,7 @@ export function EditPage() {
                       className="drag-handle-button"
                       type="button"
                       aria-label={`${layer.label} 레이어 선택 및 순서 이동`}
+                      disabled={layer.id === "background-effects"}
                       onPointerDown={(event) =>
                         beginLayerDrag(event, layer.id)
                       }
@@ -360,15 +346,70 @@ export function EditPage() {
                 )}
 
                 {activeLayerId === "accent-effects" && (
-                  <>
-                    ...
-                  </>
+                  <section className="character-panel" aria-label="부가 이펙트 편집">
+                    <div className="character-preview-section">
+                      <h3 className="character-section-title">부가 이펙트</h3>
+                      <div className="character-preview">
+                        <span className="character-tag">사용자 편집 가능</span>
+                        <Icon name="star" />
+                      </div>
+                    </div>
+                    <div className="character-info">
+                      <div className="character-group">
+                        <h3>스티커 효과</h3>
+                        <div className="option-row">
+                          {accentOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              className={`property-value ${accentEffect.value === option.value ? "active" : ""}`}
+                              aria-pressed={accentEffect.value === option.value}
+                              onClick={() => (accentEffect.value = option.value)}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="character-group">
+                        <h3>스티커 색상</h3>
+                        <div className="palette-row">
+                          <span className="palette-name">{accentColor.value.toUpperCase()}</span>
+                          <label className="color-picker" aria-label="부가 이펙트 색상">
+                            <input type="color" value={accentColor.value} onChange={(event) => (accentColor.value = event.currentTarget.value)} />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
                 )}
 
                 {activeLayerId === "background-effects" && (
-                  <>
-                    ...
-                  </>
+                  <section className="character-panel" aria-label="고정 배경 이펙트 정보">
+                    <div className="character-preview-section">
+                      <h3 className="character-section-title">배경 이펙트</h3>
+                      <div className="character-preview">
+                        <span className="character-tag">감정 분석 자동 고정</span>
+                        <Icon name="image" />
+                      </div>
+                    </div>
+                    <div className="character-info">
+                      <div className="character-group">
+                        <h3>분석 감정</h3>
+                        <div className="option-row">
+                          <span className="property-value">{emotionMeta[emotion.value].label}</span>
+                          <span className="property-value">{emotionMeta[emotion.value].effect}</span>
+                        </div>
+                      </div>
+                      <div className="character-group">
+                        <h3>고정 대표 색상</h3>
+                        <div className="palette-row">
+                          <span className="palette-name">{emotionMeta[emotion.value].color}</span>
+                          <span className="color" style={{ background: emotionMeta[emotion.value].color }} aria-hidden="true" />
+                        </div>
+                      </div>
+                    </div>
+                  </section>
                 )}
 
                 {activeLayerId === "text" && (
@@ -437,7 +478,7 @@ export function EditPage() {
                     <h3>레이어 위치 및 변환</h3>
                   </div>
 
-                {activeLayerId && transform ? (
+                {activeLayerId && activeLayerId !== "background-effects" && transform ? (
                   <div className="property-grid">
                     <label>
                       <span>X</span>
@@ -500,7 +541,7 @@ export function EditPage() {
                   </p>
                 )}
 
-                {activeLayerId && active ? (
+                {activeLayerId && activeLayerId !== "background-effects" && active ? (
                   <div className="field-group">
                     <span className="field-label">레이어 상태</span>
 
@@ -623,7 +664,6 @@ function LoopPreview() {
       await renderFrame(context, {
         characterUrl: sanitizeAssetUrl(selectedCharacter.value.sourceAsset),
         characterFrames: frameImages.value,
-        coreEffectUrl: coreEffectImage.value,
         brief: motionBrief.value,
         layers: layers.value,
         transforms: frameLayerTransforms.value[frame] ?? layerTransforms.value,
@@ -638,7 +678,7 @@ function LoopPreview() {
     };
     void renderLoop(0);
     return () => { cancelled = true; window.clearTimeout(timeout); };
-  }, [motionBrief.value, layers.value, frameImages.value, frameLayerTransforms.value, coreEffectImage.value, textBoxShape.value, textFont.value, frameDelayMs.value]);
+  }, [motionBrief.value, layers.value, frameImages.value, frameLayerTransforms.value, textBoxShape.value, textFont.value, frameDelayMs.value]);
 
   return (
     <div className="loop-preview glass-panel" aria-label="루프 미리보기">

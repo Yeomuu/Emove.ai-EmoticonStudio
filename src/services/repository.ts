@@ -1,4 +1,5 @@
 import type { BehaviorCapture, CharacterToken, EmoticonProject, StickerItem } from "../types";
+import { coerceEmotion, emptyEmotionScores, normalizeEmotionScores } from "../emotion-taxonomy";
 
 const DATABASE = "emove-studio"; const VERSION = 2;
 const STORES = ["stickers", "characters", "projects", "captures"] as const;
@@ -25,17 +26,44 @@ async function getAll<T>(store: StoreName): Promise<T[]> {
 }
 
 export const saveSticker = (item: StickerItem) => put("stickers", item);
-export const loadStickers = () => getAll<StickerItem>("stickers");
+export const loadStickers = async () => (await getAll<StickerItem>("stickers")).map(normalizeSticker);
 export const saveCharacter = (item: CharacterToken) => put("characters", item);
 export const loadCharacters = () => getAll<CharacterToken>("characters");
 export const saveCapture = (item: BehaviorCapture) => put("captures", item);
-export const loadCaptures = () => getAll<BehaviorCapture>("captures");
+export const loadCaptures = async () => (await getAll<BehaviorCapture>("captures")).map(normalizeCapture);
 
 export async function saveProject(item: EmoticonProject): Promise<void> {
   await Promise.all([put("projects", item), put("stickers", item.sticker), put("characters", item.characterToken)]);
 }
 
-export const loadProjects = () => getAll<EmoticonProject>("projects");
+export const loadProjects = async () => (await getAll<EmoticonProject>("projects")).map(normalizeProject);
+
+function normalizeSticker(item: StickerItem): StickerItem {
+  return { ...item, emotion: coerceEmotion(item.emotion) };
+}
+
+function normalizeCapture(item: BehaviorCapture): BehaviorCapture {
+  const scores = normalizeEmotionScores(item.emotionScores as unknown as Record<string, unknown>)
+    ?? { ...emptyEmotionScores(), neutral: 1 };
+  return {
+    ...item,
+    expression: coerceEmotion(item.expression),
+    emotionScores: scores,
+  };
+}
+
+function normalizeProject(item: EmoticonProject): EmoticonProject {
+  return {
+    ...item,
+    sticker: normalizeSticker(item.sticker),
+    behaviorCapture: normalizeCapture(item.behaviorCapture as BehaviorCapture),
+    motionBrief: {
+      ...item.motionBrief,
+      emotion: coerceEmotion(item.motionBrief.emotion),
+      expressionEmotion: coerceEmotion(item.motionBrief.expressionEmotion),
+    },
+  };
+}
 
 async function deleteKey(store: StoreName, id: string): Promise<void> {
   const database = await openDatabase();
@@ -50,3 +78,4 @@ async function deleteKey(store: StoreName, id: string): Promise<void> {
 
 export const deleteSticker = (id: string) => deleteKey("stickers", id);
 export const deleteCharacter = (id: string) => deleteKey("characters", id);
+export const deleteProject = (id: string) => deleteKey("projects", id);

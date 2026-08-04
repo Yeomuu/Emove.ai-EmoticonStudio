@@ -12,7 +12,7 @@ type ImageOutputOptions = {
   output_format: ImageOutputFormat;
   output_compression?: number;
 };
-type PromptKind = "character" | "frames" | "effect";
+type PromptKind = "character" | "frames";
 type ImageOutputFormat = "png" | "jpeg" | "webp";
 
 export async function handleOpenAIRequest(request: Request, env: ServerEnv): Promise<Response | null> {
@@ -27,7 +27,6 @@ export async function handleOpenAIRequest(request: Request, env: ServerEnv): Pro
     if (route === "character") return await generateCharacter(request, key, env);
     if (route === "frame") return await generateFrame(request, key, env);
     if (route === "frames") return await generateFrames(request, key, env);
-    if (route === "effect") return await generateEffect(request, key, env);
     return json(404, { error: "지원하지 않는 OpenAI 경로입니다." });
   } catch (error) {
     return json(500, { error: error instanceof Error ? error.message : String(error) });
@@ -55,22 +54,25 @@ async function transcribe(request: Request, key: string, env: ServerEnv) {
 }
 
 async function generateCharacter(request: Request, key: string, env: ServerEnv) {
-  const body = await request.json() as { prompt: string; token: unknown; variationCount?: number; variationIndex?: number };
+  const body = await request.json() as { prompt: string; token: unknown; referenceImages?: string[]; variationCount?: number; variationIndex?: number };
   const count = 1;
   const offset = Math.max(0, Math.floor(Number(body.variationIndex || 0)));
   const drafts = Array.from({ length: count }, (_, index) => [
     body.prompt,
     `[Variation ${offset + index + 1}] Keep the same character identity, palette, style mode and neutral reusable full-body framing. Change only small design exploration details such as pose attitude, silhouette charm, accessory-free facial nuance, or body proportion emphasis.`,
   ].join("\n"));
-  const prompts = await refineImagePrompts("character", drafts, body, key, env);
-  const imageUrls = await mapWithConcurrency(prompts, Number(env.OPENAI_IMAGE_CONCURRENCY || 2), (prompt) => generateImage(prompt, key, env));
+  const reference = body.referenceImages?.[0];
+  const prompts = await refineImagePrompts("character", drafts, promptPlanningContext(body), key, env);
+  const imageUrls = await mapWithConcurrency(prompts, Number(env.OPENAI_IMAGE_CONCURRENCY || 2), (prompt) => (
+    reference ? editImage(`${prompt}\nUse the supplied image only as visual reference for shape, material, color mood, or rendering style. Produce the requested EMOVE character alone on #00FF00.`, reference, key, env) : generateImage(prompt, key, env)
+  ));
   return json(200, { imageUrl: imageUrls[0], imageUrls, token: body.token, revisedPrompt: prompts[0], revisedPrompts: prompts });
 }
 
 async function generateFrame(request: Request, key: string, env: ServerEnv) {
   const body = await request.json() as { prompt: string; referenceImages?: string[]; frameIndex?: number };
   if (!body.prompt) return json(400, { error: "프레임 생성 프롬프트가 없습니다." });
-  const [prompt] = await refineImagePrompts("frames", [body.prompt], body, key, env);
+  const [prompt] = await refineImagePrompts("frames", [body.prompt], promptPlanningContext(body), key, env);
   const reference = body.referenceImages?.[0];
   const imageUrl = reference ? await editImage(prompt, reference, key, env) : await generateImage(prompt, key, env);
   return json(200, { imageUrl, frameIndex: body.frameIndex ?? 0, revisedPrompt: prompt });
@@ -79,18 +81,11 @@ async function generateFrame(request: Request, key: string, env: ServerEnv) {
 async function generateFrames(request: Request, key: string, env: ServerEnv) {
   const body = await request.json() as { prompts: string[]; referenceImages: string[] };
   const reference = body.referenceImages?.[0];
-  const prompts = await refineImagePrompts("frames", body.prompts.slice(0, 1), body, key, env);
+  const prompts = await refineImagePrompts("frames", body.prompts.slice(0, 1), promptPlanningContext(body), key, env);
   const frameImages = await mapWithConcurrency(prompts, 1, (prompt) => (
     reference ? editImage(prompt, reference, key, env) : generateImage(prompt, key, env)
   ));
   return json(200, { frameImages });
-}
-
-async function generateEffect(request: Request, key: string, env: ServerEnv) {
-  const body = await request.json() as { prompt: string; brief: unknown };
-  const [prompt] = await refineImagePrompts("effect", [body.prompt], body, key, env);
-  const imageUrl = await generateImage(prompt, key, env);
-  return json(200, { imageUrl, revisedPrompt: prompt });
 }
 
 async function generateImage(prompt: string, key: string, env: ServerEnv): Promise<string> {
@@ -170,7 +165,6 @@ async function refineImagePrompts(kind: PromptKind, drafts: string[], context: u
     "Do not invent UI copy or change captured text, pose, expression facts, character identity, color palette, style mode, or frame order.",
     "Character prompts must describe only the character on #00FF00 chroma-key green.",
     "Frame prompts must describe only character pose/expression/action frames, never background effects, text, bubbles, props, or scenery.",
-    "Effect prompts must describe only reusable effect layers, never characters, faces, bodies, text, or scenery.",
   ].join(" ");
   const user = JSON.stringify({ kind, drafts, context });
   try {
@@ -248,6 +242,18 @@ function openAIRoute(url: string): string | null {
   const apiMarker = "/api/openai/";
   if (path.startsWith(apiMarker)) return path.slice(apiMarker.length).split("/")[0] || null;
   return null;
+}
+
+function promptPlanningContext(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(promptPlanningContext);
+  if (!value || typeof value !== "object") {
+    if (typeof value === "string" && (value.startsWith("data:image/") || value.length > 8_000)) return "[image reference omitted from text planning]";
+    return value;
+  }
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+    key,
+    key === "referenceImages" || key === "sourceAsset" ? "[image reference supplied separately]" : promptPlanningContext(item),
+  ]));
 }
 
 function json(status: number, body: unknown): Response {

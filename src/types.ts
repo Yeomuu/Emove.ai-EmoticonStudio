@@ -16,21 +16,22 @@ export type RoutePath =
   | `/community/${string}`;
 
 export type Emotion =
-  | "angry"
-  | "disgusted"
-  | "fearful"
-  | "happy"
+  | "happiness"
+  | "joy"
+  | "admiration"
   | "neutral"
-  | "other"
-  | "sad"
-  | "surprised"
-  | "unknown";
+  | "surprise"
+  | "tension"
+  | "sadness"
+  | "anger"
+  | "anxiety";
 
 export type LayerKind = "background-effects" | "character" | "accent-effects" | "text";
 export type TextBoxShape = "pill" | "rounded" | "caption";
 export type TextFont = "Pretendard" | "Paperlogy";
 export type CharacterStyleMode = "2D" | "3D";
 export type MotionStyle = "smooth" | "dynamic" | "bouncy" | "subtle";
+export type AccentEffect = "none" | "sparkles" | "hearts" | "stars" | "motion-lines";
 export type AnimationFormat = "APNG" | "GIF" | "WEBP";
 export type ExaggerationTier = "minimal" | "emotional" | "full";
 export type EmotionSource = "voice" | "action" | "expression";
@@ -114,6 +115,8 @@ export interface MotionBrief {
   pose: string;
   coreEffect: string;
   effectColor: string;
+  accentEffect?: AccentEffect;
+  accentColor?: string;
   duration: number;
   frameDelayMs: number;
   motionStyle: MotionStyle;
@@ -148,7 +151,7 @@ export interface EmoticonProject {
   id: string;
   ownerId: string | null;
   sticker: StickerItem;
-  gifBlob: Blob;
+  gifBlob?: Blob;
   animationBlob?: Blob;
   animationFormat?: AnimationFormat;
   characterToken: CharacterToken;
@@ -206,7 +209,6 @@ export interface OpenAIProvider {
   transcribe(audio: Blob): Promise<TranscriptionResult>;
   generateCharacter(token: CharacterToken): Promise<GeneratedCharacterResult>;
   generateCharacterFrames(brief: MotionBrief, token: CharacterToken): Promise<string[]>;
-  generateCoreEffect(brief: MotionBrief): Promise<string | null>;
 }
 
 export interface AuthUser {

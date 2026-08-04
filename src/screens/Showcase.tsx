@@ -41,6 +41,10 @@ export function ShowcasePage() {
           return;
         }
         setDeck(shuffled(collection.items));
+        setLoading(false);
+        void collection.refresh.then((items) => {
+          if (active) setDeck(shuffled(items));
+        });
       })
       .catch(() => active && setDeck([]))
       .finally(() => active && setLoading(false));

@@ -8,14 +8,14 @@ import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
 import { waitForImageAssets } from "../services/asset-readiness";
 
-import { AudioCapture, CameraCapture } from "../services/media";
+import { AudioCapture, CameraCapture, synchronizedCaptureIssue } from "../services/media";
 import { analyzeEmotionPriority } from "../services/emotion-analysis";
 import { getGestureLabel } from "../services/gesture-analysis";
 import { watchForInactivity } from "../services/inactivity";
 import { syncCaptureToRemote } from "../services/remote-store";
 import { saveCapture } from "../services/repository";
 import { createLiveVisionAnalyzer } from "../services/vision";
-import { audioPeak, audioRms, behaviorCapture, characters, coreEffectImage, effectColor, emotion, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
+import { audioPeak, audioRms, behaviorCapture, characters, emotion, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
 import type { AudioFeatures, BehaviorCapture, Emotion, ExaggerationTier, VisionMetrics } from "../types";
 
 const ai = getAIProvider();
@@ -204,30 +204,41 @@ export function InputPage() {
   };
 
   const capturePose = async () => {
-    if (!videoRef.current || captureLockRef.current) return;
+    const activeVideo = videoRef.current;
+    if (!activeVideo || captureLockRef.current) return;
     captureLockRef.current = true;
     idleWatcher.current?.();
     setCapturing(true);
     setCapturePhase("preparing");
-    setRecording(true);
+    setRecording(false);
     setAnalyzing(false);
     setCaptureProgress(0);
     setLevels([]);
     let audioStarted = false;
+    let audioPrepared = false;
+    let visionTask: Promise<VisionMetrics> | undefined;
 
     try {
       const liveVision = await createLiveVisionAnalyzer();
-      await startAudioMeter();
-      audioStarted = true;
-      setCapturePhase("recording");
-
-      const visionTask = liveVision.analyze(videoRef.current, CAPTURE_DURATION_MS);
-      const result = await camera.current.record(videoRef.current, CAPTURE_DURATION_MS, (progress) => {
+      await prepareAudioMeter();
+      audioPrepared = true;
+      const result = await camera.current.record(activeVideo, CAPTURE_DURATION_MS, (progress) => {
         setCaptureProgress(progress);
+      }, () => {
+        audio.current.begin();
+        audioStarted = true;
+        setRecording(true);
+        setCapturePhase("recording");
+        visionTask = Promise.resolve().then(() => liveVision.analyze(activeVideo, CAPTURE_DURATION_MS));
       });
 
       const voice = await stopAudioCapture();
       audioStarted = false;
+      audioPrepared = false;
+      setRecording(false);
+      const synchronizationError = synchronizedCaptureIssue(result, voice, CAPTURE_DURATION_MS);
+      if (synchronizationError) throw new Error(synchronizationError);
+      if (!visionTask) throw new Error("카메라 행동 분석이 녹화와 함께 시작되지 않았습니다. 다시 촬영해 주세요.");
       setCapturePhase("idle");
 
       // Recording complete. Now show full-screen analysis overlay
@@ -256,7 +267,7 @@ export function InputPage() {
       }
       setCurrentStep(2); // Go to results view
     } catch (error) {
-      if (audioStarted) audio.current.release();
+      if (audioStarted || audioPrepared) audio.current.release();
       const message = captureFailureMessage(error);
       setProcess(null);
       returnToPreview();
@@ -306,7 +317,6 @@ export function InputPage() {
       await waitForImageAssets(frames.slice(0, FRAME_COUNT));
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "편집 화면에서 사용할 프레임을 정렬하는 중...", percent: 88 });
       frameImages.value = frames.slice(0, FRAME_COUNT);
-      coreEffectImage.value = null;
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "이모티콘 생성 완료", percent: 100 });
       navigate("/edit");
     } catch (error) {
@@ -319,8 +329,8 @@ export function InputPage() {
     }
   };
 
-  const startAudioMeter = async () => {
-    await audio.current.start((nextLevels, features) => {
+  const prepareAudioMeter = async () => {
+    await audio.current.prepare((nextLevels, features) => {
       setLevels(nextLevels);
       audioRms.value = Math.min(1, features.rms * 4.2);
       audioPeak.value = features.peak;
@@ -338,7 +348,7 @@ export function InputPage() {
     const resultText = await ai.transcribe(audioBlob);
     sourceTranscript.value = resultText.sourceText;
     transcript.value = resultText.shortText;
-    expressionEmotion.value = metrics.face?.expression ?? "unknown";
+    expressionEmotion.value = metrics.face?.expression ?? "neutral";
     const analyzedEmotion = await analyzeEmotionPriority(
       audioBlob,
       resultText.sourceText,
@@ -359,7 +369,7 @@ export function InputPage() {
       handConfidence: metrics.hand?.confidence,
       bodyGesture: metrics.pose?.bodyGesture,
       bodyConfidence: metrics.pose?.bodyConfidence,
-      expression: metrics.face?.expression ?? "unknown",
+      expression: metrics.face?.expression ?? "neutral",
       emotionSource: analyzedEmotion.source,
       emotionProvider: analyzedEmotion.provider,
       emotionConfidence: analyzedEmotion.confidence,
@@ -701,15 +711,11 @@ export function InputPage() {
 
               <div className="bg-effect-card" style={{ marginTop: "18px", padding: "12px", borderRadius: "12px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <h4 style={{ margin: 0, fontSize: "13px" }}>배경 이펙트 정보</h4>
-                <p className="effect-detail-name" style={{ color: "#ffd2e8", margin: "4px 0" }}>{emotionMeta[emotion.value].effect}</p>
-                <span className="effect-color-row" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#aaa6b4" }}>
-                  이펙트 강조 색상:
-                  <input
-                    type="color"
-                    value={effectColor.value}
-                    onChange={(event) => (effectColor.value = event.currentTarget.value)}
-                    style={{ border: "none", background: "none", width: "24px", height: "24px" }}
-                  />
+                  <p className="effect-detail-name" style={{ color: "#ffd2e8", margin: "4px 0" }}>{emotionMeta[emotion.value].effect}</p>
+                  <span className="effect-color-row" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#aaa6b4" }}>
+                  분석 감정에 맞춰 자동 고정
+                  <i style={{ background: emotionMeta[emotion.value].color, width: "16px", height: "16px", borderRadius: "50%" }} aria-hidden="true" />
+                  <strong>{emotionMeta[emotion.value].color}</strong>
                 </span>
               </div>
 

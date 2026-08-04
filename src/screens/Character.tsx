@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { Icon } from "../components/Icon";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
 import { imageAssets } from "../data";
@@ -16,6 +16,13 @@ const palettes = [
   { id: "soft-pastel", label: "Soft Pastel", colors: ["#BDB2FF", "#9FF3DC", "#FFC8D2", "#FFF0A8", "#B8D8FF"] },
   { id: "aurora-pop", label: "Aurora Pop", colors: ["#8CA5FF", "#BBB6FF", "#FFADE3", "#78D6C6", "#FFD36E"] },
   { id: "cosmic-calm", label: "Cosmic Calm", colors: ["#A7A3FF", "#6F83FF", "#B7BDC8", "#E4E0F0", "#78A8FF"] },
+] as const;
+
+const colorPickerSwatches = [
+  "#E5A3E6", "#B9D7FA", "#8FD2F4", "#8EDDD2", "#8DE4B5", "#FFE98E", "#FFD09B",
+  "#D86ED9", "#8CB7EF", "#55A9EE", "#32C9B6", "#38CB72", "#FFD75A", "#FFAE4E",
+  "#B82EB8", "#5479C5", "#407FCC", "#05AFAE", "#21A455", "#F2AB18", "#F68B16",
+  "#6717A7", "#1739A8", "#1F46B9", "#16858A", "#157350", "#B96D0A", "#C86408",
 ] as const;
 
 const traits = ["밝은", "엉뚱한", "듬직한", "용감한", "차분한", "신중한", "장난스러운", "활발한", "예민한"];
@@ -39,10 +46,13 @@ export function CharacterPage() {
   const [type, setType] = useState("동물");
   const [subType, setSubType] = useState("펭귄");
   const [openDropdown, setOpenDropdown] = useState<CharacterDropdownId | null>(null);
-  const [style, setStyle] = useState<"2D" | "3D">(characterStyle.value || "3D");
+  const [style, setStyle] = useState<"2D" | "3D">(characterStyle.value || "2D");
   const [detailStyle, setDetailStyle] = useState("미니멀");
   const [paletteId, setPaletteId] = useState<(typeof palettes)[number]["id"]>("soft-pastel");
   const [tone, setTone] = useState(characterTone.value || "#5679C0");
+  const [colorPopoverOpen, setColorPopoverOpen] = useState(false);
+  const [colorPickerTab, setColorPickerTab] = useState<"default" | "custom">("default");
+  const [paletteMenuOpen, setPaletteMenuOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [resultReady, setResultReady] = useState(false);
@@ -229,7 +239,6 @@ export function CharacterPage() {
               />
               <div className="character-dropdown-arrows" aria-hidden="true">
                 <Icon name="next" size={14} />
-                <Icon name="previous" size={14} />
               </div>
               <CharacterDropdown
                 id="subType"
@@ -265,7 +274,7 @@ export function CharacterPage() {
                     className={isActive ? "active" : ""}
                     onClick={() => toggleTrait(item)}
                   >
-                    <span aria-hidden="true" />
+                    <span aria-hidden="true">{isActive ? <Icon name="check" size={12} /> : null}</span>
                     {item}
                   </button>
                 );
@@ -296,163 +305,133 @@ export function CharacterPage() {
 
           <section className="character-flow-card character-main-color-card glass-panel">
             <span className="character-field-label">메인 컬러</span>
-            <div className="point-color-control" style={{ position: "absolute", left: "12%", top: "35%", right: "12%", display: "grid", gap: "8px" }}>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                {selectedPalette.colors.map((c) => {
-                  const isActive = tone === c;
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      className={`color-swatch ${isActive ? "active" : ""}`}
-                      onClick={() => setTone(c)}
-                      style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        background: c,
-                        border: isActive ? "2px solid #7b69ff" : "1px solid rgba(255,255,255,0.12)",
-                        cursor: "pointer",
-                        boxShadow: isActive ? "0 0 10px rgba(123, 109, 255, 0.6)" : "none"
-                      }}
-                      aria-label={`Point color ${c}`}
-                    />
-                  );
-                })}
-                {/* Custom color picker swatch */}
-                <div style={{ position: "relative", width: "32px", height: "32px" }}>
-                  <button
-                    type="button"
-                    className={`custom-color-swatch ${(selectedPalette.colors as readonly string[]).includes(tone) ? "" : "active"}`}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      borderRadius: "50%",
-                      border: (selectedPalette.colors as readonly string[]).includes(tone) ? "1px solid rgba(255,255,255,0.2)" : "2px solid #7b69ff",
-                      background: (selectedPalette.colors as readonly string[]).includes(tone) ? "linear-gradient(135deg, #ff9b9b, #9bff9b, #9b9bff)" : tone,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      boxShadow: (selectedPalette.colors as readonly string[]).includes(tone) ? "none" : "0 0 10px rgba(123, 109, 255, 0.6)"
-                    }}
-                    aria-label="Custom point color"
-                  >
-                    <Icon name="edit" size={12} style={{ filter: "brightness(0) invert(1)" }} />
-                  </button>
-                  <input
-                    type="color"
-                    value={tone}
-                    onChange={(e) => chooseCustomTone(e.target.value)}
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      opacity: 0,
-                      cursor: "pointer",
-                      width: "100%",
-                      height: "100%",
-                    }}
-                    aria-label="Custom Point Color Picker"
-                  />
+            <div className="character-color-control">
+              <button
+                type="button"
+                className="character-color-swatch"
+                aria-expanded={colorPopoverOpen}
+                aria-haspopup="dialog"
+                onClick={() => setColorPopoverOpen((open) => !open)}
+                style={{ "--picked-color": tone } as CSSProperties}
+              >
+                <Icon name={colorPopoverOpen ? "previous" : "next"} size={14} />
+                <span className="sr-only">메인 컬러 선택</span>
+              </button>
+              {colorPopoverOpen ? (
+                <div className="character-color-popover" role="dialog" aria-label="메인 컬러 선택">
+                  <div className="character-color-tabs" role="tablist" aria-label="컬러 선택 방식">
+                    <button type="button" role="tab" aria-selected={colorPickerTab === "default"} className={colorPickerTab === "default" ? "active" : ""} onClick={() => setColorPickerTab("default")}>Default</button>
+                    <button type="button" role="tab" aria-selected={colorPickerTab === "custom"} className={colorPickerTab === "custom" ? "active" : ""} onClick={() => setColorPickerTab("custom")}>Custom</button>
+                  </div>
+                  {colorPickerTab === "default" ? (
+                    <div className="character-color-grid">
+                      {colorPickerSwatches.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          className={tone.toUpperCase() === color ? "active" : ""}
+                          style={{ "--picker-color": color } as CSSProperties}
+                          onClick={() => chooseCustomTone(color)}
+                          aria-label={`${color} 선택`}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <label className="character-custom-color-input">
+                      <span>직접 색상 선택</span>
+                      <input type="color" value={tone} onChange={(event) => chooseCustomTone(event.currentTarget.value)} aria-label="Custom Point Color Picker" />
+                      <input
+                        className="character-color-hex-input"
+                        value={tone.toUpperCase()}
+                        onChange={(event) => {
+                          let value = event.currentTarget.value.trim();
+                          if (!value.startsWith("#")) value = `#${value}`;
+                          if (value.length <= 7) chooseCustomTone(value);
+                        }}
+                        aria-label="Main color hex value input"
+                      />
+                    </label>
+                  )}
+                  <div className="character-color-actions">
+                    <button type="button" onClick={() => setColorPopoverOpen(false)}>취소</button>
+                    <button type="button" className="primary" onClick={() => setColorPopoverOpen(false)}>선택</button>
+                  </div>
                 </div>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "8px" }}>
-                <span style={{ fontSize: "11px", color: "#8f8b9a" }}>HEX 코드</span>
-                <input
-                  value={tone.toUpperCase()}
-                  onChange={(event) => {
-                    let value = event.currentTarget.value.trim();
-                    if (!value.startsWith("#")) value = `#${value}`;
-                    if (value.length <= 7) {
-                      setTone(value);
-                    }
-                  }}
-                  style={{
-                    width: "100px",
-                    height: "28px",
-                    padding: "0 6px",
-                    fontSize: "12px",
-                    fontFamily: "Pretendard, sans-serif",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: "6px",
-                    background: "rgba(10,9,18,0.22)",
-                    color: "#fff",
-                    textAlign: "center"
-                  }}
-                  aria-label="Main color hex value input"
-                />
-              </div>
+              ) : null}
             </div>
           </section>
 
           <section className="character-flow-card character-palette-card glass-panel">
             <span className="character-field-label">컬러 팔레트</span>
-            <div className="palette-dropdown" style={{ position: "absolute", left: "8.169%", top: "35%", right: "8.169%", display: "grid", gap: "8px" }}>
-              <select
-                value={paletteId}
-                onChange={(e) => {
-                  const id = e.target.value as typeof palettes[number]["id"];
-                  setPaletteId(id);
-                  const selected = palettes.find((p) => p.id === id);
-                  if (selected) {
-                    chooseCustomTone(selected.colors[0]);
-                  }
-                }}
-                aria-label="Select color palette preset"
+            <div className="character-palette-control">
+              <button
+                type="button"
+                className="character-palette-pill"
+                aria-expanded={paletteMenuOpen}
+                aria-haspopup="listbox"
+                onClick={() => setPaletteMenuOpen((open) => !open)}
               >
-                {palettes.map((palette) => (
-                  <option key={palette.id} value={palette.id} style={{ background: "#171522", color: "#fff" }}>
-                    {palette.label}
-                  </option>
-                ))}
-              </select>
-              <div style={{ display: "flex", gap: "6px", marginTop: "16px", background: "rgba(255,255,255,0.02)", padding: "10px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.04)" }}>
-                {selectedPalette.colors.map((color) => (
-                  <span
-                    key={color}
-                    style={{
-                      flex: 1,
-                      height: "16px",
-                      borderRadius: "4px",
-                      background: color,
-                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1)"
-                    }}
-                  />
-                ))}
-              </div>
+                <strong>{selectedPalette.label}</strong>
+                <span aria-hidden="true">
+                  {selectedPalette.colors.map((color) => (
+                    <i key={color} style={{ "--picked-color": color } as CSSProperties} />
+                  ))}
+                  <i className="palette-custom-dot"><Icon name="add" size={13} /></i>
+                </span>
+              </button>
+              {paletteMenuOpen ? (
+                <div className="character-palette-list" role="listbox" aria-label="컬러 팔레트 프리셋">
+                  {palettes.map((palette) => (
+                    <button
+                      key={palette.id}
+                      type="button"
+                      role="option"
+                      aria-selected={palette.id === paletteId}
+                      className={palette.id === paletteId ? "active" : ""}
+                      onClick={() => {
+                        setPaletteId(palette.id);
+                        chooseCustomTone(palette.colors[0]);
+                        setPaletteMenuOpen(false);
+                      }}
+                    >
+                      {palette.label}
+                      <span aria-hidden="true">
+                        {palette.colors.map((color) => <i key={color} style={{ "--picked-color": color } as CSSProperties} />)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </section>
 
           <section className="character-flow-card character-style-card glass-panel">
             <span className="character-field-label">생성 그림체 스타일</span>
             <div className="character-style-layout">
-              <div className="character-style-controls">
-                <div className="character-style-row wide">
-                  {(["2D", "3D"] as const).map((item) => (
+                <div className="character-style-controls">
+                  <div className="character-style-row wide">
+                  {(["3D", "2D"] as const).map((item) => (
                     <button key={item} type="button" className={style === item ? "active" : ""} onClick={() => setStyle(item)}>
                       {item}
                     </button>
                   ))}
                 </div>
                 <div className="character-style-row">
-                  {["미니멀", "손그림", "굵은 라인"].map((item) => (
+                  {["미니멀", "손그림", "수채화"].map((item) => (
                     <button key={item} type="button" className={detailStyle === item ? "active" : ""} onClick={() => setDetailStyle(item)}>
                       {item}
                     </button>
                   ))}
                 </div>
                 <div className="character-style-row">
-                  {["미니멀", "손그림", "굵은 라인"].map((item) => (
-                    <button key={`sub-${item}`} type="button" className={detailStyle === item ? "active" : ""} onClick={() => setDetailStyle(item)}>
+                  {["픽셀아트", "스티커", "리얼리즘"].map((item) => (
+                    <button key={item} type="button" className={detailStyle === item ? "active" : ""} onClick={() => setDetailStyle(item)}>
                       {item}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="character-style-preview">
-                <strong>스타일 미리보기</strong>
-                <p>{style === "3D" ? "부드러운 3D 피규어 질감" : "선명한 2D 플랫 드로잉"}</p>
-              </div>
+              <div className="character-style-preview" role="img" aria-label={`${style} ${detailStyle} 스타일 미리보기`} />
             </div>
           </section>
         </div>
@@ -468,12 +447,15 @@ export function CharacterPage() {
             <span className="character-field-label">레퍼런스 이미지</span>
             <label className="character-reference-picker">
               <figure>
-                <img src={uploadedReference || imageAssets.library[Math.max(0, characterTypes.indexOf(type)) % imageAssets.library.length]} alt={`${subType} 카툰·3D 스타일 레퍼런스 이미지`} />
-                <span>이미지 1장 선택</span>
+                {uploadedReference ? <img className="character-reference-image" src={uploadedReference} alt={`${subType} 캐릭터 레퍼런스 이미지`} /> : null}
+                <span className="character-reference-empty">
+                  <Icon name="image" size={34} />
+                  이미지 업로드
+                </span>
               </figure>
               <input type="file" accept="image/png,image/jpeg,image/webp,image/avif" onChange={(event) => chooseReferenceImage(event.currentTarget.files?.[0])} />
             </label>
-            <p>선택한 캐릭터와 가까운 카툰·3D 렌더 무드를 우선 참고하며, 원하는 이미지를 직접 올릴 수 있습니다.</p>
+            <p>캐릭터 생성에 참고하고 싶은<br />이미지를 업로드해 주세요.</p>
           </section>
 
           <section className="character-flow-card character-step-heading character-step-heading-three glass-panel">

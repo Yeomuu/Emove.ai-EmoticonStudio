@@ -92,7 +92,8 @@ When implementing from a selected generated mock, treat that image as the source
 - Library category UI must keep display category state separate from emotion filtering so same-emotion categories such as celebration and gratitude do not appear selected at the same time.
 - Manual emotion changes after analysis affect only background/core effects, not captured expression, action, voice, or speech-bubble text facts.
 - Character tokens must store an explicit 2D/3D `styleMode`; later character frames must keep that mode instead of blending styles.
-- Input-to-edit generation automatically creates only the five character frames. Generated core-effect image layers are on-demand from the Edit screen to avoid adding image-generation cost by default.
+- Input-to-edit generation automatically creates only the five character frames; background effects never use image generation.
+- The nine emotion background effects are fixed, deterministic Canvas-rendered presets keyed by the normalized emotion and never call an image-generation API. Users may edit only the separate sticker-like accent effect preset, accent color, and accent transform; the background effect remains visible, locked, canonical in color, and at the bottom of the layer stack.
 - Edit must include a live loop preview that renders the same five frame states at the selected frame delay before exporting.
 - Future UI updates may replace the current screen source. When the user provides a new canonical screen reference set, implement the app to match that supplied screen screenshot pixel-for-pixel.
 - The current final emoticon output target is a simple 1024×1024 looping emoticon generated from `gpt-image-2`-sized assets, not a Kakao 360×360 submission package.
@@ -128,6 +129,8 @@ When implementing from a selected generated mock, treat that image as the source
 - Showcase pointer motion must leave a visible decaying RGB/refraction wake along the traveled path; do not reduce the effect to a single lens that only follows the current pointer position.
 - The 2026-07-19 attached `design.pdf` plus Home, Character, Input, Emoticon, and Collection SVG files are the current final dark-mode visual references; compare implementation screenshots against those 1920×1080 sources before handoff.
 - The shared production Library is public and login-free: all browsers may read generated public characters and emoticons, while browser writes remain same-origin and production upload/generation routes still require abuse controls.
+- Prototype Firebase persistence uses one server-admin public namespace with `ownerId: "public"`; do not enable anonymous Firebase Auth or partition Library records by browser UID. Cross-browser visibility comes from the shared Firestore records, while IndexedDB remains only a local fallback.
+- Treat Figma frames that expose open dropdowns, color pickers, hover actions, or completed generation/analysis results as interaction-state references. Initial route renders keep those overlays closed and reveal them only through the matching control or workflow state.
 - Form and media-panel internals must use containment-safe flex/grid layout. Do not position controls across unrelated parent panels or allow labels, previews, buttons, or upload controls to overflow their owning region.
 - Keep glass treatment selective: use it for navigation, modal, focused controls, and intentional overlay surfaces rather than applying it uniformly to every wireframe cell.
 - The bottom dock must always provide a clickable EMOVE logo for Home and an icon-only Showcase entry; Home uses the same responsive bottom-right dock as the other routes.

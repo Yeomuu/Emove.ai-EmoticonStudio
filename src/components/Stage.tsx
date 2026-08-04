@@ -1,12 +1,12 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
-import { activeLayer, coreEffectImage, frameImages, layerTransforms, layers, motionBrief, selectedFrame, textBoxShape, textFont, updateLayerTransform } from "../store";
+import { activeLayer, frameImages, layerTransforms, layers, motionBrief, selectedFrame, textBoxShape, textFont, updateLayerTransform } from "../store";
 import { measureTextBubble, renderFrame } from "../services/renderer";
 import type { EditorLayer, LayerKind } from "../types";
 
 const selectionRects: Record<LayerKind, { x: number; y: number; width: number; height: number }> = {
   "background-effects": { x: 18, y: 18, width: 324, height: 324 },
-  character: { x: 72, y: 66, width: 216, height: 224 },
+  character: { x: 72, y: 83, width: 216, height: 252 },
   "accent-effects": { x: 42, y: 50, width: 276, height: 260 },
   text: { x: 82, y: 262, width: 196, height: 54 },
 };
@@ -26,8 +26,8 @@ export function Stage() {
 
   useEffect(() => {
     const canvas = canvasRef.current; const context = canvas?.getContext("2d"); if (!canvas || !context) return;
-    void renderFrame(context, { characterUrl: frameImages.value[selectedFrame.value] ?? frameImages.value[0], coreEffectUrl: coreEffectImage.value, brief: motionBrief.value, layers: activePreviewLayers(layers.value, activeLayer.value), transforms: layerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: canvas.width, height: canvas.height, gifSafe: false }, selectedFrame.value / (FRAME_COUNT - 1));
-  }, [motionBrief.value, layers.value, layerTransforms.value, frameImages.value, selectedFrame.value, textBoxShape.value, textFont.value, coreEffectImage.value, activeLayer.value]);
+    void renderFrame(context, { characterUrl: frameImages.value[selectedFrame.value] ?? frameImages.value[0], brief: motionBrief.value, layers: activePreviewLayers(layers.value, activeLayer.value), transforms: layerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: canvas.width, height: canvas.height, gifSafe: false }, selectedFrame.value / (FRAME_COUNT - 1));
+  }, [motionBrief.value, layers.value, layerTransforms.value, frameImages.value, selectedFrame.value, textBoxShape.value, textFont.value, activeLayer.value]);
 
   const beginMove = (event: ReactPointerEvent<HTMLElement>, id: LayerKind) => {
     if (layers.value.find((layer) => layer.id === id)?.locked) return;
@@ -67,6 +67,8 @@ export function Stage() {
       <canvas className="stage-canvas" ref={canvasRef} width={EXPORT_SIZE} height={EXPORT_SIZE} />
       {[...layers.value].reverse().map((layer, reverseIndex) => {
         if (!layer.visible) return null;
+        if (layer.id === "background-effects") return null;
+        if (layer.id === "text" && !motionBrief.value.shortText.trim()) return null;
         const rect = layer.id === "text" ? measureTextBubble(motionBrief.value, textBoxShape.value, textFont.value, EXPORT_SIZE, EXPORT_SIZE) : scaleRect(selectionRects[layer.id]);
         const transform = layerTransforms.value[layer.id];
         const unit = EXPORT_SIZE / DESIGN_SIZE;
@@ -94,7 +96,7 @@ export function Stage() {
 }
 
 function activePreviewLayers(items: EditorLayer[], active: LayerKind | null): EditorLayer[] {
-  if (!active) return items;
+  if (!active || active === "background-effects") return items;
   const target = items.find((layer) => layer.id === active);
   if (!target) return items;
   return [target, ...items.filter((layer) => layer.id !== active)];

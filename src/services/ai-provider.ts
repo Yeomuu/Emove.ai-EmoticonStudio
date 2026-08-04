@@ -1,5 +1,5 @@
 import type { CharacterToken, GeneratedCharacterResult, MotionBrief, OpenAIProvider, TranscriptionResult } from "../types";
-import { buildCharacterPrompt, buildCoreEffectPrompt, buildFramePrompts, compactEmoticonText } from "./prompt-builder";
+import { buildCharacterPrompt, buildFramePrompts, compactEmoticonText } from "./prompt-builder";
 import { compactReferenceImagesForOpenAI, removeChromaKeyBackground } from "./image-processing";
 import { persistGeneratedAsset } from "./asset-storage";
 
@@ -35,12 +35,13 @@ export class ServerOpenAIProvider implements OpenAIProvider {
 
   async generateCharacter(token: CharacterToken): Promise<GeneratedCharacterResult> {
     const prompt = buildCharacterPrompt(token);
+    const referenceImages = await compactReferenceImagesForOpenAI(token.referenceImages.slice(0, 1));
     const results: GeneratedCharacterResult[] = [];
     for (let variationIndex = 0; variationIndex < CHARACTER_VARIATION_REQUESTS; variationIndex += 1) {
       results.push(await requestJson<GeneratedCharacterResult>(openAIEndpoint("character"), {
-        token,
+        token: compactCharacterTokenForRequest(token),
         prompt,
-        referenceImages: token.referenceImages,
+        referenceImages,
         variationCount: 1,
         variationIndex,
       }));
@@ -80,12 +81,6 @@ export class ServerOpenAIProvider implements OpenAIProvider {
     return frameImages;
   }
 
-  async generateCoreEffect(brief: MotionBrief): Promise<string | null> {
-    const payload = await requestJson<{ imageUrl: string | null }>(openAIEndpoint("effect"), { brief, prompt: buildCoreEffectPrompt(brief) });
-    if (!payload.imageUrl) return null;
-    const transparentEffect = await removeChromaKeyBackground(payload.imageUrl);
-    return (await persistGeneratedAsset(transparentEffect, { fileName: `${brief.characterTokenId}-effect.png`, kind: "effects" })).url;
-  }
 }
 
 async function requestJson<T>(url: string, body: unknown): Promise<T> {

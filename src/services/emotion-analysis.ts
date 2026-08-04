@@ -32,14 +32,14 @@ export async function analyzeEmotionPriority(
   try {
     onStage?.("목소리 감정 분석용 오디오를 준비하는 중...", 80);
     const voice = await analyzeVoiceWithImentiv(audioBlob, onStage);
-    if (voice.confidence >= .18 && voice.emotion !== "unknown") return voice;
+    if (voice.confidence >= .18) return voice;
     voiceWarning = "Imentiv 목소리 감정 신뢰도가 낮아 행동과 표정을 순서대로 확인했습니다.";
   } catch (error) {
     voiceWarning = error instanceof Error ? error.message : "Imentiv 목소리 감정 분석을 사용할 수 없습니다.";
   }
 
   const localVoice = localVoiceResult(transcript, audioFeatures, voiceWarning);
-  if (localVoice.confidence >= .46 && localVoice.emotion !== "unknown") return localVoice;
+  if (localVoice.confidence >= .46) return localVoice;
 
   const action = actionResult(vision, voiceWarning);
   if (action) return action;
@@ -82,8 +82,8 @@ async function analyzeVoiceWithImentiv(
 }
 
 function localVoiceResult(transcript: string, audio: AudioFeatures, warning?: string): EmotionAnalysisResult {
-  const emotion = transcript.trim() ? inferEmotionFromText(transcript, audio) : "unknown";
-  const keywordSignal = emotion === "unknown" || emotion === "neutral" ? .18 : .42;
+  const emotion = transcript.trim() ? inferEmotionFromText(transcript, audio) : "neutral";
+  const keywordSignal = emotion === "neutral" ? .18 : .42;
   const energySignal = Math.max(audio.rms, audio.peak, audio.energy) * .18;
   const confidence = clamp01(keywordSignal + energySignal);
   return {
@@ -100,7 +100,7 @@ function actionResult(vision: VisionMetrics, warning?: string): EmotionAnalysisR
   if (vision.source !== "mediapipe") return null;
   const armSpread = vision.pose?.armSpread ?? 0;
   const shoulderTilt = vision.pose?.shoulderTilt ?? 0;
-  let emotion: Emotion = "unknown";
+  let emotion: Emotion | null = null;
   let confidence = 0;
   if ([
     "Victory",
@@ -115,25 +115,30 @@ function actionResult(vision: VisionMetrics, warning?: string): EmotionAnalysisR
     "Waving_Right",
     "Waving_Both",
   ].includes(vision.gesture ?? "") || armSpread > .62) {
-    emotion = "happy";
+    if (["Finger_Heart", "Heart_Hands", "ILoveYou"].includes(vision.gesture ?? "")) emotion = "happiness";
+    else if (vision.gesture === "Clapping") emotion = "admiration";
+    else emotion = "joy";
     confidence = .38 + Math.min(.12, armSpread * .12);
   } else if (vision.gesture === "Closed_Fist") {
-    emotion = "angry";
+    emotion = "anger";
     confidence = .35;
-  } else if (["Thumb_Down", "Hands_Near_Head"].includes(vision.gesture ?? "")) {
-    emotion = "sad";
+  } else if (vision.gesture === "Thumb_Down") {
+    emotion = "sadness";
+    confidence = .34;
+  } else if (vision.gesture === "Hands_Near_Head") {
+    emotion = "anxiety";
     confidence = .34;
   } else if (shoulderTilt > .12) {
-    emotion = "sad";
+    emotion = "sadness";
     confidence = .32 + Math.min(.1, shoulderTilt * .4);
   }
-  if (emotion === "unknown") return null;
+  if (!emotion) return null;
   return { emotion, confidence, scores: peakedScores(emotion, confidence), source: "action", provider: "mediapipe", warning };
 }
 
 function expressionResult(vision: VisionMetrics, warning?: string): EmotionAnalysisResult | null {
   const face = vision.face;
-  if (!face || face.expression === "unknown") return null;
+  if (!face) return null;
   const confidence = clamp01(face.confidence);
   return {
     emotion: face.expression,

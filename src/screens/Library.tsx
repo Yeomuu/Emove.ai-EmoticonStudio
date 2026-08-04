@@ -3,29 +3,31 @@ import { Icon } from "../components/Icon";
 import { emotionMeta, emotionOrder } from "../data";
 import { navigate, route } from "../router";
 import { downloadBlob } from "../services/renderer";
-import { deleteCharacter, deleteSticker, loadProjects, loadStickers, saveCharacter } from "../services/repository";
-import { loadRemoteCharacters, loadRemoteStickers, syncCharacterToRemote } from "../services/remote-store";
+import { deleteCharacter, deleteProject, deleteSticker, loadProjects, loadStickers, saveCharacter, saveSticker } from "../services/repository";
+import { deleteRemoteLibraryItem, loadRemoteCharacters, loadRemoteProjects, loadRemoteStickers, syncCharacterToRemote, syncStickerToRemote } from "../services/remote-store";
 import { animationExtension } from "../services/share";
-import { characterName, characterPrompt, characterStyle, characterTone, characters, loadProjectForEditing, notify, sanitizeAssetUrl, selectCharacter, stickers, toggleFavorite } from "../store";
+import { characterName, characterPrompt, characterStyle, characterTone, characters, loadProjectForEditing, notify, sanitizeAssetUrl, selectCharacter, stickers } from "../store";
 import type { AnimationFormat, CharacterToken, EmoticonProject, Emotion, StickerItem } from "../types";
 
 type Filter = "all" | "favorite" | Emotion;
 type LibraryMode = "all" | "emoticons" | "characters";
+type LibraryLayoutMode = "cards" | "list";
 type MixedLibraryItem = { kind: "emoticon"; item: StickerItem; createdAt: string } | { kind: "character"; item: CharacterToken; createdAt: string };
 type VirtualLibraryItem = { entry: MixedLibraryItem; virtualIndex: number; copy: number };
 
 const categories: Array<{ id: string; title: string; copy: string; filter: Filter }> = [
-  { id: "celebration", title: "축하", copy: "기쁨, 기쁜 순간", filter: "happy" },
-  { id: "gratitude", title: "감사", copy: "고마움, 감사의 순간", filter: "happy" },
-  { id: "apology", title: "사과", copy: "미안함, 미안한 순간", filter: "sad" },
+  { id: "celebration", title: "축하", copy: "기쁨, 기쁜 순간", filter: "joy" },
+  { id: "gratitude", title: "감사", copy: "고마움, 감사의 순간", filter: "admiration" },
+  { id: "apology", title: "사과", copy: "미안함, 미안한 순간", filter: "sadness" },
   { id: "decline", title: "거절", copy: "난감함, 정중한 거절", filter: "neutral" },
-  { id: "surprise", title: "놀람", copy: "새로운 소식", filter: "surprised" },
+  { id: "surprise", title: "놀람", copy: "새로운 소식", filter: "surprise" },
 ];
 
 export function LibraryPage() {
   const railRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [mode, setMode] = useState<LibraryMode>("all");
+  const [layoutMode, setLayoutMode] = useState<LibraryLayoutMode>("cards");
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [projects, setProjects] = useState<EmoticonProject[]>([]);
@@ -36,7 +38,7 @@ export function LibraryPage() {
   const detailId = route.value.startsWith("/library/") ? route.value.split("/")[2] : undefined;
 
   useEffect(() => {
-    Promise.all([loadStickers(), loadProjects(), loadRemoteStickers(), loadRemoteCharacters()]).then(([saved, savedProjects, remoteStickers, remoteCharacters]) => {
+    Promise.all([loadStickers(), loadProjects(), loadRemoteStickers(), loadRemoteCharacters(), loadRemoteProjects()]).then(([saved, savedProjects, remoteStickers, remoteCharacters, remoteProjects]) => {
       const projectById = new Map(savedProjects.map((project) => [project.id, project]));
       const hydrated = saved.filter((item) => !item.isDefault).map((item) => {
         const project = projectById.get(item.projectId ?? item.id);
@@ -45,16 +47,16 @@ export function LibraryPage() {
         const animatedImage = item.animatedImage?.startsWith("http") ? item.animatedImage : URL.createObjectURL(projectBlob);
         return { ...item, image: item.thumbnail ?? item.image, thumbnail: item.thumbnail ?? item.image, animatedImage };
       });
-      const known = new Set(stickers.value.map((item) => item.id));
-      const localOnly = hydrated.filter((item) => !known.has(item.id));
-      const visibleIds = new Set([...known, ...localOnly.map((item) => item.id)]);
-      const mergedRemoteStickers = remoteStickers.enabled ? remoteStickers.stickers.filter((item) => !visibleIds.has(item.id)) : [];
-      stickers.value = [...mergedRemoteStickers, ...localOnly, ...stickers.value];
+      const localStickers = newestById([...hydrated, ...stickers.value]);
+      stickers.value = remoteStickers.enabled
+        ? mergeNewestRecords(localStickers, remoteStickers.stickers)
+        : localStickers;
       if (remoteCharacters.enabled) {
-        const knownCharacters = new Set(characters.value.map((item) => item.id));
-        characters.value = [...remoteCharacters.characters.filter((item) => !knownCharacters.has(item.id)), ...characters.value];
+        characters.value = mergeNewestRecords(characters.value, remoteCharacters.characters);
       }
-      setProjects(savedProjects);
+      setProjects(remoteProjects.enabled
+        ? mergeNewestRecords(savedProjects, remoteProjects.projects)
+        : newestById(savedProjects));
     }).catch(() => undefined);
   }, []);
 
@@ -99,6 +101,17 @@ export function LibraryPage() {
     characters.value = characters.value.map((item) => item.id === token.id ? updated : item);
     await saveCharacter(updated);
     if (!updated.isDefault) await syncCharacterToRemote(updated);
+    notify(updated.favorite ? "즐겨찾기에 추가했습니다." : "즐겨찾기에서 제거했습니다.");
+  };
+
+  const toggleStickerFavorite = async (item: StickerItem) => {
+    const updated = { ...item, favorite: !item.favorite, updatedAt: new Date().toISOString() };
+    stickers.value = stickers.value.map((candidate) => candidate.id === item.id ? updated : candidate);
+    await saveSticker(updated);
+    if (!updated.isDefault) {
+      const sync = await syncStickerToRemote(updated);
+      if (!sync.enabled && sync.storageWarning) notify(`로컬에는 저장했지만 공용 보관함 동기화에 실패했습니다. ${sync.storageWarning}`);
+    }
     notify(updated.favorite ? "즐겨찾기에 추가했습니다." : "즐겨찾기에서 제거했습니다.");
   };
 
@@ -178,11 +191,12 @@ export function LibraryPage() {
   };
 
   useEffect(() => {
+    if (layoutMode !== "cards") return;
     const startIndex = itemsToDisplay.length > 1 ? itemsToDisplay.length : 0;
     setActiveVirtualIndex(startIndex);
     const frame = window.requestAnimationFrame(() => scrollToVirtualIndex(startIndex, "auto"));
     return () => window.cancelAnimationFrame(frame);
-  }, [mode, filter, query, itemsToDisplay.length]);
+  }, [layoutMode, mode, filter, query, itemsToDisplay.length]);
 
   const selectVirtualItem = (virtualIndex: number) => {
     if (suppressCardClickRef.current) return;
@@ -330,12 +344,25 @@ export function LibraryPage() {
     if (!window.confirm("정말로 이 항목을 삭제하시겠습니까?")) return;
     try {
       if (kind === "emoticon") {
+        const item = stickers.value.find((candidate) => candidate.id === id);
+        const projectId = item?.projectId ?? id;
         await deleteSticker(id);
+        await deleteProject(projectId).catch(() => undefined);
         stickers.value = stickers.value.filter((s) => s.id !== id);
+        setProjects((items) => items.filter((project) => project.id !== projectId));
+        if (!item?.isDefault) {
+          const sync = await deleteRemoteLibraryItem("emoticon", id, projectId);
+          if (!sync.enabled) throw new Error(sync.storageWarning ?? "공용 보관함 삭제에 실패했습니다.");
+        }
         notify("이모티콘을 삭제했습니다.");
       } else {
+        const item = characters.value.find((candidate) => candidate.id === id);
         await deleteCharacter(id);
         characters.value = characters.value.filter((c) => c.id !== id);
+        if (!item?.isDefault) {
+          const sync = await deleteRemoteLibraryItem("character", id);
+          if (!sync.enabled) throw new Error(sync.storageWarning ?? "공용 보관함 삭제에 실패했습니다.");
+        }
         notify("캐릭터를 삭제했습니다.");
       }
     } catch (error) {
@@ -410,6 +437,7 @@ export function LibraryPage() {
           item={selected}
           project={projects.find((item) => item.id === (selected.projectId ?? selected.id))}
           onEdit={beginEditSticker}
+          onFavorite={toggleStickerFavorite}
         />
       ) : (
         <div className="workspace-page library-page">
@@ -524,39 +552,26 @@ export function LibraryPage() {
                     {mode === "characters" ? "캐릭터 보관함" : mode === "emoticons" ? "이모티콘 보관함" : "전체 보관함"}
                   </h2>
                 </div>
-                <div className="library-mode-tabs" role="tablist" aria-label="보관함 보기 전환">
+                <div className="library-mode-tabs" role="tablist" aria-label="보관함 레이아웃 보기 전환">
                   <button
                     type="button"
-                    className={mode === "all" ? "active" : ""}
-                    onClick={() => {
-                      setMode("all");
-                      setFilter("all");
-                      setActiveCategoryId(null);
-                    }}
+                    role="tab"
+                    aria-selected={layoutMode === "cards"}
+                    className={layoutMode === "cards" ? "active" : ""}
+                    onClick={() => setLayoutMode("cards")}
                   >
-                    전체
+                    <Icon name="layers" size={15} />
+                    카드
                   </button>
                   <button
                     type="button"
-                    className={mode === "emoticons" ? "active" : ""}
-                    onClick={() => {
-                      setMode("emoticons");
-                      setFilter("all");
-                      setActiveCategoryId(null);
-                    }}
+                    role="tab"
+                    aria-selected={layoutMode === "list"}
+                    className={layoutMode === "list" ? "active" : ""}
+                    onClick={() => setLayoutMode("list")}
                   >
-                    이모티콘
-                  </button>
-                  <button
-                    type="button"
-                    className={mode === "characters" ? "active" : ""}
-                    onClick={() => {
-                      setMode("characters");
-                      setFilter("all");
-                      setActiveCategoryId(null);
-                    }}
-                  >
-                    캐릭터
+                    <Icon name="drag" size={15} />
+                    리스트
                   </button>
                 </div>
               </header>
@@ -594,7 +609,7 @@ export function LibraryPage() {
                 </div>
               )}
 
-              {itemsToDisplay.length ? (
+              {itemsToDisplay.length ? layoutMode === "cards" ? (
                 <>
                 <div className="library-carousel-controls" aria-label="보관함 캐러셀 이동">
                   <button type="button" onClick={() => moveCarousel(-1)} aria-label="이전 항목"><Icon name="previous" /></button>
@@ -628,14 +643,18 @@ export function LibraryPage() {
                             <img src={sticker.animatedImage ?? sticker.image} alt={sticker.title} />
                           </div>
                           <p className="carousel-card-title">{sticker.title}</p>
-                          <div className="card-action-overlay" aria-label={`${sticker.title} 빠른 작업`}>
+                          <div
+                            className="card-action-overlay"
+                            aria-label={`${sticker.title} 빠른 작업`}
+                            style={{ backdropFilter: "none", WebkitBackdropFilter: "none" }}
+                          >
                               <strong className="card-hover-title">{sticker.title}</strong>
                               <span className="card-hover-group"><Icon name="folder" size={15} />{sticker.group ?? "이모티콘 그룹"}</span>
                               <button
                                 type="button"
                                 tabIndex={actionTabIndex}
                                 className={`floating-action btn-favorite ${sticker.favorite ? "active" : ""}`}
-                                onClick={(e) => { e.stopPropagation(); toggleFavorite(sticker.id); }}
+                                onClick={(e) => { e.stopPropagation(); void toggleStickerFavorite(sticker); }}
                                 aria-label="즐겨찾기"
                               >
                                 <Icon name="star" size={18} />
@@ -697,7 +716,11 @@ export function LibraryPage() {
                             <img src={sanitizeAssetUrl(character.sourceAsset)} alt={character.name} />
                           </div>
                           <p className="carousel-card-title">{character.name}</p>
-                          <div className="card-action-overlay" aria-label={`${character.name} 빠른 작업`}>
+                          <div
+                            className="card-action-overlay"
+                            aria-label={`${character.name} 빠른 작업`}
+                            style={{ backdropFilter: "none", WebkitBackdropFilter: "none" }}
+                          >
                               <strong className="card-hover-title">{character.name}</strong>
                               <span className="card-hover-group"><Icon name="folder" size={15} />캐릭터</span>
                               <button
@@ -756,6 +779,40 @@ export function LibraryPage() {
                   })}
                 </div>
                 </>
+              ) : (
+                <div className="library-list-view" aria-label="보관함 리스트">
+                  {itemsToDisplay.map((entry) => {
+                    if (entry.kind === "emoticon") {
+                      const sticker = entry.item as StickerItem;
+                      const project = projects.find((candidate) => candidate.id === (sticker.projectId ?? sticker.id));
+                      return (
+                        <article className="library-list-row" key={`list-emoticon-${sticker.id}`}>
+                          <img src={sticker.animatedImage ?? sticker.image} alt={sticker.title} />
+                          <div><strong>{sticker.title}</strong><span>{sticker.group ?? "이모티콘 그룹"}</span></div>
+                          <div className="library-list-actions">
+                            <button type="button" className={sticker.favorite ? "active" : ""} onClick={() => void toggleStickerFavorite(sticker)} aria-label="즐겨찾기"><Icon name="star" /></button>
+                            <button type="button" onClick={() => beginEditSticker(sticker, project)} aria-label="수정"><Icon name="edit" /></button>
+                            <button type="button" onClick={() => void downloadLibraryAsset(sticker.animatedImage ?? sticker.image, sticker.id, sticker.animationFormat).catch((error) => notify(`다운로드에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`))} aria-label="다운로드"><Icon name="download" /></button>
+                            <button type="button" onClick={() => void handleDelete(sticker.id, "emoticon")} aria-label="삭제"><Icon name="trash" /></button>
+                          </div>
+                        </article>
+                      );
+                    }
+                    const character = entry.item as CharacterToken;
+                    return (
+                      <article className="library-list-row" key={`list-character-${character.id}`}>
+                        <img src={sanitizeAssetUrl(character.sourceAsset)} alt={character.name} />
+                        <div><strong>{character.name}</strong><span>캐릭터</span></div>
+                        <div className="library-list-actions">
+                          <button type="button" className={character.favorite ? "active" : ""} onClick={() => void toggleCharacterFavorite(character)} aria-label="즐겨찾기"><Icon name="star" /></button>
+                          <button type="button" onClick={() => beginEditCharacter(character)} aria-label="수정"><Icon name="edit" /></button>
+                          <button type="button" onClick={() => void downloadLibraryAsset(character.sourceAsset, character.id).catch((error) => notify(`다운로드에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`))} aria-label="다운로드"><Icon name="download" /></button>
+                          <button type="button" onClick={() => void handleDelete(character.id, "character")} aria-label="삭제"><Icon name="trash" /></button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
               ) : (
                 <div className="empty-library glass-panel">
                   <Icon name="folder" size={32} />
@@ -833,14 +890,34 @@ export function LibraryPage() {
   );
 }
 
+function newestById<T extends { id: string; updatedAt?: string; createdAt?: string }>(items: T[]): T[] {
+  return mergeNewestRecords([], items);
+}
+
+function mergeNewestRecords<T extends { id: string; updatedAt?: string; createdAt?: string }>(local: T[], remote: T[]): T[] {
+  const records = new Map<string, T>();
+  [...local, ...remote].forEach((item) => {
+    const current = records.get(item.id);
+    if (!current || recordTime(item) >= recordTime(current)) records.set(item.id, item);
+  });
+  return [...records.values()].sort((a, b) => recordTime(b) - recordTime(a));
+}
+
+function recordTime(item: { updatedAt?: string; createdAt?: string }): number {
+  const timestamp = Date.parse(item.updatedAt || item.createdAt || "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
 function LibraryDetail({
   item,
   project,
   onEdit,
+  onFavorite,
 }: {
   item: StickerItem;
   project?: EmoticonProject;
   onEdit: (item: StickerItem, project?: EmoticonProject) => void;
+  onFavorite: (item: StickerItem) => Promise<void>;
 }) {
   const stillImage = item.thumbnail ?? item.image;
   const animatedImage = item.animatedImage ?? item.image;
@@ -915,7 +992,7 @@ function LibraryDetail({
           <button type="button" onClick={download} aria-label="저장">
             <Icon name="download" />
           </button>
-          <button className={item.favorite ? "active" : ""} type="button" onClick={() => toggleFavorite(item.id)} aria-label="즐겨찾기">
+          <button className={item.favorite ? "active" : ""} type="button" onClick={() => void onFavorite(item)} aria-label="즐겨찾기">
             <Icon name="star" />
           </button>
           <button type="button" onClick={() => onEdit(item, project)}>
@@ -925,7 +1002,7 @@ function LibraryDetail({
         <div className="detail-tags">
           <span>#밝은</span>
           <span>#인사하는</span>
-          <span>#{item.emotion === "happy" ? "행복한" : emotionMeta[item.emotion].label}</span>
+          <span>#{emotionMeta[item.emotion].label}</span>
           <span>#여자</span>
           <span>#사람</span>
           <span>#귀여운</span>

@@ -1,12 +1,12 @@
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
+import { emotionMeta } from "../emotion-taxonomy";
 import starIcon from "../assets/icons/star.svg";
 import type { AnimationFormat, EditorLayer, LayerKind, LayerTransform, MotionBrief, TextBoxShape, TextFont } from "../types";
 
 export interface RenderOptions {
   characterUrl: string;
   characterFrames?: string[];
-  coreEffectUrl?: string | null;
   brief: MotionBrief;
   layers: EditorLayer[];
   transforms: Record<LayerKind, LayerTransform>;
@@ -35,10 +35,18 @@ export interface ExportedAnimation {
 }
 
 const imageCache = new Map<string, HTMLImageElement>();
+const visibleBoundsCache = new Map<string, ImageBounds>();
 const tintedIconCache = new Map<string, HTMLCanvasElement>();
 const accentStarUrl = typeof starIcon === "string" ? starIcon : starIcon.src;
 const GIF_ALPHA_THRESHOLD = 96;
 const BAYER_4X4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+interface ImageBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 async function loadImage(url: string): Promise<HTMLImageElement> {
   const cached = imageCache.get(url); if (cached) return cached;
@@ -65,32 +73,88 @@ async function drawLayer(context: CanvasRenderingContext2D, id: LayerKind, optio
   context.translate(width / 2 + transform.x * unit, height / 2 + transform.y * unit);
   context.rotate(transform.rotation * Math.PI / 180); context.scale(transform.scale, transform.scale); context.translate(-width / 2, -height / 2);
   if (id === "background-effects") {
-    drawEmotionBackground(context, options.brief, width, height, progress, options.coreEffectUrl ? .24 : 1);
-    if (options.coreEffectUrl) {
-      const effect = await loadImage(options.coreEffectUrl);
-      const target = Math.min(width * .92, height * .92);
-      context.globalAlpha = .94;
-      context.drawImage(effect, (width - target) / 2, (height - target) / 2, target, target * effect.height / effect.width);
-    }
+    drawEmotionBackground(context, options.brief, width, height, progress);
   } else if (id === "character") {
     const frameIndex = Math.min((options.characterFrames?.length ?? 1) - 1, Math.max(0, Math.round(progress * ((options.characterFrames?.length ?? 1) - 1))));
     const source = options.characterFrames?.[frameIndex] ?? options.characterUrl;
-    if (!source) return;
-    const image = await loadImage(source);
-    const targetWidth = Math.min(width * .62, 560); const targetHeight = targetWidth * image.height / image.width;
-    context.drawImage(image, (width - targetWidth) / 2, height * .49 - targetHeight / 2, targetWidth, targetHeight);
-  } else if (id === "accent-effects") {
-    const star = await loadTintedIcon(accentStarUrl, options.brief.effectColor);
-    for (let index = 0; index < 12; index += 1) {
-      const angle = index / 12 * Math.PI * 2; const radius = width * (.22 + index % 3 * .035);
-      const size = (13 + index % 4 * 4) * unit; context.globalAlpha = .62 + (index % 3) * .12;
-      context.drawImage(star, width / 2 + Math.cos(angle) * radius - size / 2, height / 2 + Math.sin(angle) * radius * .7 - size / 2, size, size);
+    if (!source) {
+      context.restore();
+      return;
     }
+    const image = await loadImage(source);
+    const bounds = getVisibleImageBounds(image, source);
+    const fit = Math.min((width * .66) / bounds.width, (height * .74) / bounds.height);
+    const targetWidth = bounds.width * fit;
+    const targetHeight = bounds.height * fit;
+    context.drawImage(
+      image,
+      bounds.x,
+      bounds.y,
+      bounds.width,
+      bounds.height,
+      (width - targetWidth) / 2,
+      height * .82 - targetHeight / 2,
+      targetWidth,
+      targetHeight,
+    );
+  } else if (id === "accent-effects") {
+    await drawAccentEffect(context, options.brief, width, height, progress, unit);
   }
   context.restore();
 }
 
+function getVisibleImageBounds(image: HTMLImageElement, cacheKey: string): ImageBounds {
+  const cached = visibleBoundsCache.get(cacheKey);
+  if (cached) return cached;
+
+  const fallback = { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight };
+  try {
+    const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
+    const scale = Math.min(1, 256 / longestSide);
+    const sampleWidth = Math.max(1, Math.round(image.naturalWidth * scale));
+    const sampleHeight = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = sampleWidth;
+    canvas.height = sampleHeight;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return fallback;
+    context.drawImage(image, 0, 0, sampleWidth, sampleHeight);
+    const pixels = context.getImageData(0, 0, sampleWidth, sampleHeight).data;
+    let minX = sampleWidth;
+    let minY = sampleHeight;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < sampleHeight; y += 1) {
+      for (let x = 0; x < sampleWidth; x += 1) {
+        if (pixels[(y * sampleWidth + x) * 4 + 3] <= 20) continue;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+    if (maxX < minX || maxY < minY) return fallback;
+    const padding = 2;
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    maxX = Math.min(sampleWidth - 1, maxX + padding);
+    maxY = Math.min(sampleHeight - 1, maxY + padding);
+    const bounds = {
+      x: minX / scale,
+      y: minY / scale,
+      width: (maxX - minX + 1) / scale,
+      height: (maxY - minY + 1) / scale,
+    };
+    visibleBoundsCache.set(cacheKey, bounds);
+    return bounds;
+  } catch {
+    visibleBoundsCache.set(cacheKey, fallback);
+    return fallback;
+  }
+}
+
 function drawTextLayer(context: CanvasRenderingContext2D, options: RenderOptions, width: number, height: number, transform: LayerTransform): void {
+  if (!options.brief.shortText.trim()) return;
   const bounds = measureTextBubble(options.brief, options.textShape, options.textFont, width, height);
   const unit = width / DESIGN_SIZE;
   const centerX = bounds.x + bounds.width / 2;
@@ -146,24 +210,211 @@ function measureTextWidth(text: string, font: string): number {
   return context.measureText(text).width;
 }
 
-function drawEmotionBackground(context: CanvasRenderingContext2D, brief: MotionBrief, width: number, height: number, progress: number, opacity = 1): void {
+function drawEmotionBackground(context: CanvasRenderingContext2D, brief: MotionBrief, width: number, height: number, progress: number): void {
+  const meta = emotionMeta[brief.emotion];
+  const color = meta.color;
   const unit = width / DESIGN_SIZE;
   const pulse = .82 + Math.sin(progress * Math.PI * 2) * .18;
   const radius = width * (.3 + brief.motionIntensity * .13) * pulse;
   const gradient = context.createRadialGradient(width * .5, height * .5, 4, width * .5, height * .51, radius);
-  gradient.addColorStop(0, withAlpha(brief.effectColor, Math.round(0x72 * opacity)));
-  gradient.addColorStop(.5, withAlpha(brief.effectColor, Math.round(0x26 * opacity)));
-  gradient.addColorStop(1, `${brief.effectColor}00`);
+  gradient.addColorStop(0, withAlpha(color, 0x72));
+  gradient.addColorStop(.5, withAlpha(color, 0x26));
+  gradient.addColorStop(1, `${color}00`);
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
 
-  const effect = brief.coreEffect;
-  if (/레인|rain/i.test(effect)) drawRainDrops(context, brief.effectColor, width, height, progress, unit, opacity);
-  else if (/스파클|쉐이크|ring|링/i.test(effect)) drawRings(context, brief.effectColor, width, height, progress, unit, /쉐이크|fear|두려/i.test(effect), opacity);
-  else if (/플레임|flame/i.test(effect)) drawFlameBursts(context, brief.effectColor, width, height, progress, unit, opacity);
-  else if (/스모그|smog/i.test(effect)) drawSmogWaves(context, brief.effectColor, width, height, progress, unit, opacity);
-  else drawSoftParticles(context, brief.effectColor, width, height, progress, unit, /팝|star|기쁨/i.test(effect) ? 12 : 7, opacity);
+  if (brief.emotion === "happiness") drawHeartGlow(context, color, width, height, progress, unit);
+  else if (brief.emotion === "joy") drawBurst(context, color, width, height, progress, unit);
+  else if (brief.emotion === "admiration") drawShineRays(context, color, width, height, progress, unit);
+  else if (brief.emotion === "neutral") drawSoftGlow(context, color, width, height, progress, unit);
+  else if (brief.emotion === "surprise") drawImpactLines(context, color, width, height, progress, unit);
+  else if (brief.emotion === "tension") drawPulseWave(context, color, width, height, progress, unit);
+  else if (brief.emotion === "sadness") drawRainDrops(context, color, width, height, progress, unit);
+  else if (brief.emotion === "anger") drawFlameBursts(context, color, width, height, progress, unit);
+  else drawNoiseWave(context, color, width, height, progress, unit);
+}
 
+async function drawAccentEffect(context: CanvasRenderingContext2D, brief: MotionBrief, width: number, height: number, progress: number, unit: number): Promise<void> {
+  const preset = brief.accentEffect ?? "sparkles";
+  if (preset === "none") return;
+  const color = brief.accentColor ?? emotionMeta[brief.emotion].color;
+  if (preset === "hearts") {
+    context.save();
+    context.fillStyle = withAlpha(color, 0xd4);
+    for (let index = 0; index < 8; index += 1) {
+      const angle = (index / 8 + progress * .08) * Math.PI * 2;
+      const radius = width * (.22 + (index % 3) * .035);
+      const size = (10 + (index % 3) * 4) * unit;
+      context.globalAlpha = .6 + (index % 3) * .12;
+      drawHeartPath(context, width / 2 + Math.cos(angle) * radius, height / 2 + Math.sin(angle) * radius * .72, size);
+      context.fill();
+    }
+    context.restore();
+    return;
+  }
+  if (preset === "motion-lines") {
+    context.save();
+    context.strokeStyle = withAlpha(color, 0xd8);
+    context.lineCap = "round";
+    for (let index = 0; index < 10; index += 1) {
+      const angle = (index / 10) * Math.PI * 2 + progress * .18;
+      const inner = width * (.2 + (index % 2) * .02);
+      const outer = width * (.28 + (index % 3) * .025);
+      context.globalAlpha = .45 + (index % 4) * .1;
+      context.lineWidth = (1.5 + index % 2) * unit;
+      context.beginPath();
+      context.moveTo(width / 2 + Math.cos(angle) * inner, height / 2 + Math.sin(angle) * inner * .72);
+      context.lineTo(width / 2 + Math.cos(angle) * outer, height / 2 + Math.sin(angle) * outer * .72);
+      context.stroke();
+    }
+    context.restore();
+    return;
+  }
+  const star = await loadTintedIcon(accentStarUrl, color);
+  const count = preset === "stars" ? 7 : 12;
+  for (let index = 0; index < count; index += 1) {
+    const angle = (index / count + progress * .05) * Math.PI * 2;
+    const radius = width * (.22 + index % 3 * .035);
+    const size = (preset === "stars" ? 18 : 11) + index % 4 * 4;
+    context.globalAlpha = .58 + (index % 3) * .14;
+    context.drawImage(star, width / 2 + Math.cos(angle) * radius - size * unit / 2, height / 2 + Math.sin(angle) * radius * .7 - size * unit / 2, size * unit, size * unit);
+  }
+}
+
+function drawHeartGlow(context: CanvasRenderingContext2D, color: string, width: number, height: number, progress: number, unit: number): void {
+  context.save();
+  context.fillStyle = withAlpha(color, 0xc8);
+  for (let index = 0; index < 10; index += 1) {
+    const angle = (index / 10 + progress * .1) * Math.PI * 2;
+    const radius = width * (.15 + (index % 4) * .04);
+    const size = (7 + (index % 3) * 4) * unit;
+    context.globalAlpha = .3 + (index % 4) * .12;
+    drawHeartPath(context, width / 2 + Math.cos(angle) * radius, height / 2 + Math.sin(angle) * radius * .72, size);
+    context.fill();
+  }
+  context.restore();
+}
+
+function drawHeartPath(context: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+  context.beginPath();
+  context.moveTo(x, y + size * .35);
+  context.bezierCurveTo(x - size * 1.15, y - size * .35, x - size * .55, y - size * 1.15, x, y - size * .48);
+  context.bezierCurveTo(x + size * .55, y - size * 1.15, x + size * 1.15, y - size * .35, x, y + size * .35);
+  context.closePath();
+}
+
+function drawBurst(context: CanvasRenderingContext2D, color: string, width: number, height: number, progress: number, unit: number): void {
+  context.save();
+  context.strokeStyle = withAlpha(color, 0xd0);
+  context.lineCap = "round";
+  const expansion = .92 + Math.sin(progress * Math.PI * 2) * .08;
+  for (let index = 0; index < 18; index += 1) {
+    const angle = index / 18 * Math.PI * 2;
+    const inner = width * (.13 + (index % 3) * .012);
+    const outer = width * (.25 + (index % 4) * .025) * expansion;
+    context.globalAlpha = .25 + (index % 4) * .12;
+    context.lineWidth = (1.4 + index % 3 * .5) * unit;
+    context.beginPath();
+    context.moveTo(width / 2 + Math.cos(angle) * inner, height / 2 + Math.sin(angle) * inner * .76);
+    context.lineTo(width / 2 + Math.cos(angle) * outer, height / 2 + Math.sin(angle) * outer * .76);
+    context.stroke();
+  }
+  context.restore();
+  drawSoftParticles(context, color, width, height, progress, unit, 14);
+}
+
+function drawShineRays(context: CanvasRenderingContext2D, color: string, width: number, height: number, progress: number, unit: number): void {
+  context.save();
+  const rise = Math.sin(progress * Math.PI * 2) * height * .015;
+  context.strokeStyle = withAlpha(color, 0xc8);
+  context.lineCap = "round";
+  for (let index = 0; index < 9; index += 1) {
+    const x = width * (.2 + index * .075);
+    const top = height * (.18 + (index % 4) * .055) + rise;
+    const bottom = height * (.76 - (index % 3) * .035);
+    context.globalAlpha = .18 + (index % 4) * .11;
+    context.lineWidth = (1 + index % 3 * .7) * unit;
+    context.beginPath();
+    context.moveTo(x, top);
+    context.lineTo(x, bottom);
+    context.stroke();
+    const y = top + (bottom - top) * ((progress + index * .13) % 1);
+    context.globalAlpha = .75;
+    context.beginPath();
+    context.moveTo(x - 5 * unit, y); context.lineTo(x + 5 * unit, y);
+    context.moveTo(x, y - 5 * unit); context.lineTo(x, y + 5 * unit);
+    context.stroke();
+  }
+  context.restore();
+}
+
+function drawSoftGlow(context: CanvasRenderingContext2D, color: string, width: number, height: number, progress: number, unit: number): void {
+  drawRings(context, color, width, height, progress * .35, unit, false, .6);
+  drawSoftParticles(context, color, width, height, progress * .35, unit, 7, .7);
+}
+
+function drawImpactLines(context: CanvasRenderingContext2D, color: string, width: number, height: number, progress: number, unit: number): void {
+  context.save();
+  context.strokeStyle = withAlpha(color, 0xe0);
+  context.lineCap = "round";
+  const impact = .9 + Math.sin(progress * Math.PI * 2) * .1;
+  for (let index = 0; index < 14; index += 1) {
+    const angle = index / 14 * Math.PI * 2;
+    const inner = width * (.18 + (index % 2) * .02);
+    const outer = width * (.29 + (index % 4) * .022) * impact;
+    context.globalAlpha = .3 + (index % 3) * .2;
+    context.lineWidth = (1.5 + index % 2) * unit;
+    context.beginPath();
+    const x1 = width / 2 + Math.cos(angle) * inner;
+    const y1 = height / 2 + Math.sin(angle) * inner * .75;
+    const x2 = width / 2 + Math.cos(angle) * outer;
+    const y2 = height / 2 + Math.sin(angle) * outer * .75;
+    context.moveTo(x1, y1);
+    context.lineTo((x1 + x2) / 2 + Math.sin(angle) * 3 * unit, (y1 + y2) / 2 - Math.cos(angle) * 3 * unit);
+    context.lineTo(x2, y2);
+    context.stroke();
+  }
+  context.restore();
+}
+
+function drawPulseWave(context: CanvasRenderingContext2D, color: string, width: number, height: number, progress: number, unit: number): void {
+  drawRings(context, color, width, height, progress, unit, false, .75);
+  context.save();
+  context.strokeStyle = withAlpha(color, 0xc0);
+  context.lineWidth = 2 * unit;
+  context.lineCap = "round";
+  for (let row = 0; row < 3; row += 1) {
+    const y = height * (.4 + row * .1);
+    context.globalAlpha = .2 + row * .12;
+    context.beginPath();
+    for (let step = 0; step <= 40; step += 1) {
+      const x = width * (.18 + step / 40 * .64);
+      const wave = Math.sin(step * .65 + progress * Math.PI * 2 + row) * (5 + row * 2) * unit;
+      if (step === 0) context.moveTo(x, y + wave); else context.lineTo(x, y + wave);
+    }
+    context.stroke();
+  }
+  context.restore();
+}
+
+function drawNoiseWave(context: CanvasRenderingContext2D, color: string, width: number, height: number, progress: number, unit: number): void {
+  context.save();
+  context.strokeStyle = withAlpha(color, 0xb8);
+  context.lineCap = "round";
+  for (let row = 0; row < 5; row += 1) {
+    const y = height * (.3 + row * .1);
+    context.globalAlpha = .16 + row * .07;
+    context.lineWidth = (1.3 + row % 2) * unit;
+    context.beginPath();
+    for (let step = 0; step <= 48; step += 1) {
+      const x = width * (.17 + step / 48 * .66);
+      const irregular = Math.sin(step * .72 + progress * Math.PI * 2 + row * 1.7) * 5 + Math.sin(step * 1.83 - progress * Math.PI * 4) * 2.5;
+      if (step === 0) context.moveTo(x, y + irregular * unit); else context.lineTo(x, y + irregular * unit);
+    }
+    context.stroke();
+  }
+  context.restore();
+  drawRings(context, color, width, height, progress, unit, true, .45);
 }
 
 function withAlpha(color: string, alpha: number): string {
@@ -232,25 +483,6 @@ function drawFlameBursts(context: CanvasRenderingContext2D, color: string, width
     context.beginPath();
     context.moveTo(width / 2 + Math.cos(angle) * inner, height / 2 + Math.sin(angle) * inner * .75);
     context.lineTo(width / 2 + Math.cos(angle) * outer, height / 2 + Math.sin(angle) * outer * .75);
-    context.stroke();
-  }
-  context.restore();
-}
-
-function drawSmogWaves(context: CanvasRenderingContext2D, color: string, width: number, height: number, progress: number, unit: number, opacity = 1): void {
-  context.save();
-  context.strokeStyle = `${color}78`;
-  context.lineWidth = 3 * unit;
-  context.lineCap = "round";
-  for (let row = 0; row < 4; row += 1) {
-    const y = height * (.32 + row * .1);
-    context.globalAlpha = (.18 + row * .05) * opacity;
-    context.beginPath();
-    for (let x = width * .2; x <= width * .8; x += 16 * unit) {
-      const wave = Math.sin(x / width * Math.PI * 4 + progress * Math.PI * 2 + row) * 5 * unit;
-      if (x === width * .2) context.moveTo(x, y + wave);
-      else context.lineTo(x, y + wave);
-    }
     context.stroke();
   }
   context.restore();

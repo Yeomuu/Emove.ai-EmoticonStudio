@@ -91,34 +91,42 @@ export function buildFramePrompts(brief: MotionBrief, token: CharacterToken): st
 }
 
 function buildExaggerationDirective(tier: MotionBrief["exaggerationTier"], emotion: Emotion): string {
-  const emotionGuides: Record<string, { emotional: string; full: string }> = {
-    angry: {
-      emotional: "Show exaggerated anger visuals: steam/smoke rising from the head, face turning bright red, veins popping on the forehead, teeth clenched with visible grinding.",
-      full: "Extreme rage: body inflating with fury, fists slamming the ground creating visible shockwaves, head literally exploding with flames, body spinning like a tornado of anger.",
+  const emotionGuides: Record<Emotion, { emotional: string; full: string }> = {
+    happiness: {
+      emotional: "Show warm happiness: glowing cheeks, soft heart light, an affectionate smile, and a gentle buoyant posture.",
+      full: "Extreme happiness: the whole body swells with warmth, springs upward, hugs the air, and radiates oversized heart-shaped energy.",
     },
-    sad: {
-      emotional: "Show exaggerated sadness visuals: tears gushing like a fountain or waterfall from both eyes, rain-cloud forming above the head, nose running dramatically, face crumpling into an extreme frown.",
-      full: "Extreme sorrow: body collapsing to the ground pounding fists while wailing, body melting into a puddle of tears, bending backward like a bow from the weight of grief, entire body shaking violently with sobs.",
+    joy: {
+      emotional: "Show lively joy: sparkling eyes, a broad smile, quick celebratory arm movement, and an energetic bounce.",
+      full: "Extreme joy: launch the body upward, stretch the limbs in celebration, spin mid-air, and land with elastic squash-and-stretch.",
     },
-    happy: {
-      emotional: "Show exaggerated joy visuals: eyes turning into sparkling stars, mouth stretching ear-to-ear with visible sparkle effects, cheeks glowing bright pink, heart shapes floating from the body.",
-      full: "Extreme joy: body bouncing off the ground like rubber, limbs stretching upward impossibly, spinning in mid-air with celebration, body inflating with happiness like a balloon.",
-    },
-    surprised: {
-      emotional: "Show exaggerated surprise visuals: eyes popping out of the head on springs, jaw dropping to the floor, hair standing straight up, visible exclamation marks around the head.",
-      full: "Extreme shock: entire body launching upward, limbs flailing wildly, body stretching vertically like pulled taffy, head spinning 360 degrees from the shock.",
-    },
-    fearful: {
-      emotional: "Show exaggerated fear visuals: body trembling with visible shake lines, face turning blue/pale, teeth chattering audibly, hugging own body tightly while shivering.",
-      full: "Extreme terror: body curling into a tiny ball, hair turning white, legs turning to jelly and wobbling, attempting to run but feet spinning in place like a cartoon.",
-    },
-    disgusted: {
-      emotional: "Show exaggerated disgust visuals: face scrunching with green tint, tongue sticking out dramatically, body leaning far away, visible stink lines or wave distortion.",
-      full: "Extreme disgust: body contorting to escape, face melting from revulsion, entire body doing a dramatic dry heave, spinning away in exaggerated retreat.",
+    admiration: {
+      emotional: "Show admiration: eyes shining like stars, an impressed open smile, and the face and hands drawn toward a brilliant focal point.",
+      full: "Extreme awe: lean the whole body backward from wonder, widen the silhouette dramatically, and reach toward a towering ray of light.",
     },
     neutral: {
-      emotional: "Show subtle emotional cues: a slight knowing smirk, one eyebrow raised, gentle head tilt with mild expression.",
-      full: "Show a dramatically amplified 'meh' pose: shoulders dropping exaggeratedly, body slouching with comic weight, eyes half-closed with deliberate indifference.",
+      emotional: "Show subtle emotional cues: a slight knowing smile, one eyebrow raised, and a gentle head tilt.",
+      full: "Amplify the calm pose with a deep comic exhale, exaggerated shoulder drop, and a slow elastic return to balance.",
+    },
+    surprise: {
+      emotional: "Show exaggerated surprise: very wide eyes, dropped jaw, raised shoulders, and a sudden upward recoil.",
+      full: "Extreme shock: launch the entire body upward, stretch vertically, fling the limbs outward, and snap back into frame.",
+    },
+    tension: {
+      emotional: "Show visible tension: stiff shoulders, tightly held hands, shallow pulsing movement, and alert darting eyes.",
+      full: "Extreme tension: compress the body like a loaded spring, vibrate rapidly, bend under pressure, then release in a sharp recoil.",
+    },
+    sadness: {
+      emotional: "Show exaggerated sadness: tears gushing like a fountain, a deeply crumpled frown, and heavy drooping posture.",
+      full: "Extreme sorrow: collapse while wailing, bend like a bow, pound the floor, and shake the whole body with sobs.",
+    },
+    anger: {
+      emotional: "Show exaggerated anger: steam rising from the head, a flushed face, clenched teeth, and tightly shaking fists.",
+      full: "Extreme rage: inflate the body with fury, slam the ground, whip around in a violent arc, and rebound with explosive force.",
+    },
+    anxiety: {
+      emotional: "Show anxiety: trembling hands, pale face, guarded posture, worried eyes, and irregular nervous movement.",
+      full: "Extreme anxiety: curl into a tiny ball, let the legs wobble like jelly, attempt to flee in place, and snap around at imagined threats.",
     },
   };
 
@@ -156,37 +164,22 @@ function buildExaggerationDirective(tier: MotionBrief["exaggerationTier"], emoti
   ].join("\n");
 }
 
-export function buildCoreEffectPrompt(brief: MotionBrief): string {
-  const effectGuide = emotionEffectGuides[brief.emotion];
-  return [
-    "[Instruction]",
-    `Create only a ${brief.coreEffect} core emotion effect asset.`,
-    "[Context]",
-    `Selected effect emotion: ${brief.emotion}; visual guide: ${effectGuide.promptHint}.`,
-    `Primary color ${brief.effectColor}; intensity ${Math.round(brief.motionIntensity * 100)}/100; loop-friendly motion impression: ${effectGuide.motion}.`,
-    "[Constraints]",
-    "Flat solid chroma-key green background (#00FF00).",
-    "No character, no face, no body, no text, no speech bubble, no scenery, no floor shadow.",
-    "Do not use chroma green in the effect itself.",
-    "[Output] One reusable transparent-ready core effect layer.",
-  ].join("\n");
-}
 
 export function inferEmotionFromText(source: string, features?: Partial<AudioFeatures>): Emotion {
   const text = source.toLowerCase();
   const scores: Record<Emotion, number> = {
-    angry: /(화|짜증|열받|싫|미워|분노|빡)/.test(text) ? 4 : 0,
-    disgusted: /(역겨|으|더러|질색|혐오)/.test(text) ? 4 : 0,
-    fearful: /(무서|불안|걱정|두려|떨려)/.test(text) ? 4 : 0,
-    happy: /(좋|기쁘|행복|고마|감사|축하|최고|사랑|완전)/.test(text) ? 4 : 0,
+    happiness: /(행복|사랑|따뜻|편안|안도|만족)/.test(text) ? 4 : 0,
+    joy: /(기쁘|즐거|신나|좋아|축하|최고|완전)/.test(text) ? 4 : 0,
+    admiration: /(멋지|대단|감탄|존경|고마|감사|최고야)/.test(text) ? 4 : 0,
     neutral: /(괜찮|그래|그렇|천천|알겠)/.test(text) ? 2 : 0,
-    other: 0,
-    sad: /(슬프|속상|울|미안|외로|힘들)/.test(text) ? 4 : 0,
-    surprised: /(헉|대박|정말|진짜\?|뭐야|놀라|어머)/.test(text) ? 4 : 0,
-    unknown: source.trim() ? 0 : 2,
+    surprise: /(헉|대박|정말|진짜\?|뭐야|놀라|어머|깜짝)/.test(text) ? 4 : 0,
+    tension: /(긴장|초조|부담|당황|혼란|떨려)/.test(text) ? 4 : 0,
+    sadness: /(슬프|속상|울|미안|외로|힘들|실망)/.test(text) ? 4 : 0,
+    anger: /(화|짜증|열받|싫|미워|분노|빡|역겨|혐오)/.test(text) ? 4 : 0,
+    anxiety: /(무서|불안|걱정|두려|공포)/.test(text) ? 4 : 0,
   };
-  if ((features?.peak ?? 0) > .78) scores.surprised += 1.5;
-  if ((features?.rms ?? 0) > .68) scores.happy += .8;
+  if ((features?.peak ?? 0) > .78) scores.surprise += 1.5;
+  if ((features?.rms ?? 0) > .68) scores.joy += .8;
   if ((features?.rms ?? 0) < .22 && source.trim()) scores.neutral += .7;
   const result = Object.entries(scores).sort((a, b) => b[1] - a[1])[0] as [Emotion, number];
   return result[1] > 0 ? result[0] : "neutral";

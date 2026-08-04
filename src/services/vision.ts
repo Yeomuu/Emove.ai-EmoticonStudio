@@ -363,11 +363,11 @@ function summarizeFace(categories: BlendshapeCategory[]): NonNullable<VisionMetr
 }
 
 function pickExpression(values: { smile: number; frown: number; mouthOpen: number; browRaise: number; browDown: number; eyeWide: number }): Emotion {
-  if (values.smile > .28) return "happy";
-  if (values.mouthOpen > .32 || values.eyeWide > .36) return "surprised";
-  if (values.browDown > .24 && values.smile < .18) return "angry";
-  if (values.frown > .2 || (values.browRaise > .34 && values.smile < .14)) return "sad";
-  if (values.eyeWide > .24 && values.browRaise > .18) return "fearful";
+  if (values.smile > .28) return "joy";
+  if (values.mouthOpen > .32 || values.eyeWide > .36) return "surprise";
+  if (values.browDown > .24 && values.smile < .18) return "anger";
+  if (values.frown > .2 || (values.browRaise > .34 && values.smile < .14)) return "sadness";
+  if (values.eyeWide > .24 && values.browRaise > .18) return "anxiety";
   return "neutral";
 }
 
