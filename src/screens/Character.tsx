@@ -11,6 +11,21 @@ import { saveCharacter } from "../services/repository";
 import { characterName, characterPrompt, characters, characterStyle, characterTone, notify, selectCharacter } from "../store";
 import type { CharacterToken, GeneratedCharacterResult } from "../types";
 
+import style3dGlossy from "../assets/images/character-style/character-style-3d-glossy.png";
+import style3dJelly from "../assets/images/character-style/character-style-3d-jelly.png";
+import style3dLowpoly from "../assets/images/character-style/character-style-3d-lowpoly.png";
+import style3dPastel from "../assets/images/character-style/character-style-3d-pastel.png";
+import style3dPlush from "../assets/images/character-style/character-style-3d-plush.png";
+import style3dRealism from "../assets/images/character-style/character-style-3d-realism.png";
+
+import style2dMinimal from "../assets/images/character-style/character-style-2d-minimal.png";
+import style2dPixel from "../assets/images/character-style/character-style-2d-pixel.png";
+import style2dRealism from "../assets/images/character-style/character-style-2d-realism.png";
+import style2dSketch from "../assets/images/character-style/character-style-2d-sketch.png";
+import style2dSticker from "../assets/images/character-style/character-style-2d-sticker.png";
+import style2dWatercolor from "../assets/images/character-style/character-style-2d-watercolor.png";
+
+console.log(style3dGlossy);
 const ai = getAIProvider();
 const palettes = [
   { id: "soft-pastel", label: "Soft Pastel", colors: ["#BDB2FF", "#9FF3DC", "#FFC8D2", "#FFF0A8", "#B8D8FF"] },
@@ -214,6 +229,60 @@ export function CharacterPage() {
     reader.readAsDataURL(file);
   };
 
+const detailStyles = {
+  "2D": [
+    "미니멀",
+    "손그림",
+    "수채화",
+    "픽셀아트",
+    "스티커",
+    "리얼리즘",
+  ],
+  "3D": [
+    "유광",
+    "젤리",
+    "로우폴리",
+    "파스텔",
+    "인형",
+    "리얼리즘",
+  ],
+} as const;
+
+const stylePreviewImages = {
+  "2D": {
+    "미니멀": style2dMinimal,
+    "손그림": style2dSketch,
+    "수채화": style2dWatercolor,
+    "픽셀아트": style2dPixel,
+    "스티커": style2dSticker,
+    "리얼리즘": style2dRealism,
+  },
+
+  "3D": {
+    "유광": style3dGlossy,
+    "젤리": style3dJelly,
+    "로우폴리": style3dLowpoly,
+    "파스텔": style3dPastel,
+    "인형": style3dPlush,
+    "리얼리즘": style3dRealism,
+  },
+} as const;
+
+const currentDetailStyles = detailStyles[style];
+
+const previewImage =
+  stylePreviewImages[style]?.[
+    detailStyle as keyof typeof stylePreviewImages[typeof style]
+  ];
+
+  console.log({
+  style,
+  detailStyle,
+  previewImage,
+  style3dGlossy,
+  style3dJelly,
+});
+
   const steps = [
     {
       id: "step1",
@@ -222,7 +291,7 @@ export function CharacterPage() {
         <div className="character-flow-slide character-step-one">
           <h1 className="character-flow-title">이모티콘에 사용할<br />캐릭터를 만들어보세요.</h1>
 
-          <section className="character-flow-card character-shape-card glass-panel">
+          <section className="character-flow-card character-shape-card">
             <h2>캐릭터는 어떤 모습인가요?</h2>
             <div className="character-dual-dropdowns">
               <CharacterDropdown
@@ -261,29 +330,34 @@ export function CharacterPage() {
             </div>
           </section>
 
-          <section className="character-flow-card character-trait-card glass-panel">
+          <section className="character-flow-card character-trait-card">
             <h2>어울리는 성격 키워드를 모두 선택해 주세요.</h2>
             <span className="character-field-label">성격 키워드(복수 선택 가능)</span>
             <div className="character-trait-grid">
               {traits.map((item) => {
                 const isActive = selectedTraits.includes(item);
                 return (
-                  <button
-                    key={item}
-                    type="button"
-                    className={isActive ? "active" : ""}
-                    onClick={() => toggleTrait(item)}
-                  >
-                    <span aria-hidden="true">{isActive ? <Icon name="check" size={12} /> : null}</span>
-                    {item}
-                  </button>
+            <button
+              key={item}
+              type="button"
+              className={isActive ? "active" : ""}
+              onClick={() => toggleTrait(item)}
+            >
+              <span className="trait-check">
+                {isActive && <Icon name="check" size={12} />}
+              </span>
+
+              <span className="trait-label">
+                {item}
+              </span>
+            </button>
                 );
               })}
             </div>
           </section>
 
-          <section className="character-flow-card character-step-heading character-step-heading-one glass-panel">
-            <strong>01</strong>
+          <section className="character-flow-card character-step-heading character-step-heading-one">
+            <h1>01</h1>
             <p>어떤 캐릭터를<br />만들고 싶나요?</p>
           </section>
         </div>
@@ -298,12 +372,58 @@ export function CharacterPage() {
       label: "02 · 색상 및 스타일 지정",
       content: (
         <div className="character-flow-slide character-step-two">
-          <section className="character-flow-card character-step-heading character-step-heading-two glass-panel">
-            <strong>02</strong>
+          <section className="character-flow-card character-step-heading character-step-heading-two">
+            <h1>02</h1>
             <p>어떤 모습의<br />캐릭터인가요?</p>
           </section>
 
-          <section className="character-flow-card character-main-color-card glass-panel">
+          <section className="character-flow-card empty-card-two"></section>
+
+          <section className="character-flow-card character-palette-card">
+            <span className="character-field-label">컬러 팔레트</span>
+            <div className="character-palette-control">
+              <button
+                type="button"
+                className="character-palette-pill"
+                aria-expanded={paletteMenuOpen}
+                aria-haspopup="listbox"
+                onClick={() => setPaletteMenuOpen((open) => !open)}
+              >
+                <strong>{selectedPalette.label}</strong>
+                <span aria-hidden="true">
+                  {selectedPalette.colors.map((color) => (
+                    <i key={color} style={{ "--picked-color": color } as CSSProperties} />
+                  ))}
+                  <i className="palette-custom-dot"><Icon name="add" size={13} /></i>
+                </span>
+              </button>
+              {paletteMenuOpen ? (
+                <div className="character-palette-list" role="listbox" aria-label="컬러 팔레트 프리셋">
+                  {palettes.map((palette) => (
+                    <button
+                      key={palette.id}
+                      type="button"
+                      role="option"
+                      aria-selected={palette.id === paletteId}
+                      className={palette.id === paletteId ? "active" : ""}
+                      onClick={() => {
+                        setPaletteId(palette.id);
+                        chooseCustomTone(palette.colors[0]);
+                        setPaletteMenuOpen(false);
+                      }}
+                    >
+                      {palette.label}
+                      <span aria-hidden="true">
+                        {palette.colors.map((color) => <i key={color} style={{ "--picked-color": color } as CSSProperties} />)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          <section className="character-flow-card character-main-color-card">
             <span className="character-field-label">메인 컬러</span>
             <div className="character-color-control">
               <button
@@ -361,78 +481,65 @@ export function CharacterPage() {
             </div>
           </section>
 
-          <section className="character-flow-card character-palette-card glass-panel">
-            <span className="character-field-label">컬러 팔레트</span>
-            <div className="character-palette-control">
-              <button
-                type="button"
-                className="character-palette-pill"
-                aria-expanded={paletteMenuOpen}
-                aria-haspopup="listbox"
-                onClick={() => setPaletteMenuOpen((open) => !open)}
-              >
-                <strong>{selectedPalette.label}</strong>
-                <span aria-hidden="true">
-                  {selectedPalette.colors.map((color) => (
-                    <i key={color} style={{ "--picked-color": color } as CSSProperties} />
-                  ))}
-                  <i className="palette-custom-dot"><Icon name="add" size={13} /></i>
-                </span>
-              </button>
-              {paletteMenuOpen ? (
-                <div className="character-palette-list" role="listbox" aria-label="컬러 팔레트 프리셋">
-                  {palettes.map((palette) => (
+          <section className="character-flow-card character-style-card">
+
+              <div className="character-style-controls">
+              <span className="character-field-label">생성 그림체 스타일</span>
+
+                <div className="character-style-row wide">
+                  {(["3D", "2D"] as const).map((item) => (
                     <button
-                      key={palette.id}
+                      key={item}
                       type="button"
-                      role="option"
-                      aria-selected={palette.id === paletteId}
-                      className={palette.id === paletteId ? "active" : ""}
+                      className={style === item ? "active" : ""}
                       onClick={() => {
-                        setPaletteId(palette.id);
-                        chooseCustomTone(palette.colors[0]);
-                        setPaletteMenuOpen(false);
+                        setStyle(item);
+                        setDetailStyle(detailStyles[item][0]);
                       }}
                     >
-                      {palette.label}
-                      <span aria-hidden="true">
-                        {palette.colors.map((color) => <i key={color} style={{ "--picked-color": color } as CSSProperties} />)}
-                      </span>
+                      {item}
                     </button>
                   ))}
                 </div>
-              ) : null}
-            </div>
-          </section>
 
-          <section className="character-flow-card character-style-card glass-panel">
-            <span className="character-field-label">생성 그림체 스타일</span>
-            <div className="character-style-layout">
-                <div className="character-style-controls">
-                  <div className="character-style-row wide">
-                  {(["3D", "2D"] as const).map((item) => (
-                    <button key={item} type="button" className={style === item ? "active" : ""} onClick={() => setStyle(item)}>
+                <div className="character-style-row">
+                  {currentDetailStyles.slice(0, 3).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      className={detailStyle === item ? "active" : ""}
+                      onClick={() => setDetailStyle(item)}
+                    >
                       {item}
                     </button>
                   ))}
                 </div>
+
                 <div className="character-style-row">
-                  {["미니멀", "손그림", "수채화"].map((item) => (
-                    <button key={item} type="button" className={detailStyle === item ? "active" : ""} onClick={() => setDetailStyle(item)}>
-                      {item}
-                    </button>
-                  ))}
-                </div>
-                <div className="character-style-row">
-                  {["픽셀아트", "스티커", "리얼리즘"].map((item) => (
-                    <button key={item} type="button" className={detailStyle === item ? "active" : ""} onClick={() => setDetailStyle(item)}>
+                  {currentDetailStyles.slice(3, 6).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      className={detailStyle === item ? "active" : ""}
+                      onClick={() => setDetailStyle(item)}
+                    >
                       {item}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="character-style-preview" role="img" aria-label={`${style} ${detailStyle} 스타일 미리보기`} />
-            </div>
+
+              <div className="character-style-preview">
+                {previewImage ? (
+                  <img
+                    src={previewImage.src}
+                    alt={`${detailStyle} 스타일 미리보기`}
+                    className="character-style-preview-image"
+                  />
+                ) : (
+                  <span>미리보기 준비중</span>
+                )}
+              </div>
           </section>
         </div>
       ),
@@ -443,13 +550,14 @@ export function CharacterPage() {
       label: "03 · 구체적 묘사 & 생성",
       content: (
         <div className="character-flow-slide character-step-three">
-          <section className="character-flow-card character-reference-card glass-panel">
+           <section className="character-flow-card empty-card-three"></section>
+          <section className="character-flow-card character-reference-card">
             <span className="character-field-label">레퍼런스 이미지</span>
             <label className="character-reference-picker">
               <figure>
                 {uploadedReference ? <img className="character-reference-image" src={uploadedReference} alt={`${subType} 캐릭터 레퍼런스 이미지`} /> : null}
                 <span className="character-reference-empty">
-                  <Icon name="image" size={34} />
+                  <Icon name="addImg" size={30} />
                   이미지 업로드
                 </span>
               </figure>
@@ -458,15 +566,15 @@ export function CharacterPage() {
             <p>캐릭터 생성에 참고하고 싶은<br />이미지를 업로드해 주세요.</p>
           </section>
 
-          <section className="character-flow-card character-step-heading character-step-heading-three glass-panel">
-            <strong>03</strong>
+          <section className="character-flow-card character-step-heading character-step-heading-three">
+            <h1>03</h1>
           </section>
 
-          <section className="character-flow-card character-detail-copy-card glass-panel">
+          <section className="character-flow-card character-detail-copy-card">
             <h2>캐릭터에 대해<br />더 구체적으로<br />알려주세요!</h2>
           </section>
 
-          <section className="character-flow-card character-prompt-card glass-panel">
+          <section className="character-flow-card character-prompt-card">
             <span className="character-field-label">외형 프롬프트 입력</span>
             <label className="character-prompt-box">
               <textarea
@@ -502,6 +610,7 @@ export function CharacterPage() {
 
   return (
     <div className="workspace-page character-page">
+    <div className="character-canvas">
       {!generated ? (
         <>
           <ScrollSlideContainer
@@ -531,7 +640,7 @@ export function CharacterPage() {
             </button>
           </div>
 
-          <section className="character-result-name-card character-flow-card glass-panel">
+          <section className="character-result-name-card character-flow-card">
             <span className="character-field-label">캐릭터 이름</span>
             <input
               value={name}
@@ -548,7 +657,7 @@ export function CharacterPage() {
             </div>
           </section>
 
-          <section className="character-result-info-card character-flow-card glass-panel">
+          <section className="character-result-info-card character-flow-card">
             <span className="character-field-label">캐릭터 정보</span>
             <div>
               <p>
@@ -560,7 +669,7 @@ export function CharacterPage() {
             </div>
           </section>
 
-          <section className="character-result-preview-card character-flow-card glass-panel">
+          <section className="character-result-preview-card character-flow-card">
             <img
               src={variationImages[selectedVariationIndex] || generated.imageUrl}
               alt="Result character preview"
@@ -590,6 +699,7 @@ export function CharacterPage() {
       )}
 
       {process && <WorkProcessScreen title={process.title} label={process.label} percent={process.percent} />}
+    </div>
     </div>
   );
 }

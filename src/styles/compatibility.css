@@ -11,35 +11,6 @@
   height: max(760px, 100svh);
 }
 
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass-panel,
-  .panel,
-  .character-flow-card,
-  .hero-button,
-  .bottom-dock-text-nav,
-  .showcase-logo,
-  .showcase-footer button {
-    background-color: rgba(15, 14, 25, .96) !important;
-    background-image: linear-gradient(145deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .018)) !important;
-  }
-
-  html[data-theme="light"] :where(.glass-panel, .panel, .character-flow-card, .hero-button, .bottom-dock-text-nav, .showcase-logo, .showcase-footer button) {
-    background-color: rgba(250, 250, 253, .97) !important;
-  }
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  :where(.glass-panel, .panel, .character-flow-card, .hero-button, .bottom-dock-text-nav, .showcase-logo, .showcase-footer button) {
-    background-color: rgba(14, 13, 23, .94) !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  html[data-theme="light"] :where(.glass-panel, .panel, .character-flow-card, .hero-button, .bottom-dock-text-nav, .showcase-logo, .showcase-footer button) {
-    background-color: rgba(251, 251, 253, .96) !important;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
@@ -49,73 +20,6 @@
   }
 
   .floating-emoticon { transform: translate(-50%, -50%) scale(var(--float-scale)); }
-}
-
-@media (max-width: 820px), (max-height: 820px) {
-  :where(.glass-panel, .panel, .character-flow-card, .hero-button, .bottom-dock-text-nav, .showcase-logo, .showcase-footer button) {
-    backdrop-filter: blur(12px) saturate(120%);
-    -webkit-backdrop-filter: blur(12px) saturate(120%);
-  }
-}
-
-@media (forced-colors: active) {
-  .glass-panel,
-  .panel,
-  .character-flow-card,
-  .hero-button,
-  .bottom-dock-text-nav,
-  .showcase-logo,
-  .showcase-footer button { border: 1px solid CanvasText !important; box-shadow: none !important; }
-}
-
-/* The camera monitor is a themed surface; the live video keeps its original color. */
-html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .camera-monitor-panel {
-  border-color: rgba(45, 39, 72, .14) !important;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, .72), rgba(247, 247, 252, .48)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .86),
-    0 14px 34px rgba(42, 37, 62, .07) !important;
-}
-
-html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .pose-media-frame {
-  border: 1px solid rgba(45, 39, 72, .08);
-  background:
-    radial-gradient(circle at 50% 34%, rgba(123, 109, 255, .08), transparent 42%),
-    rgba(240, 241, 247, .72);
-}
-
-html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .pose-media-frame.is-awaiting-person > video.visible {
-  opacity: .28;
-}
-
-html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .pose-media-frame.is-awaiting-person::after {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  pointer-events: none;
-  background: rgba(247, 248, 252, .38);
-}
-
-html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .camera-status {
-  z-index: 2;
-  border: 1px solid rgba(45, 39, 72, .1);
-  background: rgba(255, 255, 255, .74);
-  color: rgba(25, 22, 34, .72);
-  box-shadow: 0 7px 18px rgba(42, 37, 62, .06);
-  backdrop-filter: blur(10px) saturate(120%);
-  -webkit-backdrop-filter: blur(10px) saturate(120%);
-}
-
-html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .step-tip {
-  color: rgba(25, 22, 34, .62) !important;
-}
-
-html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .btn-start-capture {
-  border-color: rgba(91, 73, 255, .18);
-  background: rgba(91, 73, 255, .12);
-  color: #2b2540;
 }
 
 /* Final responsive and theme corrections from browser QA. */
@@ -149,27 +53,6 @@ html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .btn-
   color: #f8f7ff !important;
 }
 .slide-warning-dialog .warning-continue { background: rgba(123, 105, 255, .25) !important; }
-
-html[data-theme="light"] .slide-warning-overlay { background: rgba(26, 23, 42, .45); }
-html[data-theme="light"] .slide-warning-dialog {
-  border-color: rgba(75, 64, 118, .2) !important;
-  background: rgba(255,255,255,.96) !important;
-  color: #201b34;
-  box-shadow: inset 0 1px 0 #fff, 0 28px 70px rgba(42,37,62,.18) !important;
-}
-html[data-theme="light"] .slide-warning-dialog h3 { color: #201b34 !important; }
-html[data-theme="light"] .slide-warning-dialog p { color: rgba(32,27,52,.68) !important; }
-html[data-theme="light"] .slide-warning-dialog :where(.warning-stay, .warning-continue) {
-  border-color: rgba(62,53,94,.14);
-  background: rgba(245,244,250,.94) !important;
-  color: #2b2540 !important;
-}
-html[data-theme="light"] .slide-warning-dialog .warning-continue { background: rgba(91,73,255,.13) !important; }
-
-/* Persistent bottom-right navigation. The logo is the Home affordance. */
-.nav-hover-zone {
-  pointer-events: none;
-}
 
 .bottom-dock-text-nav,
 .app-shell.route-home .bottom-dock-text-nav {
@@ -226,126 +109,6 @@ html[data-theme="light"] .slide-warning-dialog .warning-continue { background: r
 }
 .app-shell.route-home .profile-icon-btn img { display: block !important; }
 .app-shell.route-home .profile-icon-btn::after { content: none !important; }
-html[data-theme="light"] .bottom-dock-text-nav,
-html[data-theme="light"] .app-shell.route-home .bottom-dock-text-nav {
-  border-color: rgba(55,48,85,.14) !important;
-  background: rgba(255,255,255,.62) !important;
-  box-shadow: inset 0 1px 0 #fff, 0 14px 30px rgba(42,37,62,.08) !important;
-}
-html[data-theme="light"] :where(.dock-home-logo, .showcase-icon-btn) {
-  border-color: rgba(55,48,85,.13);
-  background: rgba(255,255,255,.5);
-  color: #3b3454;
-}
-html[data-theme="light"] .app-shell.route-home .text-nav-bar a { color: rgba(32,27,52,.64) !important; }
-
-/* Character wireframe uses shared guide lines, not a glass effect on every cell. */
-.character-flow-card {
-  border-color: transparent !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-.character-step-heading { border: 1px solid var(--figma-line) !important; }
-.character-flow-slide {
-  background-image:
-    linear-gradient(var(--figma-line), var(--figma-line)),
-    linear-gradient(var(--figma-line), var(--figma-line)),
-    linear-gradient(var(--figma-line), var(--figma-line));
-  background-repeat: no-repeat;
-  background-size: 72.7% 1px, 1px 60%, 1px 60%;
-  background-position: 13.6458% 44.7222%, 49.375% 44.7222%, 86.3542% 44.7222%;
-}
-.character-step-one .character-dropdown:not(.is-open) .character-dropdown-menu {
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
-  transform: translateY(-8px) !important;
-}
-.character-step-one .character-dropdown.is-open .character-dropdown-menu {
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-  transform: translateY(0) !important;
-}
-.character-trait-grid button { display: flex !important; align-items: center !important; line-height: 1; }
-.character-trait-grid button > span { align-self: center; }
-.character-style-layout {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1.55fr) minmax(132px, .85fr) !important;
-  gap: clamp(12px, 1.2svw, 24px) !important;
-  align-items: stretch;
-}
-.character-style-controls { width: 100% !important; min-width: 0; }
-.character-style-row,
-.character-style-row.wide { width: 100% !important; min-width: 0; }
-.character-style-row button { min-width: 0; padding-inline: 6px; }
-.character-style-preview {
-  position: relative !important;
-  right: auto !important;
-  bottom: auto !important;
-  width: auto !important;
-  height: auto !important;
-  min-width: 0;
-  border: 1px solid rgba(230,226,255,.11);
-}
-.character-reference-picker { display: block; cursor: pointer; }
-.character-reference-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.character-reference-picker figure { position: relative; overflow: hidden; }
-.character-reference-picker figure > span {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  padding: 7px 12px;
-  border-radius: 16px;
-  background: rgba(10,9,18,.64);
-  color: #fff;
-  font-size: 11px;
-  white-space: nowrap;
-  backdrop-filter: blur(12px);
-}
-html[data-theme="light"] .character-trait-grid button { color: rgba(32,27,52,.72) !important; }
-html[data-theme="light"] .character-trait-grid button > span {
-  border-color: rgba(45,39,72,.34) !important;
-  background: rgba(255,255,255,.56) !important;
-  box-shadow: none !important;
-}
-html[data-theme="light"] .character-trait-grid button.active > span {
-  border-color: #6a57ee !important;
-  background: #6a57ee !important;
-  box-shadow: inset 0 0 0 3px #f7f7fb !important;
-}
-html[data-theme="light"] .character-style-row button {
-  border: 1px solid rgba(55,48,85,.18) !important;
-  background: rgba(255,255,255,.4) !important;
-  color: #39324f !important;
-}
-html[data-theme="light"] .character-style-row button.active {
-  border-color: rgba(91,73,255,.42) !important;
-  background: rgba(91,73,255,.13) !important;
-  color: #2b234d !important;
-}
-html[data-theme="light"] .character-style-preview {
-  border-color: rgba(55,48,85,.15);
-  background: rgba(73,62,112,.07) !important;
-  color: #2d2741 !important;
-}
-html[data-theme="light"] .character-style-preview strong { color: #2d2741 !important; }
-html[data-theme="light"] .character-style-preview p { color: rgba(45,39,65,.64) !important; }
-html[data-theme="light"] .palette-dropdown select,
-html[data-theme="light"] .point-color-control input[aria-label="Main color hex value input"] {
-  border-color: rgba(55,48,85,.18) !important;
-  background: rgba(255,255,255,.72) !important;
-  color: #2d2741 !important;
-}
-html[data-theme="light"] .palette-dropdown option { background: #fff !important; color: #2d2741 !important; }
-html[data-theme="light"] .character-generate-inline {
-  border-color: rgba(91,73,255,.24) !important;
-  background: rgba(91,73,255,.14) !important;
-  color: #2d2741 !important;
-}
 
 /* Input layout and persistent process navigation. */
 .input-scroll-slider .scroll-slide[data-step="0"] .input-composer::before { content: none !important; }
@@ -449,21 +212,6 @@ html[data-theme="light"] .character-generate-inline {
 }
 .library-mode-tabs button { padding: 4px 2px !important; border-radius: 0 !important; line-height: 1.2; }
 .library-mode-tabs button.active { border-bottom: 1px solid currentColor !important; }
-html[data-theme="light"] .library-search {
-  border-color: rgba(55,48,85,.16) !important;
-  background: rgba(255,255,255,.62) !important;
-  color: #2d2741 !important;
-}
-html[data-theme="light"] .library-search input { color: #2d2741 !important; }
-html[data-theme="light"] .library-search .icon { filter: brightness(0) saturate(100%) !important; opacity: .62; }
-html[data-theme="light"] .library-carousel-controls button {
-  border-color: rgba(55,48,85,.15);
-  background: rgba(255,255,255,.66);
-}
-html[data-theme="light"] .library-page .card-hover-title { color: #fff !important; }
-html[data-theme="light"] .library-page .carousel-card.active .card-action-overlay {
-  background: linear-gradient(180deg, rgba(18,16,29,.02), rgba(18,16,29,.74)) !important;
-}
 
 @media (max-height: 900px) {
   .input-brief { top: 9%; }
@@ -551,17 +299,6 @@ body {
   .text-nav-actions { gap: 4px !important; }
 }
 
-@media (max-height: 759px) {
-  html, body { min-height: 760px; overflow-y: auto !important; }
-  .app-shell,
-  .app-shell main,
-  .route-slide-frame,
-  .workspace-page,
-  .home-hero,
-  .editor-page { height: 760px !important; min-height: 760px !important; }
-  .editor-page .layer-stack { top: -337.56px; }
-}
-
 @media (max-width: 768px) {
   .home-footer {
     bottom: calc(78px + env(safe-area-inset-bottom)) !important;
@@ -600,7 +337,7 @@ body {
     background: none !important;
   }
 
-  .character-scroll-slider .character-flow-card {
+  .character-scroll-slider {
     position: relative !important;
     inset: auto !important;
     flex: 0 0 auto;
@@ -614,18 +351,10 @@ body {
     border-radius: 16px !important;
   }
 
-  .character-scroll-slider .character-step-heading {
-    min-height: 132px;
-    order: -2;
-  }
-
-  .character-scroll-slider .character-step-heading strong,
+  .character-scroll-slider .character-step-heading-number,
   .character-scroll-slider .character-step-heading p,
-  .character-scroll-slider .character-flow-card h2,
-  .character-scroll-slider .character-flow-card > .character-field-label,
   .character-scroll-slider .character-dual-dropdowns,
   .character-scroll-slider .character-mini-preview,
-  .character-scroll-slider .character-trait-grid,
   .character-scroll-slider .character-style-layout,
   .character-scroll-slider .character-prompt-box,
   .character-scroll-slider .character-generate-inline {
@@ -636,17 +365,17 @@ body {
     margin: 0 !important;
   }
 
-  .character-scroll-slider .character-step-heading strong {
+  .character-scroll-slider .character-step-heading-number {
     display: block;
     font-size: 18px;
   }
 
-  .character-scroll-slider .character-step-heading p {
+  .character-scroll-slider {
     margin-top: 14px !important;
     font-size: 16px;
   }
 
-  .character-scroll-slider .character-flow-card h2 {
+  .character-scroll-slider {
     margin-bottom: 16px !important;
     font-size: 20px;
   }
@@ -666,29 +395,11 @@ body {
     margin-bottom: 12px !important;
   }
 
-  .character-scroll-slider .character-trait-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 8px 12px;
-  }
-
-  .character-scroll-slider .character-trait-grid button {
+  .character-scroll-slider {
     min-width: 0;
     min-height: 38px;
     white-space: normal;
   }
-
-  .character-scroll-slider .character-main-color-card,
-  .character-scroll-slider .character-palette-card,
-  .character-scroll-slider .character-style-card,
-  .character-scroll-slider .character-reference-card,
-  .character-scroll-slider .character-detail-copy-card,
-  .character-scroll-slider .character-prompt-card {
-    min-height: 180px;
-  }
-
-  .character-scroll-slider .character-step-three .character-step-heading-three { order: -4; }
-  .character-scroll-slider .character-step-three .character-detail-copy-card { order: -3; }
-  .character-scroll-slider .character-step-three .character-reference-card { order: -2; }
 
   .character-scroll-slider .character-prompt-box {
     margin-top: 12px !important;
@@ -722,37 +433,6 @@ body {
     padding: 0;
     font-size: 0;
   }
-}
-
-/* Figma-aligned guide lines. Each creation step owns only the lines visible in that frame. */
-.character-flow-slide { background: none !important; }
-.character-step-one {
-  background:
-    linear-gradient(var(--figma-line), var(--figma-line)) 13.6458% 44.7222% / 72.7084% 1px no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 49.375% 76.4815% / 36.9792% 1px no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 13.6458% 44.7222% / 1px 55.2778% no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 49.375% 44.7222% / 1px 55.2778% no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 86.3542% 12.963% / 1px 87.037% no-repeat !important;
-}
-.character-step-two {
-  background:
-    linear-gradient(var(--figma-line), var(--figma-line)) 13.6458% 24.4444% / 72.7084% 1px no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 13.6458% 56.2037% / 72.7084% 1px no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 13.6458% 24.4444% / 1px 31.7593% no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 31.5104% 24.4444% / 1px 75.5556% no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 49.375% 24.4444% / 1px 31.7593% no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 67.2396% 56.2037% / 1px 43.7963% no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 86.3542% 24.4444% / 1px 31.7593% no-repeat !important;
-}
-.character-step-three {
-  background:
-    linear-gradient(var(--figma-line), var(--figma-line)) 31.5104% 19.6296% / 53.5938% 1px no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 49.375% 51.3889% / 35.7292% 1px no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 31.5104% 83.1481% / 53.5938% 1px no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 31.5104% 19.6296% / 1px 63.5185% no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 49.375% 19.6296% / 1px 63.5185% no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 67.2396% 19.6296% / 1px 63.5185% no-repeat,
-    linear-gradient(var(--figma-line), var(--figma-line)) 85.1042% 19.6296% / 1px 63.5185% no-repeat !important;
 }
 
 /* Camera content is one contained vertical stack; no control is projected from another panel. */
@@ -921,51 +601,6 @@ body {
   top: 50%;
 }
 
-/* Step 3 reference and prompt internals remain inside their Figma cells at every width. */
-.character-flow-card,
-.character-flow-card * { box-sizing: border-box; }
-.character-reference-card {
-  display: grid !important;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  align-items: stretch;
-  gap: clamp(10px, 1.25svh, 16px);
-  min-width: 0;
-  min-height: 0;
-  padding: clamp(16px, 1.5svw, 28px) !important;
-  overflow: hidden !important;
-}
-.character-reference-card > .character-field-label,
-.character-reference-card > p,
-.character-reference-card .character-reference-picker {
-  position: static !important;
-  inset: auto !important;
-  width: 100% !important;
-  max-width: 100%;
-  min-width: 0;
-  margin: 0 !important;
-}
-.character-reference-card > .character-field-label { height: auto; }
-.character-reference-card .character-reference-picker { display: block; min-height: 0; overflow: hidden; }
-.character-reference-card .character-reference-picker figure {
-  position: relative !important;
-  inset: auto !important;
-  width: 100% !important;
-  max-width: 100%;
-  min-width: 0;
-  height: 100% !important;
-  min-height: 0;
-  margin: 0 !important;
-  overflow: hidden;
-}
-.character-reference-card .character-reference-picker img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.character-reference-card > p {
-  height: auto !important;
-  color: var(--figma-muted);
-  font-size: clamp(10px, .72svw, 13px);
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-}
-.character-reference-picker figure > span { max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; }
 .character-prompt-card { min-width: 0; min-height: 0; overflow: hidden !important; }
 .character-prompt-box,
 .character-prompt-box textarea { min-width: 0; max-width: 100%; font-family: Pretendard, sans-serif; }
@@ -1111,12 +746,6 @@ button { font-family: Pretendard, sans-serif; }
   cursor: progress;
 }
 
-/* Panels keep a static optical rim; moving sheen belongs to actionable buttons only. */
-:where(.glass-panel, .panel, .character-flow-card):hover::after,
-:where(.glass-panel, .panel, .character-flow-card):focus-within::after {
-  background-position: 168% 0, 0 0, 0 0 !important;
-  transition: none !important;
-}
 
 @media (hover: hover) and (pointer: fine) {
   :where(
@@ -1151,7 +780,6 @@ button { font-family: Pretendard, sans-serif; }
   line-height: 1.45;
 }
 
-html[data-theme="light"] .emotion-analysis-source { color: rgba(43, 37, 64, .62); }
 
 /* Input 271:627: top progress line and a separate, aligned stage panel. */
 .input-scroll-slider .scroll-slide[data-step="0"] .input-composer::before { content: none !important; }

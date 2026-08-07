@@ -274,7 +274,6 @@
     }
 
     .chip.active {
-        color: var(--text);
         background: rgba(187, 182, 255, .14);
         border-color: var(--purple);
     }
@@ -366,7 +365,6 @@
 
     .hero-kicker {
         margin-bottom: 18px;
-        color: var(--text);
         font: 300 clamp(42px, 3.45vw, 66px)/1.1 "Pretendard", sans-serif;
         letter-spacing: -.035em;
     }
@@ -811,7 +809,6 @@
     }
 
     .emotion-selector button.active {
-        color: var(--text);
         border-color: var(--purple);
         background: rgba(187, 182, 255, .12);
     }
@@ -1052,7 +1049,6 @@
     }
 
     .preset-list button.active {
-        color: var(--text);
         border-color: var(--purple);
         background: rgba(187, 182, 255, .1);
     }
@@ -1219,7 +1215,6 @@
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
 
-        color: var(--text);
     }
 
     .text-field {
@@ -1902,7 +1897,6 @@
     .variation-card span {
         position: static;
         align-self: end;
-        color: var(--text);
         font-size: 11px;
         letter-spacing: 0;
     }
@@ -2084,7 +2078,6 @@
 
     .character-popover button.active {
         background: rgba(187, 182, 255, .12);
-        color: var(--text);
     }
 
     .character-popover img {
@@ -2253,7 +2246,6 @@
 
     .library-filter button.active {
         background: rgba(187, 182, 255, .13);
-        color: var(--text);
     }
 
     .library-filter button span {

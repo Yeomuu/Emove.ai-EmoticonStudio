@@ -1,0 +1,853 @@
+.workspace-page.character-page{
+    max-width: none;
+    width: 100%;
+    overflow: hidden;
+}
+
+.character-canvas{
+    position: absolute;
+
+    width: 1920px;
+    min-width: 1920px;
+    min-height: 1080px;
+
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+
+    overflow: visible;
+}
+
+.character-step-heading {
+  padding: 30px;
+  color: #f8f6ff;
+  width: 343px;
+  height: 343px;
+  border: 1.5px solid #272634;
+}
+
+.character-step-heading h1 {
+  position: absolute;
+  color: #E4E0F0;
+  font: 500 48px/1.16 "Paperlogy",  sans-serif;
+}
+
+.character-detail-copy-card h2 {
+  margin: 0;
+  color: #E4E0F0;
+  font-size: clamp(27px, 1.875svw, 36px);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.character-step-heading p {
+  position: absolute;
+  bottom: 30px;
+  color: #E4E0F0;
+  font-size: 36px;
+  font-weight: 300;
+}
+
+/* ==========================================================================
+   STEP-ONE 헤딩 박스
+========================================================================== */
+.character-step-heading-one { 
+    position: relative;
+    right: 262px; top: 140px; 
+    border-radius: 0 24px 0 0;
+}
+
+.character-step-heading-one::before {
+    content: "";
+    position: absolute;
+
+    left: -1;                 /* 카드 왼쪽 선과 맞춤 */
+    bottom: 100%;      
+    width: 1.5px;
+    height: 180px;        
+    background: #272634;
+
+}
+
+/* ==========================================================================
+   선택 카드 그리드 영역
+========================================================================== */
+
+.character-flow-card {
+    position: absolute;
+
+    border: 1.5px solid #272634;
+
+    background: rgba(255, 255, 255, 0.006);
+
+    box-shadow: none;
+
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+
+    overflow: visible;
+
+    box-sizing: border-box;
+}
+
+.character-flow-card,
+.character-flow-card * {
+    box-sizing: border-box;
+}
+
+.character-flow-card h2,
+.character-flow-card p,
+.character-flow-card span,
+.character-flow-card strong,
+.character-flow-card button,
+.character-flow-card input,
+.character-flow-card textarea {
+    font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+    letter-spacing: 0;
+}
+
+.character-flow-card h2 {
+    margin: 0;
+
+    font-weight: 300;
+    line-height: 1.4;
+
+    letter-spacing: 0;
+
+    color: var(--text);
+     font-size: 18px;
+    font-weight: 500;
+}
+
+/* --------------------------------------------------------------------------
+   캐릭터 외형 선택
+-------------------------------------------------------------------------- */
+
+.character-shape-card {
+  left: 263.5px;
+  top: 482px;
+  width: 686px;
+  height: 1000px;
+  border-radius: 24px 0 0 0;
+  padding: 46px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+/* ------------------------------------
+   캐릭터 외형 선택 - 드랍다운
+------------------------------------ */
+
+/* 드롭다운 레이아웃 */
+.character-dual-dropdowns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: space-between;
+}
+
+/* 드롭다운 컨테이너 */
+.character-dropdown {
+  position: relative;
+  min-width: 0;
+  height: 54px;
+}
+
+/* 트리거 버튼 */
+.character-dropdown-trigger {
+  position: relative;
+
+  width: 100%;
+  height: 42px;
+  margin-top: 4px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  padding: 0 12px;
+
+  border: 1px solid rgba(232, 229, 255, .16);
+  border-radius: 8px;
+
+  background: rgba(255, 255, 255, .035);
+
+  color: #f8f6ff;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 화살표 아이콘 */
+.character-dropdown-trigger .icon {
+  opacity: .72;
+  transform: rotate(90deg);
+}
+
+/* 열린 상태 */
+.character-dropdown.is-open .character-dropdown-trigger {
+  border-color: rgba(187, 182, 255, .52);
+  background: rgba(187, 182, 255, .08);
+}
+
+.character-dropdown-menu {
+  position: absolute;
+  z-index: 12;
+
+  left: 0;
+  right: 0;
+  top: 70px;
+
+  max-height: 148px;
+  padding: 4px;
+
+  overflow: auto;
+
+  border: 1px solid rgba(232, 229, 255, .16);
+  border-radius: 8px;
+
+  background: rgba(12, 11, 22, .92);
+
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .22);
+
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+}
+
+/* 메뉴 활성화 */
+.character-dropdown.is-open .character-dropdown-menu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* 메뉴 아이템 */
+.character-dropdown-menu button {
+  display: flex;
+  align-items: center;
+
+  width: 100%;
+  height: 36px;
+
+  padding: 0 10px;
+
+  border: 0;
+  border-radius: 6px;
+
+  background: transparent;
+
+  color: var(--muted);
+  font-size: 16px;
+  text-align: left;
+}
+
+.character-dropdown-menu button:hover,
+.character-dropdown-menu button.active {
+  background: rgba(187, 182, 255, .18);
+  color: #fff;
+}
+
+/* 가운데 화살표 */
+.character-dropdown-arrows {
+  display: grid;
+  justify-items: center;
+  align-items: center;
+  gap: 20px;
+
+  padding-top: 40px;
+  padding-bottom: 15px;
+
+  color: rgba(232, 229, 255, .62);
+}
+
+/* ------------------------------------
+   캐릭터 외형 선택 - 미니 미리보기
+------------------------------------ */
+
+.character-mini-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.character-mini-preview > span {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.character-mini-preview figure {
+  width: 146px;
+  height: 146px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(232, 229, 255, .16);
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  overflow: hidden;
+}
+
+.character-mini-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* --------------------------------------------------------------------------
+   캐릭터 성격 선택
+-------------------------------------------------------------------------- */
+
+.character-trait-card {
+    right: 262px;
+    top: 482px;
+    width: 710px;
+    height: 343px;
+
+    display: flex;
+    flex-direction: column;
+
+    border-radius: 0 0 24px 0;
+
+    padding: 46px;
+}
+
+.character-trait-card h2 {
+    font-size: 18px;
+    margin-bottom: 40px;
+
+}
+
+/* 제목 */
+.character-trait-card span {
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--muted);
+    margin-bottom: 8px;
+
+}
+
+/* 서브 라벨 */
+.character-trait-card > .character-field-label {
+    display: block;
+    margin-bottom: 8px;
+    color: #B7BDC8;
+}
+
+/* 성격 카드 영역 */
+.character-trait-grid {
+    width: 512px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+/* 카드 버튼 */
+.character-trait-grid button {
+    width: 160px;
+    height: 40px;
+
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 10px;
+
+    border: 1px solid #2B2A3D;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 400;
+
+    cursor: pointer;
+    transition: all .2s ease;
+}
+
+/* Hover */
+.character-trait-grid button:hover {
+    border-color: rgba(132, 122, 230, 0.3);
+    background-color: rgba(56, 52, 90, 0.3);
+}
+
+/* 선택된 카드 */
+.character-trait-grid button.active {
+    background: rgba(123,109,255,0.2);
+    border-color: rgba(255,255,255,0.1);
+}
+
+/* 체크박스 */
+.character-trait-grid .trait-check {
+    width: 16px;
+    height: 16px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    flex-shrink: 0;
+
+    border: 1px solid #2B2A3D;
+    border-radius: 2px;
+
+    transition: .2s ease;
+}
+
+/* 선택된 체크박스 */
+.character-trait-grid button.active .trait-check {
+    background: #fcfcfcdf;
+    border-color: #fcfcfcdf;
+    color: #7B6DFF;
+}
+
+/* 체크 아이콘 */
+.character-trait-grid .trait-check {
+    width: 10px;
+    height: 10px;
+    color: #1D1B43;
+    margin:0;
+}
+
+/* 텍스트 */
+.character-trait-grid .trait-label {
+    display: block;
+
+    font-size: 14px;
+    font-weight: 400;
+
+    white-space: nowrap;
+
+    margin:0;
+}
+
+/* ==========================================================================
+   STEP-TWO 헤딩 박스
+========================================================================== */
+
+.character-step-heading-two {
+  left: 262px;
+  top: 246px;
+  width: 343px;
+  height: 343px;
+  border-radius: 0 0 0 24px;
+}
+
+.character-step-heading-two strong,
+.character-step-heading-three strong {
+  left: 6.851%;
+  top: 4.811%;
+}
+
+/* --------------------------------------------------------------------------
+   컬러 팔레트 선택
+-------------------------------------------------------------------------- */
+
+.character-palette-card {
+  left: 604px;
+  top: 246px;
+  width: 710px;
+  height: 343px;
+}
+
+.character-palette-card > .character-field-label {
+  position: absolute;
+  left: 8.169%;
+  top: 22.157%;
+}
+
+.character-palette-pill {
+  position: absolute;
+  left: 8.169%;
+  top: 31.632%;
+  width: 277px;
+  height: 41px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px;
+  background: rgba(52,52,62,.4);
+}
+
+.character-palette-pill strong {
+  color: #f5f7fa;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.character-palette-pill span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.character-palette-pill button,
+.character-palette-list i {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--picked-color);
+}
+
+.character-palette-pill .palette-custom-dot {
+  border: 1px solid rgba(255,255,255,.14);
+  background: linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.04));
+}
+
+.character-palette-list {
+  position: absolute;
+  left: 8.169%;
+  top: 48%;
+  display: grid;
+  gap: 8px;
+  width: min(360px, 72%);
+}
+
+.character-palette-list button {
+  min-height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(232,229,255,.12);
+  border-radius: 12px;
+  background: rgba(255,255,255,.03);
+  color: #f8f6ff;
+}
+
+.character-palette-list button.active {
+  border-color: rgba(187,182,255,.48);
+  background: rgba(187,182,255,.12);
+}
+
+.character-palette-list button span {
+  display: flex;
+  gap: 4px;
+}
+
+.character-palette-list i {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+   메인 컬러 선택
+-------------------------------------------------------------------------- */
+
+.character-main-color-card {
+  left: 1313px;
+  top: 246px;
+  width: 343px;
+  height: 343px;
+  border-radius: 0 24px 24px 0;
+}
+
+.character-main-color-card .character-field-label {
+  position: absolute;
+  left: 17.493%;
+  top: 22.157%;
+}
+
+.character-color-control {
+  position: absolute;
+  left: 17.493%;
+  top: 29.592%;
+  display: flex;
+  gap: 4px;
+}
+
+.character-color-swatch {
+  width: 85px;
+  height: 42px;
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(232, 229, 255, .16);
+  border-radius: 10px;
+  background: rgba(255,255,255,.055);
+  cursor: pointer;
+}
+
+.character-color-swatch::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  display: block;
+  border-radius: 50%;
+  background: var(--picked-color);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.18);
+}
+
+.character-color-swatch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.character-color-control > input {
+  width: 124px;
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid rgba(232, 229, 255, .16);
+  border-radius: 10px;
+  background: rgba(255,255,255,.055);
+  color: #f8f6ff;
+  font-size: 16px;
+}
+
+/* --------------------------------------------------------------------------
+   그림체 스타일 선택
+-------------------------------------------------------------------------- */
+
+.empty-card-two {
+  left: 262px;
+  top: 0px;
+  width: 686px;
+  height: 247px;
+}
+
+.character-style-card {
+  left: 604px;
+  top: 588px;
+  width: 710px;
+  height: 506px;
+  border-bottom: none;
+  padding: 46px;
+  display: flex;
+  gap: 44px;
+}
+
+.character-style-card span{
+    color: var(--text);
+    font-weight: 400;
+    margin-bottom: 36px;
+}
+
+.character-style-controls {
+    display: flex;
+    flex-direction: column;
+    width: 338px;
+}
+
+/* 스타일 카드 */
+.character-style-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* 2D/3D */
+.character-style-row.wide {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: 347px;
+margin-bottom: 36px;
+}
+
+.character-style-row button {
+  height: 64px;
+  width: 106px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #2B2A3D;
+  background: rgba(255,255,255,.025);
+
+  font-size: 14px;
+  color: var(--muted);
+}
+.character-style-row.wide button {
+  height: 64px;
+  width: 165px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #2B2A3D;
+}
+
+.character-style-row button.active { background: rgba(130,112,255,.2); border-color: rgba(155,142,255,.48); }
+
+.character-style-preview{
+  width: 222px;
+  height: 232px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,.065);
+  margin-top: 60px;
+}
+
+.character-style-preview strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.character-style-preview p {
+  margin: 6px 0 0;
+  color: rgba(235,232,255,.58);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.character-style-preview-image{
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+}
+
+/* ==========================================================================
+   STEP-THREE 헤딩 박스
+========================================================================== */
+
+.empty-card-three {
+  left: 605px;
+  top: 0;
+  width: 711px;
+  height: 212px;
+}
+
+
+.character-step-heading-three {
+  left: 959px;
+  top: 211px;
+  width: 357px;
+  height: 343px;
+
+  padding: 30px;
+}
+
+.character-detail-copy-card {
+  left: 1315px;
+  top: 211px;
+  width: 342px;
+  height: 343px;
+  padding: 30px;
+  border-radius: 0 24px 0 0 ;
+}
+
+.character-detail-copy-card h2 {
+  color: var(--text);
+  font-size: 36px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   레퍼런스 이미지 선택
+-------------------------------------------------------------------------- */
+
+.character-reference-card {
+  left: 605px;
+  top: 211px;
+  width: 355px;
+  height: 686px;
+  border-radius: 0 0 0 24px;
+}
+
+.character-reference-card > .character-field-label {
+  position: absolute;
+  left: 9.913%;
+  top: 14.067%;
+}
+
+.character-reference-card figure {
+  position: absolute;
+  left: 9.913%;
+  top: 18.659%;
+  width: 276px;
+  height: 293px;
+  margin: 0;
+  border: 1px solid rgba(232,229,255,.18);
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.character-reference-card img.icon {
+  width: 36px;
+  height: 36px;
+}
+
+
+/* 설명글 */
+.character-reference-card p {
+  position: absolute;
+  left: 10.496%;
+  top: 87.755%;
+  width: 46%;
+  margin: 0;
+  color: rgba(235,232,255,.72);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.character-reference-picker figure > span { max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; }
+
+/* --------------------------------------------------------------------------
+   묘사 프롬프트 작성
+-------------------------------------------------------------------------- */
+
+.character-prompt-card {
+  left: 959px;
+  top: 553px;
+  width: 698px;
+  height: 344px;
+  border-radius: 0 0 24px 0 ;
+}
+
+.character-prompt-card > .character-field-label {
+  position: absolute;
+  left: 3.79%;
+  top: 8.601%;
+}
+
+.character-prompt-box {
+  position: absolute;
+  left: 3.79%;
+  top: 17.055%;
+  width: 76.968%;
+  height: 96px;
+  padding: 10px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  border: 1px solid rgba(232,229,255,.18);
+  border-radius: 8px;
+  background: rgba(255,255,255,.055);
+}
+
+.character-prompt-box textarea {
+  width: 100%;
+  min-width: 0;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #f8f6ff;
+  box-shadow: none;
+  resize: none;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.character-prompt-box textarea::placeholder {
+  color: rgba(235,232,255,.5);
+}
+
+.character-prompt-box span {
+  justify-self: end;
+  color: rgba(235,232,255,.58);
+  font-size: 12px;
+}

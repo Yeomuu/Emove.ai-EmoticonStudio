@@ -1,0 +1,595 @@
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f6fb;
+  --bg-soft: #ececf8;
+  --surface: rgba(255, 255, 255, .34);
+  --surface-strong: rgba(255, 255, 255, .54);
+  --text: #171522;
+  --text-soft: #2f2b42;
+  --muted: #5f6071;
+  --dim: #85869a;
+  --line: rgba(23, 21, 34, .12);
+  --line-purple: rgba(91, 73, 255, .22);
+  --liquid-glass-fill: rgba(255, 255, 255, .24);
+  --liquid-glass-edge: rgba(91, 73, 255, .24);
+  --liquid-glass-edge-hot: rgba(91, 73, 255, .42);
+  --glass-black: rgba(255, 255, 255, .58);
+  --glass-rim: rgba(91, 73, 255, .2);
+  --glass-rim-hot: rgba(91, 73, 255, .36);
+  --liquid-glass-violet: rgba(91, 73, 255, .12);
+  --icon-filter: none;
+  --on-accent: #fff;
+  --theme-heading: #2b283a;
+  --theme-title: #171522;
+  --theme-hero-kicker: #252134;
+  --theme-control-text: #4b475f;
+  --theme-control-active: #201b34;
+  --theme-input-text: #201b34;
+  --theme-popover-bg: rgba(255, 255, 255, .92);
+}
+
+html[data-theme="light"] body {
+  background:
+    radial-gradient(circle at 18% 6%, rgba(123, 109, 255, .15), transparent 30%),
+    radial-gradient(circle at 76% 10%, rgba(255, 173, 227, .18), transparent 23%),
+    radial-gradient(circle at 68% 74%, rgba(45, 212, 191, .12), transparent 27%),
+    linear-gradient(180deg, #f8f8ff 0%, #f0f0fa 48%, #f7f7fb 100%);
+}
+
+html[data-theme="light"] .app-shell,
+html[data-theme="light"] .app-shell.is-immersive {
+  background:
+    radial-gradient(circle at 14% 8%, rgba(123, 109, 255, .12), transparent 26%),
+    radial-gradient(circle at 82% 14%, rgba(255, 173, 227, .14), transparent 22%),
+    #f8f8ff;
+}
+
+html[data-theme="light"] .geo-circle,
+html[data-theme="light"] .geo-line {
+  border-color: rgba(45, 39, 72, .15);
+  background-color: rgba(45, 39, 72, .15);
+}
+
+html[data-theme="light"] .carousel-card-title {
+  color: #201b34;
+}
+
+html[data-theme="light"] .carousel-card.inactive .carousel-card-title {
+  color: rgba(32, 27, 52, .62);
+}
+
+html[data-theme="light"] .carousel-card .card-preview {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.72), rgba(255,255,255,.34)),
+    rgba(255,255,255,.2) !important;
+  border-color: rgba(64, 57, 93, .12);
+}
+
+/* 2026-07-07: light-mode loaders, softer light shadows, and conditional rail fades. */
+html[data-theme="light"] .boot-loader,
+html[data-theme="light"] .boot-loader::before,
+html[data-theme="light"] .boot-loader::after,
+html[data-theme="light"] .route-curtain-sheet {
+  background: #f8f8ff;
+}
+
+html[data-theme="light"] .loader-mark,
+html[data-theme="light"] .boot-loader strong {
+  color: #201b34;
+}
+
+html[data-theme="light"] .loader-mark small {
+  color: rgba(32, 27, 52, .58);
+}
+
+html[data-theme="light"] .loader-track,
+html[data-theme="light"] .route-loader-line,
+html[data-theme="light"] .work-process-meter {
+  background: rgba(32, 27, 52, .12);
+}
+
+html[data-theme="light"] .loader-track span,
+html[data-theme="light"] .route-loader-line span,
+html[data-theme="light"] .work-process-meter span {
+  box-shadow: 0 0 18px rgba(123, 109, 255, .18);
+}
+
+html[data-theme="light"] .home-character-token,
+html[data-theme="light"] .hero-button,
+html[data-theme="light"] .library-page .library-sidebar {
+  border-color: rgba(45,39,72,.13);
+  background: rgba(255,255,255,.46);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.74), 0 12px 28px rgba(42,37,62,.06) !important;
+}
+html[data-theme="light"] .work-process-meter { background: rgba(25,22,34,.12); }
+html[data-theme="light"] .library-mode-tabs button { color: rgba(25,22,34,.48) !important; }
+html[data-theme="light"] .library-mode-tabs button.active { color: #191622 !important; }
+
+
+/* Light mode overrides for text readability and home page shapes */
+html[data-theme="light"] .geo-circle {
+  background: transparent !important;
+  background-color: transparent !important;
+  fill: none !important;
+}
+
+html[data-theme="light"] .geo-line {
+  background: linear-gradient(90deg, transparent, rgba(91, 73, 255, 0.22), transparent) !important;
+  background-color: transparent !important;
+}
+
+html[data-theme="light"] :where(
+  .screen-brief p, 
+  .work-process-inner p,
+  .explain-note,
+  .step-desc,
+  .char-count,
+  .palette-control span,
+  .field-label,
+  .setup-summary-box li,
+  .guide-list li,
+  .step-tip,
+  .action-hint,
+  .tier-explain,
+  .char-desc span,
+  .result-snapshot-placeholder span,
+  .snapshot-tag,
+  .analysis-readout-grid p,
+  .card-info p,
+  .loop-preview header span,
+  .warning-stay,
+  .warning-continue,
+  .slide-step-label
+) {
+  color: var(--text-soft) !important;
+}
+
+/* Dark headings in Light Mode */
+html[data-theme="light"] :where(
+  h1, h2, h3, h4,
+  .panel-header h2,
+  .panel-header h3,
+  .screen-brief h1,
+  .character-result-header h1,
+  .result-panel h3,
+  .slide-warning-dialog h3,
+  .slide-step-label,
+  .work-process-inner h2
+) {
+  color: #191622 !important;
+}
+
+html[data-theme="light"] .library-category-rail-wrap::before {
+  background: linear-gradient(90deg, #f8f8ff 0%, rgba(248, 248, 255, 0) 100%);
+}
+
+html[data-theme="light"] .library-category-rail-wrap::after {
+  background: linear-gradient(270deg, #f8f8ff 0%, rgba(248, 248, 255, 0) 100%);
+}
+
+html[data-theme="light"] .library-category-rail button {
+  border-color: rgba(64, 57, 93, .14);
+  background: rgba(255,255,255,.4);
+  color: rgba(32, 27, 52, .68);
+}
+
+html[data-theme="light"] .library-category-rail button:hover,
+html[data-theme="light"] .library-category-rail button.active {
+  border-color: rgba(123, 109, 255, .34);
+  background: rgba(255,255,255,.7);
+  color: #201b34;
+}
+
+html[data-theme="light"] .character-result-actions button {
+  border-color: rgba(64,57,93,.16);
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.72), rgba(255,255,255,.34)),
+    rgba(255,255,255,.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.54),
+    0 12px 32px rgba(42,37,62,.08);
+}
+
+html[data-theme="light"] .character-field-label,
+html[data-theme="light"] .character-mini-preview > span,
+html[data-theme="light"] .character-reference-card p,
+html[data-theme="light"] .character-result-info-card div {
+  color: rgba(32,27,52,.72);
+}
+
+html[data-theme="light"] .character-dropdown-trigger,
+html[data-theme="light"] .character-color-control > input,
+html[data-theme="light"] .character-prompt-box,
+html[data-theme="light"] .character-result-name-card input {
+  border-color: rgba(64,57,93,.16);
+  background: rgba(255,255,255,.58);
+  color: #201b34;
+}
+
+html[data-theme="light"] .character-dropdown-menu {
+  border-color: rgba(64,57,93,.16);
+  background: rgba(255,255,255,.92);
+}
+
+html[data-theme="light"] .character-dropdown-menu button,
+html[data-theme="light"] .character-style-row button,
+html[data-theme="light"] .character-palette-list button,
+html[data-theme="light"] .character-result-actions button,
+html[data-theme="light"] .character-prompt-box textarea {
+  color: #201b34;
+}
+
+html[data-theme="light"] .character-dropdown-menu button:hover,
+html[data-theme="light"] .character-dropdown-menu button.active,
+html[data-theme="light"] .character-style-row button:hover,
+html[data-theme="light"] .character-style-row button.active,
+html[data-theme="light"] .character-palette-list button.active {
+  background: rgba(123,109,255,.12);
+  color: #201b34;
+}
+
+html[data-theme="light"] .character-prompt-box textarea::placeholder {
+  color: rgba(32,27,52,.5);
+}
+
+html[data-theme="light"] .work-process-screen.character-generation-process {
+  background: #f8f8ff;
+  color: #201b34;
+}
+
+/* Light mode overrides for carousel action overlay and info text */
+html[data-theme="light"] .carousel-card .card-action-overlay {
+  background: linear-gradient(180deg, transparent 40%, rgba(248, 248, 255, 0.95) 100%) !important;
+  color: #201b34 !important;
+}
+
+html[data-theme="light"] .carousel-card .card-info h3 {
+  color: #201b34 !important;
+}
+
+html[data-theme="light"] .carousel-card .card-info p {
+  color: #5b586e !important;
+}
+
+html[data-theme="light"] .carousel-card .action-buttons button {
+  background: rgba(123, 109, 255, 0.08) !important;
+  border-color: rgba(123, 109, 255, 0.16) !important;
+  color: #4b475f !important;
+}
+
+html[data-theme="light"] .carousel-card .action-buttons button:hover {
+  background: rgba(123, 109, 255, 0.16) !important;
+  color: #201b34 !important;
+}
+
+html[data-theme="light"] .carousel-card .action-buttons button.btn-edit {
+  background: linear-gradient(90deg, #7b69ff, #9b8cff) !important;
+  color: #fff !important;
+}
+
+html[data-theme="light"] .app-shell,
+html[data-theme="light"] .app-shell.is-immersive {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(111, 94, 255, .14), transparent 31%),
+    radial-gradient(circle at 84% 14%, rgba(255, 173, 227, .16), transparent 24%),
+    radial-gradient(circle at 62% 84%, rgba(120, 168, 255, .12), transparent 28%),
+    #f7f7fb;
+}
+
+html[data-theme="light"] .home-geometry::before,
+html[data-theme="light"] .home-geometry::after,
+html[data-theme="light"] .geo-circle {
+  border-color: rgba(30, 26, 48, .12);
+}
+
+html[data-theme="light"] .geo-line {
+  background: linear-gradient(90deg, transparent, rgba(30,26,48,.18), transparent);
+}
+
+html[data-theme="light"] .screen-brief p,
+html[data-theme="light"] .work-process-inner p {
+  color: rgba(36, 31, 54, .64);
+}
+
+html[data-theme="light"] .work-process-screen {
+  background: #f7f7fb;
+}
+
+html[data-theme="light"] .work-process-inner h2,
+html[data-theme="light"] .work-process-inner strong {
+  color: #191622;
+}
+
+
+html[data-theme="light"] .text-nav-bar a {
+  color: #5b586e;
+}
+html[data-theme="light"] .text-nav-bar a:hover {
+  color: #7b69ff;
+}
+html[data-theme="light"] .text-nav-bar a.active {
+  color: #201b34 !important;
+  border-bottom-color: #7b69ff;
+}
+html[data-theme="light"] .theme-icon-toggle {
+  color: #5b586e !important;
+}
+
+html[data-theme="light"] .icon {
+  opacity: .72;
+}
+
+html[data-theme="light"] .hero-kicker {
+  text-shadow: none;
+}
+
+html[data-theme="light"] :where(.primary-nav a, .chip, .style-preset-list button, .pose-intensity button, .pose-capture-actions button, .audio-source-card, .voice-actions button, .select-character-button, .motion-style-select, .loop-format-note, .emotion-setting-row, .motion-background-row, .library-sidebar nav button, .library-category-rail button, .generation-status, .fixed-frame-card, .analysis-readout-grid p, .loop-preview header span, button, .button, .hero-button, .character-generate-button, .save-character-button, .create-with-character-button, .btn-primary, .btn-secondary, .btn-generate-emoticon, .btn-select-char, .exaggeration-indicator .tier-btn) {
+  color: var(--theme-control-text) !important;
+}
+
+html[data-theme="light"] :where(.primary-nav a.active, .chip:hover, .chip.active, .style-preset-list button.active, .pose-intensity button.active, .emotion-selector button.active, .generation-status.active, .library-sidebar h1, .library-sidebar nav button:hover, .library-sidebar nav button.active, .library-mode-tabs button.active, .fixed-frame-card b, .analysis-readout-grid strong, .loop-preview header strong, button:hover, .button:hover, .hero-button:hover, .character-generate-button:hover, .save-character-button:hover, .create-with-character-button:hover, .btn-primary:hover, .btn-secondary:hover, .btn-generate-emoticon:hover, .btn-select-char:hover, .exaggeration-indicator .tier-btn.active) {
+  color: var(--theme-control-active) !important;
+}
+
+html[data-theme="light"] .home-geometry::before,
+html[data-theme="light"] .home-geometry::after,
+html[data-theme="light"] .geo-circle {
+  border-color: rgba(91, 73, 255, 0.16) !important;
+}
+
+html[data-theme="light"] .geo-line {
+  background: linear-gradient(90deg, transparent, rgba(91, 73, 255, 0.22), transparent) !important;
+}
+
+html[data-theme="light"] :where(input, textarea, select, .character-select-grid select, .motion-style-select select, .emoticon-title-control input) {
+  color: var(--theme-input-text);
+}
+
+html[data-theme="light"] :where(.character-popover, .library-sidebar, .layer-drag-preview) {
+  background: var(--theme-popover-bg);
+}
+
+html[data-theme="light"] :where(.detail-copy h1, .home-copy h1) {
+  color: var(--theme-title);
+}
+
+html[data-theme="light"] :where(.button.primary, .save-character-button, .input-ready-row > button) {
+  color: var(--on-accent);
+}
+
+
+/* The camera monitor is a themed surface; the live video keeps its original color. */
+html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .camera-monitor-panel {
+  border-color: rgba(45, 39, 72, .14) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, .72), rgba(247, 247, 252, .48)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .86),
+    0 14px 34px rgba(42, 37, 62, .07) !important;
+}
+
+html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .pose-media-frame {
+  border: 1px solid rgba(45, 39, 72, .08);
+  background:
+    radial-gradient(circle at 50% 34%, rgba(123, 109, 255, .08), transparent 42%),
+    rgba(240, 241, 247, .72);
+}
+
+html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .pose-media-frame.is-awaiting-person > video.visible {
+  opacity: .28;
+}
+
+html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .pose-media-frame.is-awaiting-person::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(247, 248, 252, .38);
+}
+
+html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .camera-status {
+  z-index: 2;
+  border: 1px solid rgba(45, 39, 72, .1);
+  background: rgba(255, 255, 255, .74);
+  color: rgba(25, 22, 34, .72);
+  box-shadow: 0 7px 18px rgba(42, 37, 62, .06);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+}
+
+html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .step-tip {
+  color: rgba(25, 22, 34, .62) !important;
+}
+
+html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .btn-start-capture {
+  border-color: rgba(91, 73, 255, .18);
+  background: rgba(91, 73, 255, .12);
+  color: #2b2540;
+}
+
+
+
+html[data-theme="light"] .slide-warning-overlay { background: rgba(26, 23, 42, .45); }
+html[data-theme="light"] .slide-warning-dialog {
+  border-color: rgba(75, 64, 118, .2) !important;
+  background: rgba(255,255,255,.96) !important;
+  color: #201b34;
+  box-shadow: inset 0 1px 0 #fff, 0 28px 70px rgba(42,37,62,.18) !important;
+}
+html[data-theme="light"] .slide-warning-dialog h3 { color: #201b34 !important; }
+html[data-theme="light"] .slide-warning-dialog p { color: rgba(32,27,52,.68) !important; }
+html[data-theme="light"] .slide-warning-dialog :where(.warning-stay, .warning-continue) {
+  border-color: rgba(62,53,94,.14);
+  background: rgba(245,244,250,.94) !important;
+  color: #2b2540 !important;
+}
+html[data-theme="light"] .slide-warning-dialog .warning-continue { background: rgba(91,73,255,.13) !important; }
+
+/* Persistent bottom-right navigation. The logo is the Home affordance. */
+.nav-hover-zone {
+  pointer-events: none;
+}
+
+html[data-theme="light"] .bottom-dock-text-nav,
+html[data-theme="light"] .app-shell.route-home .bottom-dock-text-nav {
+  border-color: rgba(55,48,85,.14) !important;
+  background: rgba(255,255,255,.62) !important;
+  box-shadow: inset 0 1px 0 #fff, 0 14px 30px rgba(42,37,62,.08) !important;
+}
+html[data-theme="light"] :where(.dock-home-logo, .showcase-icon-btn) {
+  border-color: rgba(55,48,85,.13);
+  background: rgba(255,255,255,.5);
+  color: #3b3454;
+}
+html[data-theme="light"] .app-shell.route-home .text-nav-bar a { color: rgba(32,27,52,.64) !important; }
+
+html[data-theme="light"] .character-style-row button {
+  border: 1px solid rgba(55,48,85,.18) !important;
+  background: rgba(255,255,255,.4) !important;
+  color: #39324f !important;
+}
+html[data-theme="light"] .character-style-row button.active {
+  border-color: rgba(91,73,255,.42) !important;
+  background: rgba(91,73,255,.13) !important;
+  color: #2b234d !important;
+}
+html[data-theme="light"] .character-style-preview {
+  border-color: rgba(55,48,85,.15);
+  background: rgba(73,62,112,.07) !important;
+  color: #2d2741 !important;
+}
+html[data-theme="light"] .character-style-preview strong { color: #2d2741 !important; }
+html[data-theme="light"] .character-style-preview p { color: rgba(45,39,65,.64) !important; }
+html[data-theme="light"] .palette-dropdown select,
+html[data-theme="light"] .point-color-control input[aria-label="Main color hex value input"] {
+  border-color: rgba(55,48,85,.18) !important;
+  background: rgba(255,255,255,.72) !important;
+  color: #2d2741 !important;
+}
+html[data-theme="light"] .palette-dropdown option { background: #fff !important; color: #2d2741 !important; }
+html[data-theme="light"] .character-generate-inline {
+  border-color: rgba(91,73,255,.24) !important;
+  background: rgba(91,73,255,.14) !important;
+  color: #2d2741 !important;
+}
+
+html[data-theme="light"] .library-search {
+  border-color: rgba(55,48,85,.16) !important;
+  background: rgba(255,255,255,.62) !important;
+  color: #2d2741 !important;
+}
+html[data-theme="light"] .library-search input { color: #2d2741 !important; }
+html[data-theme="light"] .library-search .icon { filter: brightness(0) saturate(100%) !important; opacity: .62; }
+html[data-theme="light"] .library-carousel-controls button {
+  border-color: rgba(55,48,85,.15);
+  background: rgba(255,255,255,.66);
+}
+html[data-theme="light"] .library-page .card-hover-title { color: #fff !important; }
+html[data-theme="light"] .library-page .carousel-card.active .card-action-overlay {
+  background: linear-gradient(180deg, rgba(18,16,29,.02), rgba(18,16,29,.74)) !important;
+}
+
+html[data-theme="light"] .emotion-analysis-source { color: rgba(43, 37, 64, .62); }
+
+html[data-theme="light"] :where(
+  .screen-brief h1,
+  .character-flow-title,
+  .character-result-title,
+  .edit-brief h1
+) {
+  background-image: var(--reference-title-light);
+}
+
+.character-reference-card {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: clamp(10px, 1.25svh, 16px);
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(16px, 1.5svw, 28px) !important;
+  overflow: hidden !important;
+}
+
+html[data-theme="light"] :where(
+  .character-dropdown-trigger,
+  .character-prompt-box,
+  .character-style-row button,
+  .character-style-preview,
+  .palette-dropdown select,
+  .point-color-control input,
+  .input-stage-panel,
+  .library-sidebar,
+  .library-search
+) {
+  color: #29243b !important;
+}
+
+html[data-theme="light"] .character-dropdown-menu {
+  border-color: rgba(55, 48, 85, .15) !important;
+  background: #fff !important;
+  color: #29243b !important;
+  box-shadow: 0 14px 30px rgba(42, 37, 62, .09) !important;
+}
+
+html[data-theme="light"] .input-scroll-slider .scroll-slide[data-step="0"] .camera-monitor-panel {
+  border-color: rgba(55, 48, 85, .14) !important;
+  background: rgba(255, 255, 255, .54) !important;
+  box-shadow: inset 0 1px 0 #fff, 0 12px 26px rgba(42, 37, 62, .045) !important;
+}
+
+html[data-theme="light"] .input-capture-notes {
+  color: rgba(43, 37, 64, .64);
+}
+
+html[data-theme="light"] .input-capture-error {
+  border-color: rgba(172, 60, 84, .22);
+  background: rgba(255, 250, 252, .92);
+  box-shadow: 0 10px 28px rgba(74, 38, 48, .07);
+  color: rgba(47, 31, 37, .74);
+}
+
+html[data-theme="light"] .input-capture-error strong {
+  color: #a93d58;
+}
+
+html[data-theme="light"] .input-capture-error button {
+  border-color: rgba(72, 47, 58, .14);
+  background: rgba(69, 45, 56, .045);
+}
+
+html[data-theme="light"] .library-page .carousel-card.active .card-action-overlay {
+  border-top-color: rgba(55, 48, 85, .08);
+  background: rgba(255, 255, 255, .82) !important;
+  box-shadow: inset 0 1px 0 #fff;
+}
+
+html[data-theme="light"] .library-page .carousel-card.active .card-hover-title {
+  color: #2b2540 !important;
+  text-shadow: none;
+}
+
+html[data-theme="light"] .library-page .carousel-card.inactive .card-hover-title {
+  color: #2b2540 !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="light"] .library-page .carousel-card.inactive .card-hover-group {
+  border-color: rgba(55, 48, 85, .09) !important;
+  background: rgba(255, 255, 255, .78) !important;
+  color: rgba(43, 37, 64, .62) !important;
+}
+
+html[data-theme="light"] .library-page .card-hover-group {
+  border-color: rgba(55, 48, 85, .08);
+  background: rgba(55, 48, 85, .06);
+  color: rgba(43, 37, 64, .54);
+}
+
+html[data-theme="light"] .home-highlight-word::before {
+  background:
+    linear-gradient(90deg, rgba(115, 93, 255, .12), rgba(131, 108, 255, .36) 38%, rgba(169, 145, 255, .3) 76%, rgba(115, 93, 255, .13)),
+    repeating-linear-gradient(176deg, transparent 0 3px, rgba(255, 255, 255, .28) 3px 5px);
+  box-shadow: 0 0 .18em rgba(111, 86, 226, .09);
+}

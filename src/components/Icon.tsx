@@ -1,5 +1,6 @@
 import type { ImgHTMLAttributes } from "react";
 import addIcon from "../assets/icons/add-plus.svg";
+import addImgIcon from "../assets/icons/add-img.svg";
 import reloadIcon from "../assets/icons/arrows-reload-01.svg";
 import cameraIcon from "../assets/icons/camera.svg";
 import checkIcon from "../assets/icons/check.svg";
@@ -31,6 +32,7 @@ type AssetSource = string | { src: string };
 
 const iconSources = {
   add: addIcon,
+  addImg: addImgIcon,
   camera: cameraIcon,
   check: checkIcon,
   close: closeIcon,
