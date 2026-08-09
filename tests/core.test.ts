@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMotionBrief, emotionMeta, initialLayers } from "../src/data";
+import { createMotionBrief, defaultCharacterTokens, emotionMeta, initialLayers } from "../src/data";
+import { FRAME_COUNT } from "../src/constants";
 import { normalizePath } from "../src/router";
 import { keyOutConnectedGreen } from "../src/services/image-processing";
 import { synchronizedCaptureIssue } from "../src/services/media";
@@ -12,6 +13,8 @@ import {
   releaseDraggedShowcaseBody,
 } from "../src/services/showcase-physics";
 import { persistGeneratedAsset } from "../src/services/asset-storage";
+import { characterPalettes, defaultMainColorForPalette, getCharacterPalette, normalizeHexColor } from "../src/services/character-palette";
+import { buildFramePrompts } from "../src/services/prompt-builder";
 import { deleteRemoteLibraryItem, loadRemoteProjects, loadRemoteStickers, syncStickerToRemote } from "../src/services/remote-store";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
 import { handleOpenAIRequest } from "../server/openai-api";
@@ -512,6 +515,45 @@ describe("four layer edit contract", () => {
     expect(previewLayerOrder(initialLayers, "character", "text", "before").map((layer) => layer.id)).toEqual([
       "character", "text", "accent-effects", "background-effects",
     ]);
+  });
+});
+
+describe("character palette flow", () => {
+  it("derives the initial main color from the selected palette", () => {
+    for (const palette of characterPalettes) {
+      expect(defaultMainColorForPalette(palette.id)).toBe(palette.colors[0]);
+      expect(getCharacterPalette(palette.id)).toBe(palette);
+    }
+  });
+
+  it("accepts only complete six-digit custom hex colors", () => {
+    expect(normalizeHexColor("#ffade3")).toBe("#FFADE3");
+    expect(normalizeHexColor("#fff")).toBeNull();
+    expect(normalizeHexColor("not-a-color")).toBeNull();
+  });
+});
+
+describe("character-only emoticon generation", () => {
+  it("builds exactly five character-action prompts and keeps background effects local", () => {
+    const brief = createMotionBrief("joy", "#000000", "정말 신나요", "신난다!", .7, defaultCharacterTokens[0].id, 120, "generated-background");
+    const prompts = buildFramePrompts(brief, defaultCharacterTokens[0]);
+
+    expect(prompts).toHaveLength(FRAME_COUNT);
+    expect(brief.coreEffect).toBe(emotionMeta.joy.effect);
+    expect(brief.effectColor).toBe(emotionMeta.joy.color);
+    prompts.forEach((prompt, index) => {
+      expect(prompt).toContain(`frame ${index + 1}/5`);
+      expect(prompt).toContain("Do NOT draw any background effect");
+      expect(prompt).toContain("One character-only animation frame");
+    });
+  });
+
+  it("does not expose a background-effect image generation route", async () => {
+    const response = await handleOpenAIRequest(
+      new Request("http://localhost:3008/api/openai/effect", { method: "POST" }),
+      { OPENAI_API_KEY: "sk-test" },
+    );
+    expect(response?.status).toBe(404);
   });
 });
 

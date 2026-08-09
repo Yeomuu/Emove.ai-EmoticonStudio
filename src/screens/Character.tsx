@@ -6,6 +6,7 @@ import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
 import { persistGeneratedAsset, persistGeneratedAssets } from "../services/asset-storage";
 import { waitForImageAssets } from "../services/asset-readiness";
+import { characterPalettes, defaultMainColorForPalette, getCharacterPalette, normalizeHexColor, paletteIncludesColor, type CharacterPaletteId } from "../services/character-palette";
 import { syncCharacterToRemote } from "../services/remote-store";
 import { saveCharacter } from "../services/repository";
 import { characterName, characterPrompt, characters, characterStyle, characterTone, notify, selectCharacter } from "../store";
@@ -27,19 +28,6 @@ import style2dWatercolor from "../assets/images/character-style/character-style-
 
 console.log(style3dGlossy);
 const ai = getAIProvider();
-const palettes = [
-  { id: "soft-pastel", label: "Soft Pastel", colors: ["#BDB2FF", "#9FF3DC", "#FFC8D2", "#FFF0A8", "#B8D8FF"] },
-  { id: "aurora-pop", label: "Aurora Pop", colors: ["#8CA5FF", "#BBB6FF", "#FFADE3", "#78D6C6", "#FFD36E"] },
-  { id: "cosmic-calm", label: "Cosmic Calm", colors: ["#A7A3FF", "#6F83FF", "#B7BDC8", "#E4E0F0", "#78A8FF"] },
-] as const;
-
-const colorPickerSwatches = [
-  "#E5A3E6", "#B9D7FA", "#8FD2F4", "#8EDDD2", "#8DE4B5", "#FFE98E", "#FFD09B",
-  "#D86ED9", "#8CB7EF", "#55A9EE", "#32C9B6", "#38CB72", "#FFD75A", "#FFAE4E",
-  "#B82EB8", "#5479C5", "#407FCC", "#05AFAE", "#21A455", "#F2AB18", "#F68B16",
-  "#6717A7", "#1739A8", "#1F46B9", "#16858A", "#157350", "#B96D0A", "#C86408",
-] as const;
-
 const traits = ["밝은", "엉뚱한", "듬직한", "용감한", "차분한", "신중한", "장난스러운", "활발한", "예민한"];
 const characterTypes = ["인물", "사물", "동물", "식물", "음식"];
 const subCharacterPresets: Record<string, string[]> = {
@@ -54,6 +42,13 @@ type ProcessState = { title: string; label: string; percent: number };
 type CharacterDropdownId = "type" | "subType";
 
 export function CharacterPage() {
+  const restoredTone = normalizeHexColor(characterTone.value);
+  const shouldRestoreCharacter = Boolean(characterName.value.trim() || characterPrompt.value.trim());
+  const restoredPalette = shouldRestoreCharacter && restoredTone
+    ? characterPalettes.find((palette) => paletteIncludesColor(palette, restoredTone))
+    : undefined;
+  const initialPalette = restoredPalette ?? characterPalettes[0];
+  const initialTone = shouldRestoreCharacter && restoredTone ? restoredTone : initialPalette.colors[0];
   const [currentStep, setCurrentStep] = useState(0);
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState(characterPrompt.value);
@@ -63,10 +58,8 @@ export function CharacterPage() {
   const [openDropdown, setOpenDropdown] = useState<CharacterDropdownId | null>(null);
   const [style, setStyle] = useState<"2D" | "3D">(characterStyle.value || "2D");
   const [detailStyle, setDetailStyle] = useState("미니멀");
-  const [paletteId, setPaletteId] = useState<(typeof palettes)[number]["id"]>("soft-pastel");
-  const [tone, setTone] = useState(characterTone.value || "#5679C0");
-  const [colorPopoverOpen, setColorPopoverOpen] = useState(false);
-  const [colorPickerTab, setColorPickerTab] = useState<"default" | "custom">("default");
+  const [paletteId, setPaletteId] = useState<CharacterPaletteId>(initialPalette.id);
+  const [tone, setTone] = useState(initialTone);
   const [paletteMenuOpen, setPaletteMenuOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -78,7 +71,7 @@ export function CharacterPage() {
   const generationLockRef = useRef(false);
   const saveLockRef = useRef(false);
 
-  const selectedPalette = palettes.find((item) => item.id === paletteId) ?? palettes[0];
+  const selectedPalette = getCharacterPalette(paletteId);
   const variationImages = generated?.imageUrls?.length ? generated.imageUrls : generated ? [generated.imageUrl] : [];
 
   const handleTypeChange = (nextType: string) => {
@@ -216,8 +209,10 @@ export function CharacterPage() {
   const saveAndContinue = () => saveGeneratedCharacter("/library");
   const saveAndCreateEmoticon = () => saveGeneratedCharacter("/input");
 
-  const chooseCustomTone = (value: string) => {
-    setTone(value);
+  const chooseTone = (value: string) => {
+    const normalized = normalizeHexColor(value);
+    if (!normalized) return;
+    setTone(normalized);
   };
 
   const chooseReferenceImage = (file?: File) => {
@@ -380,7 +375,7 @@ const previewImage =
           <section className="character-flow-card empty-card-two"></section>
 
           <section className="character-flow-card character-palette-card">
-            <span className="character-field-label">컬러 팔레트</span>
+            <span className="character-field-label">컬러 팔레트 <small>전체적인 톤을 결정합니다.</small></span>
             <div className="character-palette-control">
               <button
                 type="button"
@@ -399,7 +394,7 @@ const previewImage =
               </button>
               {paletteMenuOpen ? (
                 <div className="character-palette-list" role="listbox" aria-label="컬러 팔레트 프리셋">
-                  {palettes.map((palette) => (
+                  {characterPalettes.map((palette) => (
                     <button
                       key={palette.id}
                       type="button"
@@ -408,7 +403,7 @@ const previewImage =
                       className={palette.id === paletteId ? "active" : ""}
                       onClick={() => {
                         setPaletteId(palette.id);
-                        chooseCustomTone(palette.colors[0]);
+                        chooseTone(defaultMainColorForPalette(palette.id));
                         setPaletteMenuOpen(false);
                       }}
                     >
@@ -424,60 +419,31 @@ const previewImage =
           </section>
 
           <section className="character-flow-card character-main-color-card">
-            <span className="character-field-label">메인 컬러</span>
-            <div className="character-color-control">
-              <button
-                type="button"
-                className="character-color-swatch"
-                aria-expanded={colorPopoverOpen}
-                aria-haspopup="dialog"
-                onClick={() => setColorPopoverOpen((open) => !open)}
-                style={{ "--picked-color": tone } as CSSProperties}
-              >
-                <Icon name={colorPopoverOpen ? "previous" : "next"} size={14} />
-                <span className="sr-only">메인 컬러 선택</span>
-              </button>
-              {colorPopoverOpen ? (
-                <div className="character-color-popover" role="dialog" aria-label="메인 컬러 선택">
-                  <div className="character-color-tabs" role="tablist" aria-label="컬러 선택 방식">
-                    <button type="button" role="tab" aria-selected={colorPickerTab === "default"} className={colorPickerTab === "default" ? "active" : ""} onClick={() => setColorPickerTab("default")}>Default</button>
-                    <button type="button" role="tab" aria-selected={colorPickerTab === "custom"} className={colorPickerTab === "custom" ? "active" : ""} onClick={() => setColorPickerTab("custom")}>Custom</button>
-                  </div>
-                  {colorPickerTab === "default" ? (
-                    <div className="character-color-grid">
-                      {colorPickerSwatches.map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          className={tone.toUpperCase() === color ? "active" : ""}
-                          style={{ "--picker-color": color } as CSSProperties}
-                          onClick={() => chooseCustomTone(color)}
-                          aria-label={`${color} 선택`}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <label className="character-custom-color-input">
-                      <span>직접 색상 선택</span>
-                      <input type="color" value={tone} onChange={(event) => chooseCustomTone(event.currentTarget.value)} aria-label="Custom Point Color Picker" />
-                      <input
-                        className="character-color-hex-input"
-                        value={tone.toUpperCase()}
-                        onChange={(event) => {
-                          let value = event.currentTarget.value.trim();
-                          if (!value.startsWith("#")) value = `#${value}`;
-                          if (value.length <= 7) chooseCustomTone(value);
-                        }}
-                        aria-label="Main color hex value input"
-                      />
-                    </label>
-                  )}
-                  <div className="character-color-actions">
-                    <button type="button" onClick={() => setColorPopoverOpen(false)}>취소</button>
-                    <button type="button" className="primary" onClick={() => setColorPopoverOpen(false)}>선택</button>
-                  </div>
-                </div>
-              ) : null}
+            <span className="character-field-label">메인 컬러 <small>캐릭터의 메인이 될 색상을 선택합니다.</small></span>
+            <div className="character-palette-pill" role="radiogroup" aria-label={`${selectedPalette.label} 메인 컬러`}>
+              <strong>{tone}</strong>
+              <span>
+                {selectedPalette.colors.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    role="radio"
+                    aria-checked={tone === color}
+                    style={{ "--picked-color": color } as CSSProperties}
+                    onClick={() => chooseTone(color)}
+                    aria-label={`${color} 메인 컬러로 선택`}
+                    title={`${color} 메인 컬러로 선택`}
+                  />
+                ))}
+                <input
+                  type="color"
+                  value={tone}
+                  onInput={(event) => chooseTone(event.currentTarget.value)}
+                  onChange={(event) => chooseTone(event.currentTarget.value)}
+                  aria-label="원하는 메인 컬러 직접 선택"
+                  title="원하는 메인 컬러 직접 선택"
+                />
+              </span>
             </div>
           </section>
 

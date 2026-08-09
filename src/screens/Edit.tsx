@@ -115,7 +115,7 @@ export function EditPage() {
       updatedAt: now,
     };
     const { videoBlob: _video, audioBlob: _audio, ...captureMeta } = behaviorCapture.value;
-    let project: EmoticonProject = { id, ownerId: original?.ownerId ?? sticker.ownerId, sticker, gifBlob: animation.blob, animationBlob: animation.blob, animationFormat: animation.format, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, coreEffectImage: null, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: original?.createdAt ?? now, updatedAt: now };
+    let project: EmoticonProject = { id, ownerId: original?.ownerId ?? sticker.ownerId, sticker, gifBlob: animation.blob, animationBlob: animation.blob, animationFormat: animation.format, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: original?.createdAt ?? now, updatedAt: now };
     let sync: Awaited<ReturnType<typeof syncProjectToRemote>> = { enabled: false };
     let remoteError: string | null = null;
     try {

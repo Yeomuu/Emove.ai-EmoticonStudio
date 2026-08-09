@@ -281,7 +281,6 @@ function createProjectSnapshot(project: Omit<EmoticonProject, "gifBlob" | "anima
       referenceImages: project.characterToken.referenceImages.map((asset) => compactAssetUrl(asset, "")).filter(Boolean),
     },
     frameImages: project.frameImages.map((asset) => compactAssetUrl(asset, "")).filter(Boolean),
-    coreEffectImage: null,
   };
 }
 
@@ -391,7 +390,6 @@ function projectFromRemoteDoc(value: unknown, updatedAt?: string): EmoticonProje
     layers,
     layerTransforms,
     frameLayerTransforms,
-    coreEffectImage: null,
     textStyle,
     motionBrief: normalizedBrief,
     animationFormat: toAnimationFormat(text(snapshot.animationFormat), sticker.animatedImage),
@@ -451,7 +449,6 @@ function legacyProjectFromRemoteDoc(envelope: Record<string, unknown> | null, up
     layers,
     layerTransforms: frameLayerTransforms[0] ?? defaultFrameTransforms(),
     frameLayerTransforms,
-    coreEffectImage: null,
     textStyle: {
       shape: shape === "rounded" || shape === "caption" ? shape : "pill",
       font: font === "Paperlogy" ? "Paperlogy" : "Pretendard",
@@ -600,7 +597,7 @@ function layerType(id: EmoticonProject["layers"][number]["id"]): "backgroundEffe
 
 function layerAssetUrl(project: Omit<EmoticonProject, "gifBlob">, id: EmoticonProject["layers"][number]["id"], frameIndex: number): string {
   if (id === "character") return compactAssetUrl(project.frameImages[frameIndex] ?? project.characterToken.sourceAsset, `character-frame://${project.characterToken.id}/${frameIndex}`);
-  if (id === "background-effects") return `procedural-background-effect:${project.motionBrief.emotion}`;
+  if (id === "background-effects") return `fixed-background-effect:${project.motionBrief.emotion}`;
   if (id === "accent-effects") return "procedural-accent-effect";
   return "text-layer";
 }

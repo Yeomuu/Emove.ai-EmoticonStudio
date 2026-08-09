@@ -1,10 +1,10 @@
 import type { CharacterToken, GeneratedCharacterResult, MotionBrief, OpenAIProvider, TranscriptionResult } from "../types";
+import { FRAME_COUNT } from "../constants";
 import { buildCharacterPrompt, buildFramePrompts, compactEmoticonText } from "./prompt-builder";
 import { compactReferenceImagesForOpenAI, removeChromaKeyBackground } from "./image-processing";
 import { persistGeneratedAsset } from "./asset-storage";
 
 const CHARACTER_VARIATION_REQUESTS = 1;
-const FRAME_COUNT = 5;
 const JOB_POLL_INTERVAL_MS = 2500;
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_JSON_PAYLOAD_BYTES = 5_500_000;
@@ -61,8 +61,11 @@ export class ServerOpenAIProvider implements OpenAIProvider {
     };
   }
 
-  async generateCharacterFrames(brief: MotionBrief, token: CharacterToken): Promise<string[]> {
+  async generateCharacterActionFrames(brief: MotionBrief, token: CharacterToken): Promise<string[]> {
     const prompts = buildFramePrompts(brief, token).slice(0, FRAME_COUNT);
+    if (prompts.length !== FRAME_COUNT) {
+      throw new Error(`캐릭터 행동 프레임 프롬프트가 ${FRAME_COUNT}개 준비되지 않았습니다.`);
+    }
     const referenceImages = await compactReferenceImagesForOpenAI(token.referenceImages.length ? token.referenceImages : token.sourceAsset ? [token.sourceAsset] : []);
     const frameImages: string[] = [];
     for (const [frameIndex, prompt] of prompts.entries()) {
@@ -77,6 +80,9 @@ export class ServerOpenAIProvider implements OpenAIProvider {
       const transparentFrame = await removeChromaKeyBackground(payload.imageUrl);
       const storedFrame = await persistGeneratedAsset(transparentFrame, { fileName: `${token.id}-frame-${frameIndex + 1}.png`, kind: "frames" });
       frameImages.push(storedFrame.url);
+    }
+    if (frameImages.length !== FRAME_COUNT) {
+      throw new Error(`캐릭터 행동 프레임은 정확히 ${FRAME_COUNT}개여야 합니다.`);
     }
     return frameImages;
   }

@@ -3,6 +3,7 @@ import { Icon } from "../components/Icon";
 import { Panel } from "../components/Shell";
 import { Waveform } from "../components/Waveform";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
+import { FRAME_COUNT } from "../constants";
 import { emotionMeta, emotionOrder, imageAssets } from "../data";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
@@ -19,7 +20,6 @@ import { audioPeak, audioRms, behaviorCapture, characters, emotion, expressionEm
 import type { AudioFeatures, BehaviorCapture, Emotion, ExaggerationTier, VisionMetrics } from "../types";
 
 const ai = getAIProvider();
-const FRAME_COUNT = 5;
 const CAPTURE_DURATION_MS = 5000;
 type ProcessState = { title: string; label: string; percent: number };
 type CapturePhase = "idle" | "preparing" | "recording";
@@ -308,15 +308,15 @@ export function InputPage() {
       const persistence = await saveCaptureRemoteFirst(behaviorCapture.value);
       if (!persistence.synced) notify(persistence.message);
       
-      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "5프레임 프로젝트를 초기화하는 중...", percent: 32 });
+      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: `${FRAME_COUNT}프레임 프로젝트를 초기화하는 중...`, percent: 32 });
       
       startNewEmoticonProject();
-      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "캐릭터 행동 프레임 5장을 생성하는 중...", percent: 46 });
+      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: `캐릭터 행동 프레임 ${FRAME_COUNT}장을 생성하는 중...`, percent: 46 });
       
-      const frames = await ai.generateCharacterFrames(motionBrief.value, selectedCharacter.value);
-      await waitForImageAssets(frames.slice(0, FRAME_COUNT));
-      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "편집 화면에서 사용할 프레임을 정렬하는 중...", percent: 88 });
-      frameImages.value = frames.slice(0, FRAME_COUNT);
+      const frames = await ai.generateCharacterActionFrames(motionBrief.value, selectedCharacter.value);
+      await waitForImageAssets(frames);
+      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: `고정 배경 이펙트와 캐릭터 행동 ${FRAME_COUNT}프레임을 연결하는 중...`, percent: 88 });
+      frameImages.value = frames;
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "이모티콘 생성 완료", percent: 100 });
       navigate("/edit");
     } catch (error) {

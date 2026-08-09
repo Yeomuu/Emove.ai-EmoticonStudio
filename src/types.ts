@@ -160,7 +160,6 @@ export interface EmoticonProject {
   layers: EditorLayer[];
   layerTransforms: Record<LayerKind, LayerTransform>;
   frameLayerTransforms: Array<Record<LayerKind, LayerTransform>>;
-  coreEffectImage?: string | null;
   textStyle: { shape: TextBoxShape; font: TextFont };
   motionBrief: MotionBrief;
   createdAt: string;
@@ -208,7 +207,7 @@ export interface OpenAIProvider {
   readonly mode: "openai";
   transcribe(audio: Blob): Promise<TranscriptionResult>;
   generateCharacter(token: CharacterToken): Promise<GeneratedCharacterResult>;
-  generateCharacterFrames(brief: MotionBrief, token: CharacterToken): Promise<string[]>;
+  generateCharacterActionFrames(brief: MotionBrief, token: CharacterToken): Promise<string[]>;
 }
 
 export interface AuthUser {
