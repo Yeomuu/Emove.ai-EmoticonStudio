@@ -5,20 +5,13 @@ import { normalizePath } from "../src/router";
 import { keyOutConnectedGreen } from "../src/services/image-processing";
 import { synchronizedCaptureIssue } from "../src/services/media";
 import { encodeApngPngFrames, encodeGifFrames } from "../src/services/renderer";
-import { circularBatch, isAnimatedSticker, shuffled } from "../src/services/animated-library";
-import {
-  advanceShowcaseBodies,
-  createShowcaseBodies,
-  moveDraggedShowcaseBody,
-  releaseDraggedShowcaseBody,
-} from "../src/services/showcase-physics";
 import { persistGeneratedAsset } from "../src/services/asset-storage";
 import { characterPalettes, defaultMainColorForPalette, getCharacterPalette, normalizeHexColor } from "../src/services/character-palette";
 import { buildFramePrompts } from "../src/services/prompt-builder";
-import { deleteRemoteLibraryItem, loadRemoteProjects, loadRemoteStickers, syncStickerToRemote } from "../src/services/remote-store";
+import { qrDownloadTarget } from "../src/services/qr-export";
+import { deleteRemoteLibraryItem, loadRemoteProjects, loadRemoteStickers, syncLibraryGroupToRemote, syncStickerToRemote } from "../src/services/remote-store";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
 import { handleOpenAIRequest } from "../server/openai-api";
-import { SHOWCASE_IDLE_TIMEOUT_MS, watchForInactivity } from "../src/services/inactivity";
 import {
   BODY_GESTURES,
   CANNED_HAND_GESTURES,
@@ -40,33 +33,9 @@ describe("clean route normalization", () => {
   it("keeps public clean paths and never produces a hash route", () => {
     expect(normalizePath("/edit?frame=2")).toBe("/edit");
     expect(normalizePath("/library/joy-pop")).toBe("/library/joy-pop");
-    expect(normalizePath("/showcase")).toBe("/showcase");
+    expect(normalizePath("/showcase")).toBe("/home");
     expect(normalizePath("/#home")).toBe("/home");
     expect(normalizePath("/unknown")).toBe("/home");
-  });
-});
-
-describe("showcase inactivity timer", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("waits three full minutes and restarts after user activity", () => {
-    vi.useFakeTimers();
-    const target = new EventTarget();
-    const onIdle = vi.fn();
-    const stopWatching = watchForInactivity(onIdle, { target });
-
-    vi.advanceTimersByTime(SHOWCASE_IDLE_TIMEOUT_MS - 1);
-    expect(onIdle).not.toHaveBeenCalled();
-
-    target.dispatchEvent(new Event("pointermove"));
-    vi.advanceTimersByTime(SHOWCASE_IDLE_TIMEOUT_MS - 1);
-    expect(onIdle).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(1);
-    expect(onIdle).toHaveBeenCalledTimes(1);
-    stopWatching();
   });
 });
 
@@ -338,32 +307,6 @@ describe("OpenAI proxy origin validation", () => {
   });
 });
 
-describe("animated showcase rotation", () => {
-  it("shows at most twelve items and wraps without skipping the end of the deck", () => {
-    const deck = Array.from({ length: 15 }, (_, index) => index);
-    expect(circularBatch(deck, 0)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-    expect(circularBatch(deck, 12)).toEqual([12, 13, 14, 0, 1, 2, 3, 4, 5, 6, 7, 8]);
-  });
-
-  it("does not mutate the source while shuffling", () => {
-    const source = [1, 2, 3, 4];
-    expect(shuffled(source, () => 0)).toEqual([2, 3, 4, 1]);
-    expect(source).toEqual([1, 2, 3, 4]);
-  });
-
-  it("accepts only non-default animated sticker assets", () => {
-    const base: StickerItem = {
-      id: "animated-1", title: "움직이는 테스트", phrase: "", emotion: "joy", image: "thumb.png",
-      animatedImage: "https://assets.example.test/emove.apng", animationFormat: "APNG", color: "#BBB6FF",
-      favorite: false, ownerId: null, isDefault: false, isPublished: false, characterTokenId: "character-1",
-      createdAt: "2026-07-13T00:00:00.000Z", updatedAt: "2026-07-13T00:00:00.000Z",
-    };
-    expect(isAnimatedSticker(base)).toBe(true);
-    expect(isAnimatedSticker({ ...base, isDefault: true })).toBe(false);
-    expect(isAnimatedSticker({ ...base, animatedImage: undefined, animationFormat: undefined })).toBe(false);
-  });
-});
-
 describe("generated asset persistence", () => {
   it("keeps an existing remote URL without uploading it again", async () => {
     const source = "https://storage.googleapis.com/emove-test/assets/characters/example.png";
@@ -439,6 +382,28 @@ describe("shared Firebase library", () => {
       "/api/library/projects?id=project-1",
     ]));
     expect(fetchMock.mock.calls.every(([, options]) => options?.method === "DELETE")).toBe(true);
+  });
+
+  it("stores user-defined groups in the shared Storage namespace", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ enabled: true, ownerId: "public" }), {
+      status: 201,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(syncLibraryGroupToRemote({
+      id: "group-joy",
+      name: "기쁜 순간",
+      filter: "joy",
+      ownerId: "public",
+      createdAt: "2026-08-11T00:00:00.000Z",
+      updatedAt: "2026-08-11T00:00:00.000Z",
+    })).resolves.toMatchObject({ enabled: true });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(String(fetchMock.mock.calls[0][0])).toBe("/api/library/groups");
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body).toMatchObject({ id: "group-joy", kind: "groups", payload: { name: "기쁜 순간", filter: "joy", ownerId: "public" } });
   });
 
   it("restores legacy shared projects so another browser can open the editor", async () => {
@@ -555,51 +520,62 @@ describe("character-only emoticon generation", () => {
     );
     expect(response?.status).toBe(404);
   });
+
+  it("always applies a manual exaggeration override to all five frame prompts", () => {
+    const brief = createMotionBrief(
+      "anger",
+      "#000000",
+      "화가 났어요",
+      "화났어!",
+      .05,
+      defaultCharacterTokens[0].id,
+      120,
+      undefined,
+      "anger",
+      "팔짱을 낀 자세",
+      "dynamic",
+      "stars",
+      "#FF5A5A",
+      "full",
+    );
+    const prompts = buildFramePrompts(brief, defaultCharacterTokens[0]);
+
+    expect(brief.exaggerationTier).toBe("full");
+    expect(brief.motionIntensity).toBe(.9);
+    expect(prompts).toHaveLength(FRAME_COUNT);
+    prompts.forEach((prompt) => expect(prompt).toContain("Level: FULL EXAGGERATION"));
+  });
 });
 
-describe("showcase floating interaction", () => {
-  const bounds = { width: 1280, height: 720 };
+describe("Firebase Storage QR export", () => {
+  afterEach(() => vi.unstubAllGlobals());
 
-  it("starts every animated item with a left-to-right and top-to-bottom drift", () => {
-    const bodies = createShowcaseBodies(["a", "b", "c"], bounds, () => .5);
-    expect(bodies).toHaveLength(3);
-    bodies.forEach((body) => {
-      expect(body.vx).toBeGreaterThan(0);
-      expect(body.vy).toBeGreaterThan(0);
-      expect(body.x).toBeGreaterThan(0);
-      expect(body.y).toBeGreaterThan(0);
-    });
-  });
+  it("turns a stored APNG path into a same-origin attachment download URL", () => {
+    vi.stubGlobal("window", { location: { origin: "https://emove.example" } });
+    const item: StickerItem = {
+      id: "sticker-qr",
+      title: "기쁜 인사",
+      phrase: "안녕",
+      emotion: "joy",
+      image: "https://emove.example/api/assets/file?path=thumb.png",
+      animatedImage: "https://emove.example/api/assets/file?path=animation.apng",
+      animationFormat: "APNG",
+      animationStoragePath: "firebase-storage://emove-test/assets/animations/2026/08/sticker-qr.apng",
+      color: "#FF9A40",
+      favorite: false,
+      ownerId: "public",
+      isDefault: false,
+      isPublished: true,
+      characterTokenId: "character-1",
+      createdAt: "2026-08-11T00:00:00.000Z",
+      updatedAt: "2026-08-11T00:00:00.000Z",
+    };
 
-  it("pushes an emoticon away when the pointer reaches its visible bounds", () => {
-    const [body] = createShowcaseBodies(["a"], bounds, () => .5);
-    body.x = 400;
-    body.y = 300;
-    const initialVelocity = body.vx;
-
-    advanceShowcaseBodies([body], bounds, { active: true, x: 380, y: 300 }, .05, 1);
-    expect(body.vx).toBeGreaterThan(initialVelocity);
-  });
-
-  it("keeps a dragged emoticon inside the stage and resumes forward flow after release", () => {
-    const [body] = createShowcaseBodies(["a"], bounds, () => .5);
-    moveDraggedShowcaseBody(body, bounds, -100, 900, .016);
-    expect(body.x).toBeGreaterThan(0);
-    expect(body.y).toBeLessThan(bounds.height);
-
-    releaseDraggedShowcaseBody(body);
-    expect(body.vx).toBeGreaterThan(0);
-    expect(body.vy).toBeGreaterThan(0);
-  });
-
-  it("wraps right and bottom exits back to the left and top edges", () => {
-    const [body] = createShowcaseBodies(["a"], bounds, () => .5);
-    body.x = bounds.width + body.size;
-    body.y = bounds.height + body.size;
-
-    advanceShowcaseBodies([body], bounds, { active: false, x: 0, y: 0 }, .016, 2);
-    expect(body.x).toBeLessThan(0);
-    expect(body.y).toBeLessThan(0);
+    const target = new URL(qrDownloadTarget(item));
+    expect(target.origin).toBe("https://emove.example");
+    expect(target.pathname).toBe("/api/assets/download");
+    expect(target.searchParams.get("path")).toBe("assets/animations/2026/08/sticker-qr.apng");
+    expect(target.searchParams.get("name")).toBe("기쁜_인사.apng");
   });
 });
 
@@ -734,6 +710,19 @@ describe("transparent animation pipeline", () => {
       0, 0, 0,
     ]);
     expect(Array.from(pixels.slice(16, 20))).toEqual([184, 178, 255, 255]);
+  });
+
+  it("despills semi-green edge pixels next to the transparent background", () => {
+    const pixels = new Uint8ClampedArray([
+      0, 255, 0, 255,
+      85, 100, 86, 255,
+      180, 170, 210, 255,
+    ]);
+    keyOutConnectedGreen(pixels, 3, 1);
+    expect(pixels[3]).toBe(0);
+    expect(pixels[5]).toBeLessThanOrEqual(Math.max(pixels[4], pixels[6]));
+    expect(pixels[7]).toBeLessThan(255);
+    expect(Array.from(pixels.slice(8, 12))).toEqual([180, 170, 210, 255]);
   });
 
   it("packages multiple PNG frames into a looping APNG container", async () => {

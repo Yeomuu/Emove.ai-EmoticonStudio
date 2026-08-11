@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
+import { BackgroundEffectPreview } from "../components/BackgroundEffectPreview";
 import { Panel } from "../components/Shell";
 import { Waveform } from "../components/Waveform";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
@@ -12,11 +13,8 @@ import { waitForImageAssets } from "../services/asset-readiness";
 import { AudioCapture, CameraCapture, synchronizedCaptureIssue } from "../services/media";
 import { analyzeEmotionPriority } from "../services/emotion-analysis";
 import { getGestureLabel } from "../services/gesture-analysis";
-import { watchForInactivity } from "../services/inactivity";
-import { syncCaptureToRemote } from "../services/remote-store";
-import { saveCapture } from "../services/repository";
 import { createLiveVisionAnalyzer } from "../services/vision";
-import { audioPeak, audioRms, behaviorCapture, characters, emotion, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
+import { audioPeak, audioRms, behaviorCapture, emotion, exaggerationTierOverride, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
 import type { AudioFeatures, BehaviorCapture, Emotion, ExaggerationTier, VisionMetrics } from "../types";
 
 const ai = getAIProvider();
@@ -29,7 +27,6 @@ export function InputPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const camera = useRef(new CameraCapture());
   const audio = useRef(new AudioCapture());
-  const idleWatcher = useRef<(() => void) | undefined>(undefined);
   const captureLockRef = useRef(false);
   const generationLockRef = useRef(false);
   const cameraConnectRef = useRef<Promise<boolean> | undefined>(undefined);
@@ -44,12 +41,12 @@ export function InputPage() {
   const [levels, setLevels] = useState<number[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [generatingFrames, setGeneratingFrames] = useState(false);
-  const [characterMenu, setCharacterMenu] = useState(false);
   const [process, setProcess] = useState<ProcessState | null>(null);
 
   const [personDetected, setPersonDetected] = useState(false);
   const [visionAvailable, setVisionAvailable] = useState<boolean | null>(null);
   const [tierOverride, setTierOverride] = useState<ExaggerationTier | null>(null);
+  const [transcriptionWarning, setTranscriptionWarning] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [cameraIssue, setCameraIssue] = useState<string | null>(null);
   const cameraReady = cameraStatus === "ready";
@@ -104,34 +101,6 @@ export function InputPage() {
     }
   }, []);
 
-  useEffect(() => {
-    idleWatcher.current?.();
-    const captureCompleted = (
-      behaviorCapture.value.id !== "capture-empty"
-      && Boolean(behaviorCapture.value.videoBlob)
-      && Boolean(behaviorCapture.value.audioBlob)
-    );
-    if (!captureCompleted || currentStep < 2 || capturing || analyzing || generatingFrames || recording || process) return;
-
-    const stopWatching = watchForInactivity(() => navigate("/showcase"));
-    idleWatcher.current = stopWatching;
-
-    return () => {
-      stopWatching();
-      if (idleWatcher.current === stopWatching) idleWatcher.current = undefined;
-    };
-  }, [
-    currentStep,
-    capturing,
-    analyzing,
-    generatingFrames,
-    recording,
-    process,
-    behaviorCapture.value.id,
-    behaviorCapture.value.videoBlob,
-    behaviorCapture.value.audioBlob,
-  ]);
-
   // Keep the preview warm, but always leave a recoverable manual reconnect path.
   useEffect(() => {
     mountedRef.current = true;
@@ -139,7 +108,6 @@ export function InputPage() {
     return () => {
       mountedRef.current = false;
       cameraConnectRef.current = undefined;
-      idleWatcher.current?.();
       camera.current.release();
       audio.current.release();
     };
@@ -186,7 +154,6 @@ export function InputPage() {
   }, [cameraReady]);
 
   const returnToPreview = (message?: string) => {
-    idleWatcher.current?.();
     setCapturing(false);
     setCapturePhase("idle");
     setRecording(false);
@@ -207,13 +174,15 @@ export function InputPage() {
     const activeVideo = videoRef.current;
     if (!activeVideo || captureLockRef.current) return;
     captureLockRef.current = true;
-    idleWatcher.current?.();
     setCapturing(true);
     setCapturePhase("preparing");
     setRecording(false);
     setAnalyzing(false);
     setCaptureProgress(0);
     setLevels([]);
+    setTranscriptionWarning(null);
+    setTierOverride(null);
+    exaggerationTierOverride.value = null;
     let audioStarted = false;
     let audioPrepared = false;
     let visionTask: Promise<VisionMetrics> | undefined;
@@ -241,8 +210,7 @@ export function InputPage() {
       if (!visionTask) throw new Error("카메라 행동 분석이 녹화와 함께 시작되지 않았습니다. 다시 촬영해 주세요.");
       setCapturePhase("idle");
 
-      // Recording complete. Now show full-screen analysis overlay
-      setCurrentStep(1);
+      // Recording complete. Keep capture as the underlying slide while the full-screen analysis surface is visible.
       setAnalyzing(true);
       setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "사람의 포즈와 표정을 판독하는 중...", percent: 64 });
 
@@ -265,7 +233,7 @@ export function InputPage() {
       if (metrics.source !== "mediapipe") {
         notify(`${metrics.diagnostics ?? "카메라에서 사람의 자세 랜드마크를 찾지 못했습니다."} 목소리 감정은 저장했지만 행동 생성을 위해 다시 촬영해 주세요.`);
       }
-      setCurrentStep(2); // Go to results view
+      setCurrentStep(1);
     } catch (error) {
       if (audioStarted || audioPrepared) audio.current.release();
       const message = captureFailureMessage(error);
@@ -298,15 +266,16 @@ export function InputPage() {
         notify("카메라 5초 입력에서 행동이 분석되지 않았습니다. 다시 촬영해 주세요.");
         return;
       }
-      if (!behaviorCapture.value.audioBlob || !sourceTranscript.value.trim()) {
-        notify("5초 음성 입력과 전사가 완료되어야 이모티콘을 생성할 수 있습니다.");
+      if (!behaviorCapture.value.audioBlob) {
+        notify("5초 음성 입력이 완료되어야 이모티콘을 생성할 수 있습니다.");
+        return;
+      }
+      if (!transcript.value.trim()) {
+        notify("전사 문구가 비어 있습니다. 이모티콘에 들어갈 문구를 직접 입력하거나 다시 촬영해 주세요.");
         return;
       }
       
-      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "분석 결과를 저장하는 중...", percent: 18 });
-      
-      const persistence = await saveCaptureRemoteFirst(behaviorCapture.value);
-      if (!persistence.synced) notify(persistence.message);
+      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "수동 감정과 과장 설정을 생성 조건에 반영하는 중...", percent: 18 });
       
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: `${FRAME_COUNT}프레임 프로젝트를 초기화하는 중...`, percent: 32 });
       
@@ -345,7 +314,14 @@ export function InputPage() {
   };
 
   const applyVoiceAndVision = async (videoBlob: Blob | undefined, audioBlob: Blob, audioFeatures: AudioFeatures, metrics: VisionMetrics) => {
-    const resultText = await ai.transcribe(audioBlob);
+    let resultText = { sourceText: "", shortText: "" };
+    try {
+      resultText = await ai.transcribe(audioBlob);
+      setTranscriptionWarning(null);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setTranscriptionWarning(`음성 전사에 실패했습니다. 원본 녹음은 감정 분석에 사용했어요. 문구를 직접 입력하거나 다시 녹음해 주세요. (${detail})`);
+    }
     sourceTranscript.value = resultText.sourceText;
     transcript.value = resultText.shortText;
     expressionEmotion.value = metrics.face?.expression ?? "neutral";
@@ -381,15 +357,21 @@ export function InputPage() {
       createdAt: new Date().toISOString()
     };
     
-    const persistence = await saveCaptureRemoteFirst(behaviorCapture.value);
     notify(metrics.source === "mediapipe"
-      ? `${emotionAnalysisLabel(behaviorCapture.value)}, ${describePose(metrics)}, ${describeFaceUse(expressionEmotion.value, metrics)}을 분석했어요. ${persistence.synced ? "원격 DB에 저장했습니다." : persistence.message}`
+      ? `${emotionAnalysisLabel(behaviorCapture.value)}, ${describePose(metrics)}, ${describeFaceUse(expressionEmotion.value, metrics)}을 분석했어요.`
       : `${emotionAnalysisLabel(behaviorCapture.value)}은 저장했습니다. 카메라 행동은 인식하지 못해 다시 촬영해야 합니다.`);
   };
 
   const computedTier: ExaggerationTier = motionIntensity.value < .45 ? "minimal" : motionIntensity.value < .72 ? "emotional" : "full";
   const effectiveTier = tierOverride ?? computedTier;
   const poseSummary = describePose(visionMetrics.value);
+  const progressIndex = analyzing ? 1 : currentStep === 0 ? 0 : currentStep + 1;
+  const progressItems = [
+    { id: "capture", label: "촬영", targetStep: 0 },
+    { id: "analysis", label: "분석" },
+    { id: "pose", label: "포즈 분석 결과", targetStep: 1 },
+    { id: "voice", label: "음성 분석 결과", targetStep: 2 },
+  ];
 
   // Define steps for ScrollSlideContainer
   const steps = [
@@ -400,7 +382,7 @@ export function InputPage() {
         <>
           <div className="input-composer">
             <div className="pose-capture-panel">
-              <Panel title="✦ 실시간 모니터" className="camera-monitor-panel">
+              <Panel className="camera-monitor-panel">
                 <div className={`pose-media-frame${cameraReady && visionAvailable === true && !personDetected && !capturing ? " is-awaiting-person" : ""}${capturing ? " is-recording" : ""}`}>
                   <video
                     ref={videoRef}
@@ -486,19 +468,7 @@ export function InputPage() {
               </Panel>
             </div>
             <div className="input-right-column">
-              <aside className="input-stage-panel" aria-label="입력 단계">
-                <strong>입력단계</strong>
-                {["촬영", "분석", "포즈 분석 결과", "음성 분석 결과"].map((label, index) => (
-                  <div
-                    key={label}
-                    className={index === currentStep ? "active" : index < currentStep ? "complete" : ""}
-                    aria-current={index === currentStep ? "step" : undefined}
-                  >
-                    <span aria-hidden="true" />
-                    {label}
-                  </div>
-                ))}
-              </aside>
+              <InputStagePanel activeIndex={0} />
             </div>
           </div>
           {captureError || cameraIssue ? (
@@ -521,77 +491,36 @@ export function InputPage() {
       ),
       validate: () => {
         if (!cameraReady) return "카메라 장치를 초기화하는 중입니다. 대기하거나 권한을 승인해 주세요.";
+        if (behaviorCapture.value.videoBlob && behaviorCapture.value.audioBlob) return null;
         return "촬영 시작하기 버튼을 눌러 5초 촬영을 먼저 완료해 주세요.";
-      }
-    },
-    {
-      id: "analyzing",
-      label: "02 · 분석 중",
-      content: (
-        <div className="input-step-layout active-capturing">
-          <Panel title="✦ 입력 분석 중" className="capturing-panel full-width">
-            <div className="capturing-box">
-              <div className="recording-indicator">
-                <span className="dot animate-pulse" />
-                <span>ANALYZING</span>
-              </div>
-              <div className="progress-track">
-                <span className="progress-bar is-flowing" />
-              </div>
-              <p className="action-hint">촬영한 포즈와 목소리를 분석하고 있습니다.</p>
-              <div className="compact-wave">
-                <Waveform levels={levels} active={false} />
-              </div>
-            </div>
-          </Panel>
-        </div>
-      ),
-      validate: () => {
-        if (capturing || analyzing) return "현재 입력 분석이 진행 중입니다. 완료될 때까지 기다려 주세요.";
-        return null;
       }
     },
     {
       id: "pose-result",
       label: "03 · 포즈 분석 결과",
       content: (
-        <div className="input-composer">
-          <div className="pose-capture-panel">
-            <Panel title="✦ 촬영 완료 스냅샷" className="snapshot-panel">
-              <div className="result-snapshot-placeholder">
-                <Icon name="image" size={48} />
-                <span className="snapshot-tag">5s Capture completed</span>
+        <div className="input-result-layout pose-result-layout">
+          <div className="input-result-main">
+            <Panel className="result-media-panel">
+              <CapturedVideoPreview blob={behaviorCapture.value.videoBlob} />
+              <div className="input-result-facts">
+                <span><Icon name="check" size={15} />판독된 몸짓</span>
+                <strong>{poseSummary}</strong>
+                <small>{describePoseDetail(visionMetrics.value)}</small>
               </div>
             </Panel>
+            <div className="input-result-actions">
+              <button type="button" className="btn-secondary" onClick={() => returnToPreview()}>
+                <Icon name="reload" />
+                다시 촬영하기
+              </button>
+              <button type="button" className="btn-primary" onClick={() => setCurrentStep(2)}>
+                다음 단계 이동하기
+                <Icon name="next" />
+              </button>
+            </div>
           </div>
-          <div className="input-right-column">
-            <Panel title="✦ 포즈 판독" className="pose-analysis-panel">
-              <div className="analysis-card" style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
-                <Icon name="check" size={24} className="text-emerald" />
-                <div>
-                  <h4>판독된 몸짓</h4>
-                  <p className="highlight-text" style={{ fontSize: "16px", fontWeight: "700", color: "#7b69ff" }}>{poseSummary}</p>
-                </div>
-              </div>
-              <div className="analysis-card" style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
-                <Icon name="layers" size={24} />
-                <div>
-                  <h4>포즈 상세 정보</h4>
-                  <p style={{ color: "#aaa6b4", fontSize: "13px" }}>{describePoseDetail(visionMetrics.value)}</p>
-                </div>
-              </div>
-              <div className="step-nav-actions" style={{ display: "flex", gap: "12px" }}>
-                <button type="button" className="btn-secondary" onClick={() => returnToPreview()} style={{ flex: 1 }}>
-                  <Icon name="reload" />
-                  다시 촬영하기
-                </button>
-                <button type="button" className="btn-primary" onClick={() => setCurrentStep(3)} style={{ flex: 1 }}>
-                  다음 단계 이동
-                  <Icon name="next" />
-                </button>
-              </div>
-            </Panel>
-          </div>
+          <InputStagePanel activeIndex={2} />
         </div>
       ),
       validate: () => {
@@ -605,134 +534,77 @@ export function InputPage() {
       id: "voice-emotion-result",
       label: "04 · 감정 및 상세 설정",
       content: (
-        <div className="input-composer">
-          <div className="pose-capture-panel">
-            <Panel title="✦ 음성 분석 및 감정" className="voice-analysis-panel overflow-visible">
-              <div className="voice-card">
-                <div className="voice-text-badge">
-                  <Icon name="voice" />
-                  <span>인식된 키워드 문구</span>
-                </div>
-                <input
-                  type="text"
-                  className="keyword-phrase-input"
-                  value={transcript.value}
-                  onChange={(event) => (transcript.value = event.currentTarget.value)}
-                  placeholder="예: 정말 기뻐!"
-                />
-                <p className="emotion-analysis-source">
-                  {emotionAnalysisLabel(behaviorCapture.value)}
-                </p>
-              </div>
-
-              <div className="exaggeration-indicator-box" style={{ marginTop: "18px" }}>
-                <span className="box-title">행동 & 감정 과장 선택 (음성 크기 연동)</span>
-                <div className="exaggeration-btns" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "8px" }}>
-                  {(["minimal", "emotional", "full"] as const).map((tier) => {
-                    const label = tier === "minimal" ? "낮음" : tier === "emotional" ? "중간" : "높음";
-                    const isComputed = tier === computedTier && !tierOverride;
-                    return (
-                      <button
-                        key={tier}
-                        type="button"
-                        className={`tier-btn button subtle ${effectiveTier === tier ? "active" : ""}`}
-                        style={{ border: effectiveTier === tier ? "1px solid #7b69ff" : "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", height: "38px" }}
-                        onClick={() => setTierOverride(tierOverride === tier ? null : tier)}
-                      >
-                        {label}{isComputed ? " ✨" : tierOverride === tier ? " ✋" : ""}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="tier-explain" style={{ marginTop: "8px", fontSize: "12px", color: "#aaa6b4" }}>
-                  {effectiveTier === "minimal" && "낮음: 캐릭터의 크기 변화나 뒤틀림을 최소화하고 감정을 깔끔하게 표현합니다."}
-                  {effectiveTier === "emotional" && "중간: 분수 눈물, 분노 폭발 등 이모티콘 특유의 극적인 비주얼이 추가됩니다."}
-                  {effectiveTier === "full" && "높음: 신체 비율이 팽창하거나 활처럼 휘어지는 등 만화적인 동작이 부여됩니다."}
-                </p>
-              </div>
-
-              <div className="selected-char-preview" style={{ marginTop: "18px", display: "flex", alignItems: "center", gap: "12px", padding: "12px", borderRadius: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", position: "relative" }}>
-                <span className="char-thumb" style={{ width: "40px", height: "40px", borderRadius: "50%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(10,9,18,0.3)" }}>
-                  {selectedCharacter.value.sourceAsset ? (
-                    <img src={sanitizeAssetUrl(selectedCharacter.value.sourceAsset)} alt="선택된 캐릭터" style={{ width: "90%", height: "90%", objectFit: "contain" }} />
-                  ) : (
-                    <Icon name="image" size={24} />
-                  )}
-                </span>
-                <div className="char-desc" style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-                  <strong style={{ color: "#fff" }}>{selectedCharacter.value.name || "캐릭터 미선택"}</strong>
-                  <span style={{ fontSize: "11px", color: "#aaa6b4" }}>{selectedCharacter.value.stylePreset} 스타일</span>
-                </div>
-                <button type="button" className="btn-select-char" onClick={() => setCharacterMenu(!characterMenu)} style={{ padding: "4px 10px", borderRadius: "6px", fontSize: "12px" }}>
-                  변경
-                </button>
-                {characterMenu && (
-                  <div className="character-popover" style={{ position: "absolute", bottom: "100%", right: "12px", background: "#171522", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", padding: "6px", zIndex: 10 }}>
-                    {characters.value.map((token) => (
-                      <button
-                        key={token.id}
-                        type="button"
-                        className={token.id === selectedCharacter.value.id ? "active" : ""}
-                        onClick={() => {
-                          selectCharacter(token.id);
-                          setCharacterMenu(false);
-                        }}
-                        style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "6px 12px", border: "none", background: "none", color: "#fff", fontSize: "12px", textAlign: "left" }}
-                      >
-                        <img src={sanitizeAssetUrl(token.sourceAsset)} alt="" style={{ width: "24px", height: "24px", borderRadius: "50%" }} />
-                        <span>{token.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Panel>
-          </div>
-
-          <div className="input-right-column">
-            <Panel title="✦ 감정 & 배경 효과" className="effect-settings-panel">
-              <div className="emotion-grid-selector">
-                <span className="grid-label">원하는 감정 프리셋 직접 선택</span>
-                <div className="emotion-buttons" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "8px" }}>
+        <div className="input-result-layout voice-result-layout">
+          <div className="input-result-main">
+            <Panel className="voice-result-panel">
+              <div className="voice-result-settings">
+                <span className="input-result-label">감정 분석 결과</span>
+                <div className="emotion-buttons">
                   {emotionOrder.map((item) => (
                     <button
                       key={item}
                       type="button"
-                      className={`emo-btn ${emotion.value === item ? "active" : ""}`}
+                      className={emotion.value === item ? "active" : ""}
                       onClick={() => setEmotion(item)}
-                      style={{ display: "flex", alignItems: "center", gap: "6px", height: "36px", padding: "0 8px", fontSize: "12px", borderRadius: "8px" }}
                     >
-                      <i style={{ background: emotionMeta[item].color, width: "8px", height: "8px", borderRadius: "50%" }} />
                       {emotionMeta[item].label}
                     </button>
                   ))}
                 </div>
+                <label className="voice-result-transcript">
+                  <span>인식된 문구</span>
+                  <input value={transcript.value} onChange={(event) => (transcript.value = event.currentTarget.value)} placeholder="이모티콘에 들어갈 문구" />
+                </label>
+                {transcriptionWarning ? <p className="voice-transcription-warning" role="alert">{transcriptionWarning}</p> : null}
+                <span className="input-result-label">행동 과장 정도</span>
+                <div className="exaggeration-btns">
+                  {(["minimal", "emotional", "full"] as const).map((tier) => {
+                    const label = tier === "minimal" ? "약" : tier === "emotional" ? "중" : "강";
+                    return (
+                      <button
+                        key={tier}
+                        type="button"
+                        className={effectiveTier === tier ? "active" : ""}
+                        onClick={() => {
+                          const nextTier = tierOverride === tier ? null : tier;
+                          setTierOverride(nextTier);
+                          exaggerationTierOverride.value = nextTier;
+                        }}
+                      >
+                        <span className="voice-tier-character"><img src={sanitizeAssetUrl(selectedCharacter.value.sourceAsset)} alt="" /></span>
+                        <strong>{label}</strong>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="tier-explain">
+                  {effectiveTier === "minimal" && "동작 변형을 최소화하고 감정을 정돈해 표현합니다."}
+                  {effectiveTier === "emotional" && "감정 이펙트를 강조하고 행동은 안정적으로 유지합니다."}
+                  {effectiveTier === "full" && "동작과 감정 이펙트를 함께 크게 과장합니다."}
+                </p>
+                <p className="emotion-analysis-source">{emotionAnalysisLabel(behaviorCapture.value)}</p>
               </div>
-
-              <div className="bg-effect-card" style={{ marginTop: "18px", padding: "12px", borderRadius: "12px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <h4 style={{ margin: 0, fontSize: "13px" }}>배경 이펙트 정보</h4>
-                  <p className="effect-detail-name" style={{ color: "#ffd2e8", margin: "4px 0" }}>{emotionMeta[emotion.value].effect}</p>
-                  <span className="effect-color-row" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#aaa6b4" }}>
-                  분석 감정에 맞춰 자동 고정
-                  <i style={{ background: emotionMeta[emotion.value].color, width: "16px", height: "16px", borderRadius: "50%" }} aria-hidden="true" />
-                  <strong>{emotionMeta[emotion.value].color}</strong>
-                </span>
-              </div>
-
-              <div className="generate-action-row" style={{ marginTop: "24px" }}>
-                <button
-                  type="button"
-                  className="btn-generate-emoticon"
-                  onClick={proceed}
-                  disabled={recording || capturing || analyzing || generatingFrames}
-                  style={{ width: "100%" }}
-                >
-                  <Icon name={generatingFrames ? "reload" : "star"} className={generatingFrames ? "spin" : ""} />
-                  {generatingFrames ? "이모티콘 프레임 제작 중..." : "이모티콘 생성하기"}
-                </button>
+              <div className="voice-effect-preview-panel">
+                <span className="input-result-label">배경 이펙트 미리보기</span>
+                <BackgroundEffectPreview />
+                <div className="voice-effect-meta">
+                  <strong>{emotionMeta[emotion.value].effect}</strong>
+                  <span>감정별 고정 이펙트</span>
+                  <i style={{ background: emotionMeta[emotion.value].color }} aria-hidden="true" />
+                </div>
               </div>
             </Panel>
+            <div className="input-result-actions">
+              <button type="button" className="btn-secondary" onClick={() => returnToPreview()}>
+                다시 녹음하기
+              </button>
+              <button type="button" className="btn-primary" onClick={proceed} disabled={recording || capturing || analyzing || generatingFrames}>
+                <Icon name={generatingFrames ? "reload" : "star"} className={generatingFrames ? "spin" : ""} />
+                {generatingFrames ? "이모티콘 프레임 제작 중" : "이모티콘 생성하기"}
+              </button>
+            </div>
           </div>
+          <InputStagePanel activeIndex={3} />
         </div>
       ),
       validate: () => {
@@ -751,8 +623,12 @@ export function InputPage() {
     <div className="workspace-page input-page">
       <header className="screen-brief input-brief">
         <span>02</span>
-        <h1>캐릭터 생성에 필요한<br />목소리와 포즈를 촬영해 주세요.</h1>
-        <p>음성 강도 분석과 AI 프롬프트 생성 단계</p>
+        <h1>
+          {currentStep === 0 ? <>캐릭터 생성에 필요한<br />목소리와 포즈를 촬영해 주세요.</> : null}
+          {currentStep === 1 ? <>포즈 분석이<br />완료되었습니다.</> : null}
+          {currentStep === 2 ? <>음성 분석이<br />완료되었습니다.</> : null}
+        </h1>
+        <p>{currentStep === 0 ? "카메라와 마이크를 5초 동안 동시에 기록합니다." : "촬영한 입력을 단계별로 확인해 주세요."}</p>
       </header>
 
       <ScrollSlideContainer
@@ -764,11 +640,72 @@ export function InputPage() {
         completeLabel="이모티콘 생성하기"
         busyLabel={generatingFrames ? "프레임 생성 중" : "분석 중"}
         className="input-scroll-slider"
+        progressItems={progressItems}
+        progressIndex={progressIndex}
       />
 
       {process && <WorkProcessScreen title={process.title} label={process.label} percent={process.percent} />}
     </div>
   );
+}
+
+function InputStagePanel({ activeIndex }: { activeIndex: number }) {
+  return (
+    <aside className="input-stage-panel" aria-label="입력 단계">
+      <strong>입력단계</strong>
+      {["촬영", "분석", "포즈 분석 결과", "음성 분석 결과"].map((label, index) => (
+        <div key={label} className={index === activeIndex ? "active" : index < activeIndex ? "complete" : ""} aria-current={index === activeIndex ? "step" : undefined}>
+          <span aria-hidden="true" />
+          {label}
+        </div>
+      ))}
+    </aside>
+  );
+}
+
+function CapturedVideoPreview({ blob }: { blob?: Blob }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [url, setUrl] = useState<string>();
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    if (!blob) {
+      setUrl(undefined);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(blob);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [blob]);
+
+  const togglePlayback = () => {
+    const video = videoRef.current;
+    if (!video || !url) return;
+    if (video.paused) void video.play();
+    else video.pause();
+  };
+
+  return (
+    <div className="captured-video-preview">
+      {url ? (
+        <video ref={videoRef} src={url} muted playsInline onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
+      ) : (
+        <div className="captured-video-empty"><Icon name="image" size={40} /><span>5s Capture completed</span></div>
+      )}
+      <div className="captured-video-controls">
+        <button type="button" onClick={togglePlayback} disabled={!url} aria-label={playing ? "촬영 영상 일시정지" : "촬영 영상 재생"}>
+          <Icon name={playing ? "pause" : "play"} size={15} />
+        </button>
+        <Waveform levels={levelsFromCapture(behaviorCapture.value.audio)} active={playing} />
+        <span>00:05</span>
+      </div>
+    </div>
+  );
+}
+
+function levelsFromCapture(features?: AudioFeatures): number[] {
+  const strength = Math.max(.12, Math.min(1, (features?.rms ?? 0) * 5));
+  return Array.from({ length: 28 }, (_, index) => strength * (.32 + ((index * 7) % 11) / 14));
 }
 
 function WorkProcessScreen({ title, label, percent }: ProcessState) {
@@ -856,17 +793,4 @@ function emotionAnalysisLabel(capture: BehaviorCapture): string {
   const provider = capture.emotionProvider === "imentiv" ? "Imentiv" : capture.emotionProvider === "mediapipe" ? "MediaPipe" : "로컬 음성 휴리스틱";
   const confidence = Math.round((capture.emotionConfidence ?? 0) * 100);
   return `${source} 우선 분석 · ${provider} · 신뢰도 ${confidence}%`;
-}
-
-async function saveCaptureRemoteFirst(capture: BehaviorCapture): Promise<{ synced: boolean; message: string }> {
-  try {
-    const sync = await syncCaptureToRemote(capture);
-    await saveCapture(capture);
-    return sync.enabled
-      ? { synced: true, message: "원격 DB에 입력 분석을 저장했습니다." }
-      : { synced: false, message: `${sync.storageWarning ?? "원격 DB 설정이 없습니다."} IndexedDB에만 임시 저장했습니다.` };
-  } catch (error) {
-    await saveCapture(capture);
-    return { synced: false, message: `원격 DB 저장 실패로 IndexedDB에만 임시 저장했습니다: ${error instanceof Error ? error.message : String(error)}` };
-  }
 }

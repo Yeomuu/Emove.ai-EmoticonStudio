@@ -9,7 +9,6 @@ export type RoutePath =
   | "/edit"
   | "/library"
   | `/library/${string}`
-  | "/showcase"
   | "/login"
   | "/profile"
   | "/community"
@@ -31,7 +30,7 @@ export type TextBoxShape = "pill" | "rounded" | "caption";
 export type TextFont = "Pretendard" | "Paperlogy";
 export type CharacterStyleMode = "2D" | "3D";
 export type MotionStyle = "smooth" | "dynamic" | "bouncy" | "subtle";
-export type AccentEffect = "none" | "sparkles" | "hearts" | "stars" | "motion-lines";
+export type AccentEffect = "none" | "sparkles" | "hearts" | "stars" | "motion-lines" | "petals" | "speech-bubbles" | "clouds";
 export type AnimationFormat = "APNG" | "GIF" | "WEBP";
 export type ExaggerationTier = "minimal" | "emotional" | "full";
 export type EmotionSource = "voice" | "action" | "expression";
@@ -50,6 +49,11 @@ export interface LayerTransform {
   y: number;
   scale: number;
   rotation: number;
+}
+
+export interface EffectLayerStyle {
+  blur: number;
+  opacity: number;
 }
 
 export interface CharacterToken {
@@ -160,7 +164,11 @@ export interface EmoticonProject {
   layers: EditorLayer[];
   layerTransforms: Record<LayerKind, LayerTransform>;
   frameLayerTransforms: Array<Record<LayerKind, LayerTransform>>;
-  textStyle: { shape: TextBoxShape; font: TextFont };
+  textStyle: { shape: TextBoxShape; font: TextFont; color?: string };
+  effectSettings?: {
+    background: EffectLayerStyle;
+    accent: EffectLayerStyle;
+  };
   motionBrief: MotionBrief;
   createdAt: string;
   updatedAt: string;
@@ -208,6 +216,24 @@ export interface OpenAIProvider {
   transcribe(audio: Blob): Promise<TranscriptionResult>;
   generateCharacter(token: CharacterToken): Promise<GeneratedCharacterResult>;
   generateCharacterActionFrames(brief: MotionBrief, token: CharacterToken): Promise<string[]>;
+}
+
+export interface LibraryGroup {
+  id: string;
+  name: string;
+  filter: "all" | "favorite" | Emotion;
+  ownerId: "public";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QrExportPayload {
+  stickerId: string;
+  title: string;
+  format: AnimationFormat;
+  previewUrl: string;
+  targetUrl: string;
+  qrDataUrl: string;
 }
 
 export interface AuthUser {

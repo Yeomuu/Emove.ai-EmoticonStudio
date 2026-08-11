@@ -1,6 +1,6 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
-import { activeLayer, frameImages, layerTransforms, layers, motionBrief, selectedFrame, textBoxShape, textFont, updateLayerTransform } from "../store";
+import { accentEffectBlur, accentEffectOpacity, activeLayer, backgroundEffectBlur, backgroundEffectOpacity, frameImages, layerTransforms, layers, motionBrief, selectedFrame, textBoxShape, textColor, textFont, updateLayerTransform } from "../store";
 import { measureTextBubble, renderFrame } from "../services/renderer";
 import type { EditorLayer, LayerKind } from "../types";
 
@@ -26,8 +26,21 @@ export function Stage() {
 
   useEffect(() => {
     const canvas = canvasRef.current; const context = canvas?.getContext("2d"); if (!canvas || !context) return;
-    void renderFrame(context, { characterUrl: frameImages.value[selectedFrame.value] ?? frameImages.value[0], brief: motionBrief.value, layers: activePreviewLayers(layers.value, activeLayer.value), transforms: layerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: canvas.width, height: canvas.height, gifSafe: false }, selectedFrame.value / (FRAME_COUNT - 1));
-  }, [motionBrief.value, layers.value, layerTransforms.value, frameImages.value, selectedFrame.value, textBoxShape.value, textFont.value, activeLayer.value]);
+    void renderFrame(context, {
+      characterUrl: frameImages.value[selectedFrame.value] ?? frameImages.value[0],
+      brief: motionBrief.value,
+      layers: activePreviewLayers(layers.value, activeLayer.value),
+      transforms: layerTransforms.value,
+      textShape: textBoxShape.value,
+      textFont: textFont.value,
+      textColor: textColor.value,
+      backgroundEffectStyle: { blur: backgroundEffectBlur.value, opacity: backgroundEffectOpacity.value },
+      accentEffectStyle: { blur: accentEffectBlur.value, opacity: accentEffectOpacity.value },
+      width: canvas.width,
+      height: canvas.height,
+      gifSafe: false,
+    }, selectedFrame.value / (FRAME_COUNT - 1));
+  }, [motionBrief.value, layers.value, layerTransforms.value, frameImages.value, selectedFrame.value, textBoxShape.value, textFont.value, textColor.value, activeLayer.value, backgroundEffectBlur.value, backgroundEffectOpacity.value, accentEffectBlur.value, accentEffectOpacity.value]);
 
   const beginMove = (event: ReactPointerEvent<HTMLElement>, id: LayerKind) => {
     if (layers.value.find((layer) => layer.id === id)?.locked) return;

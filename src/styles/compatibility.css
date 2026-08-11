@@ -72,8 +72,7 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,.09), 0 18px 42px rgba(0,0,0,.24) !important;
   backdrop-filter: blur(22px) saturate(145%) !important;
 }
-.dock-home-logo,
-.showcase-icon-btn {
+.dock-home-logo {
   width: clamp(38px, 4.8svh, 48px);
   height: clamp(38px, 4.8svh, 48px);
   flex: 0 0 auto;
@@ -85,7 +84,6 @@
   color: rgba(248,247,255,.76);
 }
 .dock-home-logo img { width: 58%; height: 58%; object-fit: contain; }
-.showcase-icon-btn span { font-size: 10px; transform: translateX(1px); }
 .app-shell.route-home :where(.text-nav-bar, .text-nav-actions) { display: inline-flex !important; }
 .app-shell.route-home .text-nav-bar a {
   width: auto !important;
@@ -236,8 +234,7 @@ body {
   .route-slide-frame,
   .workspace-page,
   .home-hero,
-  .editor-page,
-  .showcase-page {
+  .editor-page {
     min-height: max(760px, 100dvh);
   }
 }
@@ -278,8 +275,6 @@ body {
     right: calc(12px + env(safe-area-inset-right)) !important;
     bottom: calc(12px + env(safe-area-inset-bottom)) !important;
   }
-  .showcase-header { top: calc(20px + env(safe-area-inset-top)); }
-  .showcase-footer { bottom: calc(84px + env(safe-area-inset-bottom)); }
 }
 
 @media (max-width: 900px) {
@@ -292,7 +287,6 @@ body {
     gap: 8px !important;
   }
   .dock-home-logo,
-  .showcase-icon-btn,
   .app-shell.route-home .profile-icon-btn { width: 40px !important; height: 40px !important; }
   .text-nav-bar { gap: 12px !important; }
   .text-nav-bar a { font-size: 11px !important; }
@@ -764,11 +758,11 @@ button { font-family: Pretendard, sans-serif; }
     transform: translateY(-2px);
   }
 
-  :where(.dock-home-logo, .showcase-icon-btn, .profile-icon-btn, .theme-icon-toggle, .library-carousel-controls button) {
+  :where(.dock-home-logo, .profile-icon-btn, .theme-icon-toggle, .library-carousel-controls button) {
     transition: transform .2s var(--spring), border-color .18s ease, background-color .18s ease;
   }
 
-  :where(.dock-home-logo, .showcase-icon-btn, .profile-icon-btn, .theme-icon-toggle, .library-carousel-controls button):hover {
+  :where(.dock-home-logo, .profile-icon-btn, .theme-icon-toggle, .library-carousel-controls button):hover {
     transform: translateY(-2px) scale(1.025);
   }
 }

@@ -9,6 +9,12 @@ interface StepConfig {
   validate?: () => string | null;
 }
 
+interface ProgressItem {
+  id: string;
+  label: string;
+  targetStep?: number;
+}
+
 interface ScrollSlideContainerProps {
   steps: StepConfig[];
   className?: string;
@@ -18,6 +24,8 @@ interface ScrollSlideContainerProps {
   busy?: boolean;
   completeLabel?: string;
   busyLabel?: string;
+  progressItems?: ProgressItem[];
+  progressIndex?: number;
 }
 
 export function ScrollSlideContainer({
@@ -29,10 +37,14 @@ export function ScrollSlideContainer({
   busy = false,
   completeLabel = "생성하기",
   busyLabel = "생성 중",
+  progressItems,
+  progressIndex,
 }: ScrollSlideContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [localStep, setLocalStep] = useState(0);
   const currentStep = propStep !== undefined ? propStep : localStep;
+  const displayedProgress = progressItems ?? steps.map((step, index) => ({ id: step.id, label: step.label, targetStep: index }));
+  const activeProgressIndex = progressIndex ?? currentStep;
   const [warning, setWarning] = useState<{ message: string; stepIndex: number; targetIndex: number } | null>(null);
   const isScrolling = useRef(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -146,14 +158,15 @@ export function ScrollSlideContainer({
     >
       {/* Step indicator */}
       <nav className="scroll-slide-nav" aria-label="단계 탐색">
-        {steps.map((step, index) => (
+        {displayedProgress.map((step, index) => (
           <button
             key={step.id}
             type="button"
-            className={`slide-nav-dot ${index === currentStep ? "active" : ""} ${index < currentStep ? "completed" : ""}`}
-            onClick={() => attemptNavigation(index)}
-            disabled={busy}
-            aria-label={`${step.label} (${index + 1}/${steps.length})`}
+            className={`slide-nav-dot ${index === activeProgressIndex ? "active" : ""} ${index < activeProgressIndex ? "completed" : ""} ${step.targetStep === undefined ? "display-only" : ""}`}
+            onClick={() => step.targetStep !== undefined && attemptNavigation(step.targetStep)}
+            disabled={busy || step.targetStep === undefined}
+            aria-label={`${step.label} 단계`}
+            aria-current={index === activeProgressIndex ? "step" : undefined}
           >
             <span>{String(index + 1).padStart(2, "0")}</span>
           </button>

@@ -1,6 +1,7 @@
 import { EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import { coerceEmotion, emotionMeta, emptyEmotionScores as createEmptyEmotionScores, normalizeEmotionScores } from "../emotion-taxonomy";
-import type { AnimationFormat, BehaviorCapture, CharacterToken, EmoticonProject, LayerKind, LayerTransform, StickerItem } from "../types";
+import { DEFAULT_TEXT_COLOR, normalizePickerHex } from "./color-picker";
+import type { AnimationFormat, BehaviorCapture, CharacterToken, EmoticonProject, LayerKind, LayerTransform, LibraryGroup, StickerItem } from "../types";
 
 export interface RemoteSyncResult {
   enabled: boolean;
@@ -11,7 +12,7 @@ export interface RemoteSyncResult {
   storageWarning?: string;
 }
 
-type RemoteKind = "characters" | "captures" | "projects" | "stickers";
+type RemoteKind = "characters" | "captures" | "groups" | "projects" | "stickers";
 type RemoteLibraryRecord = { id: string; kind: RemoteKind; payload: unknown; createdAt?: string; updatedAt?: string };
 const REMOTE_REQUEST_TIMEOUT_MS = 14_000;
 const PUBLIC_LIBRARY_OWNER_ID = "public";
@@ -57,18 +58,24 @@ export async function syncCaptureToRemote(item: BehaviorCapture): Promise<Remote
   return postRemoteRecord("captures", createCaptureDoc(capture, PUBLIC_LIBRARY_OWNER_ID));
 }
 
+export async function syncLibraryGroupToRemote(group: LibraryGroup): Promise<RemoteSyncResult> {
+  return postRemoteRecord("groups", { ...group, ownerId: PUBLIC_LIBRARY_OWNER_ID }, group.id);
+}
+
 export async function syncProjectToRemote(project: EmoticonProject): Promise<RemoteSyncResult> {
   const ownerId = PUBLIC_LIBRARY_OWNER_ID;
+  const { gifBlob: _gifBlob, animationBlob: _animationBlob, ...projectWithoutBinary } = project;
   const { videoBlob: _video, audioBlob: _audio, ...capture } = project.behaviorCapture as typeof project.behaviorCapture & { videoBlob?: Blob; audioBlob?: Blob };
   const sticker = { ...project.sticker, ownerId };
   const characterToken = { ...project.characterToken, ownerId };
   const gifUrl = compactAssetUrl(sticker.animatedImage, "");
+  const serializableProject = { ...projectWithoutBinary, sticker, behaviorCapture: capture, characterToken };
   const payload = {
-    project: createProjectDoc({ ...project, sticker, behaviorCapture: capture, characterToken }, ownerId, gifUrl),
+    project: createProjectDoc(serializableProject, ownerId, gifUrl),
     sticker: createStickerDoc(sticker, ownerId),
     character: createCharacterDoc(characterToken, ownerId),
     capture: createCaptureDoc(capture, ownerId),
-    snapshot: createProjectSnapshot({ ...project, ownerId, sticker, behaviorCapture: capture, characterToken }),
+    snapshot: createProjectSnapshot({ ...serializableProject, ownerId }),
   };
   const syncResults = await Promise.all([
     postRemoteRecord("projects", payload, project.id),
@@ -77,12 +84,9 @@ export async function syncProjectToRemote(project: EmoticonProject): Promise<Rem
     postRemoteRecord("captures", payload.capture, capture.id),
   ]);
   const [result] = syncResults;
-  const enabled = syncResults.some((item) => item.enabled);
-  const primary = result.enabled ? result : syncResults.find((item) => item.enabled) ?? result;
-  const storageWarning = syncResults
-    .map((item) => item.storageWarning)
-    .find(Boolean);
-  return { ...primary, enabled, ownerId, storageWarning };
+  const enabled = syncResults.every((item) => item.enabled);
+  const storageWarning = syncResults.find((item) => !item.enabled)?.storageWarning;
+  return { ...result, enabled, ownerId, storageWarning };
 }
 
 export async function loadRemoteStickers(): Promise<{ enabled: boolean; stickers: StickerItem[]; storageWarning?: string }> {
@@ -115,6 +119,20 @@ export async function loadRemoteProjects(): Promise<{ enabled: boolean; projects
   return { enabled: true, projects: uniqueById(items) };
 }
 
+export async function loadRemoteLibraryGroups(): Promise<{ enabled: boolean; groups: LibraryGroup[]; storageWarning?: string }> {
+  const groups = await getRemoteRecords("groups");
+  if (!groups.enabled) return { enabled: false, groups: [], storageWarning: groups.storageWarning };
+  const items = groups.records.flatMap((record) => {
+    const item = libraryGroupFromRemoteDoc(record.payload, record.createdAt, record.updatedAt);
+    return item ? [item] : [];
+  });
+  return { enabled: true, groups: uniqueById(items) };
+}
+
+export function deleteRemoteLibraryGroup(id: string): Promise<RemoteSyncResult> {
+  return deleteRemoteRecord("groups", id);
+}
+
 export async function deleteRemoteLibraryItem(kind: "emoticon" | "character", id: string, projectId?: string): Promise<RemoteSyncResult> {
   const targets: Array<[RemoteKind, string]> = kind === "emoticon"
     ? [["stickers", id], ...(projectId ? [["projects", projectId] as [RemoteKind, string]] : [])]
@@ -133,11 +151,11 @@ async function postRemoteRecord(kind: RemoteKind, payload: unknown, id = recordI
       signal: AbortSignal.timeout(REMOTE_REQUEST_TIMEOUT_MS),
     });
     const body = await response.json().catch(() => ({})) as Partial<RemoteSyncResult> & { error?: string };
-    if (response.status === 501) return { enabled: false, storageWarning: body.error ?? "원격 DB가 아직 설정되지 않았습니다." };
-    if (!response.ok) throw new Error(body.error ?? `원격 저장에 실패했습니다. (${response.status})`);
+    if (response.status === 501) return { enabled: false, storageWarning: body.error ?? "Firebase Storage가 아직 설정되지 않았습니다." };
+    if (!response.ok) throw new Error(body.error ?? `Firebase Storage 저장에 실패했습니다. (${response.status})`);
     return { enabled: true, syncedAt: body.syncedAt ?? new Date().toISOString(), ownerId: body.ownerId, storagePath: body.storagePath, downloadUrl: body.downloadUrl };
   } catch (error) {
-    return { enabled: false, storageWarning: error instanceof Error ? error.message : "원격 저장에 실패했습니다." };
+    return { enabled: false, storageWarning: error instanceof Error ? error.message : "Firebase Storage 저장에 실패했습니다." };
   }
 }
 
@@ -148,11 +166,11 @@ async function deleteRemoteRecord(kind: RemoteKind, id: string): Promise<RemoteS
       signal: AbortSignal.timeout(REMOTE_REQUEST_TIMEOUT_MS),
     });
     const body = await response.json().catch(() => ({})) as { deletedAt?: string; error?: string };
-    if (response.status === 501) return { enabled: false, storageWarning: body.error ?? "원격 DB가 아직 설정되지 않았습니다." };
-    if (!response.ok) throw new Error(body.error ?? `원격 삭제에 실패했습니다. (${response.status})`);
+    if (response.status === 501) return { enabled: false, storageWarning: body.error ?? "Firebase Storage가 아직 설정되지 않았습니다." };
+    if (!response.ok) throw new Error(body.error ?? `Firebase Storage 삭제에 실패했습니다. (${response.status})`);
     return { enabled: true, syncedAt: body.deletedAt ?? new Date().toISOString(), ownerId: PUBLIC_LIBRARY_OWNER_ID };
   } catch (error) {
-    return { enabled: false, storageWarning: error instanceof Error ? error.message : "원격 삭제에 실패했습니다." };
+    return { enabled: false, storageWarning: error instanceof Error ? error.message : "Firebase Storage 삭제에 실패했습니다." };
   }
 }
 
@@ -163,11 +181,11 @@ async function getRemoteRecords(kind: RemoteKind): Promise<{ enabled: boolean; r
       signal: AbortSignal.timeout(REMOTE_REQUEST_TIMEOUT_MS),
     });
     const body = await response.json().catch(() => ({})) as { records?: RemoteLibraryRecord[]; error?: string };
-    if (response.status === 501) return { enabled: false, records: [], storageWarning: body.error ?? "원격 DB가 아직 설정되지 않았습니다." };
-    if (!response.ok) throw new Error(body.error ?? `원격 보관함 조회에 실패했습니다. (${response.status})`);
+    if (response.status === 501) return { enabled: false, records: [], storageWarning: body.error ?? "Firebase Storage가 아직 설정되지 않았습니다." };
+    if (!response.ok) throw new Error(body.error ?? `Firebase Storage 보관함 조회에 실패했습니다. (${response.status})`);
     return { enabled: true, records: Array.isArray(body.records) ? body.records : [] };
   } catch (error) {
-    return { enabled: false, records: [], storageWarning: error instanceof Error ? error.message : "원격 보관함 조회에 실패했습니다." };
+    return { enabled: false, records: [], storageWarning: error instanceof Error ? error.message : "Firebase Storage 보관함 조회에 실패했습니다." };
   }
 }
 
@@ -180,6 +198,26 @@ function remoteEndpoint(kind: RemoteKind): string {
 function recordId(value: unknown): string {
   if (value && typeof value === "object" && "id" in value && typeof value.id === "string") return value.id;
   return `record-${Date.now()}`;
+}
+
+function libraryGroupFromRemoteDoc(value: unknown, createdAt?: string, updatedAt?: string): LibraryGroup | null {
+  const doc = asRecord(value);
+  const id = text(doc?.id);
+  const name = text(doc?.name);
+  const rawFilter = text(doc?.filter);
+  if (!id || !name) return null;
+  const filter: LibraryGroup["filter"] = rawFilter === "all" || rawFilter === "favorite"
+    ? rawFilter
+    : coerceEmotion(rawFilter);
+  const now = new Date().toISOString();
+  return {
+    id,
+    name,
+    filter,
+    ownerId: PUBLIC_LIBRARY_OWNER_ID,
+    createdAt: text(doc?.createdAt) || createdAt || now,
+    updatedAt: text(doc?.updatedAt) || updatedAt || createdAt || now,
+  };
 }
 
 function createCharacterDoc(item: CharacterToken, ownerId: string) {
@@ -355,6 +393,7 @@ function projectFromRemoteDoc(value: unknown, updatedAt?: string): EmoticonProje
   const behaviorCapture = asRecord(snapshot.behaviorCapture) as unknown as EmoticonProject["behaviorCapture"] | null;
   const motionBrief = asRecord(snapshot.motionBrief) as unknown as EmoticonProject["motionBrief"] | null;
   const textStyle = asRecord(snapshot.textStyle) as unknown as EmoticonProject["textStyle"] | null;
+  const effectSettings = asRecord(snapshot.effectSettings);
   const id = text(snapshot.id);
   if (!id || !sticker || !characterToken || !behaviorCapture || !motionBrief || !textStyle) return null;
   const layers = normalizeRemoteLayers(Array.isArray(snapshot.layers) ? snapshot.layers as unknown as EmoticonProject["layers"] : []);
@@ -391,6 +430,10 @@ function projectFromRemoteDoc(value: unknown, updatedAt?: string): EmoticonProje
     layerTransforms,
     frameLayerTransforms,
     textStyle,
+    effectSettings: {
+      background: normalizeEffectLayerStyle(asRecord(effectSettings?.background)),
+      accent: normalizeEffectLayerStyle(asRecord(effectSettings?.accent)),
+    },
     motionBrief: normalizedBrief,
     animationFormat: toAnimationFormat(text(snapshot.animationFormat), sticker.animatedImage),
     createdAt: text(snapshot.createdAt) || updatedAt || new Date().toISOString(),
@@ -436,6 +479,7 @@ function legacyProjectFromRemoteDoc(envelope: Record<string, unknown> | null, up
   const textStyleRow = asRecord(textLayer?.style);
   const shape = text(textStyleRow?.shape);
   const font = text(textStyleRow?.font);
+  const color = normalizePickerHex(text(textStyleRow?.color)) ?? DEFAULT_TEXT_COLOR;
   const emotion = sticker.emotion;
   const createdAt = text(asRecord(project.metadata)?.createdAt) || sticker.createdAt || updatedAt || new Date().toISOString();
 
@@ -452,6 +496,7 @@ function legacyProjectFromRemoteDoc(envelope: Record<string, unknown> | null, up
     textStyle: {
       shape: shape === "rounded" || shape === "caption" ? shape : "pill",
       font: font === "Paperlogy" ? "Paperlogy" : "Pretendard",
+      color,
     },
     motionBrief: {
       sourceText: text(project.generatedPrompt) || shortText,
@@ -648,6 +693,13 @@ function text(value: unknown): string {
 
 function numberValue(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeEffectLayerStyle(value: Record<string, unknown> | null) {
+  return {
+    blur: Math.max(0, Math.min(24, numberValue(value?.blur) ?? 0)),
+    opacity: Math.max(0, Math.min(100, numberValue(value?.opacity) ?? 100)),
+  };
 }
 
 function toEmotion(value: string): StickerItem["emotion"] {

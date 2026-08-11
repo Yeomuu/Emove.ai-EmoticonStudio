@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useState, useRef } from "react";
 import { Shell } from "./components/Shell";
 import { HomePage } from "./screens/Home";
 import { route } from "./router";
-import { loadCharacters } from "./services/repository";
+import { loadRemoteCharacters } from "./services/remote-store";
 import { characters } from "./store";
 import { useSignalSnapshot } from "./lib/signals";
 import { imageAssets } from "./data";
@@ -14,13 +14,11 @@ const loadCharacterPage = () => import("./screens/Character").then((module) => (
 const loadInputPage = () => import("./screens/Input").then((module) => ({ default: module.InputPage }));
 const loadEditPage = () => import("./screens/Edit").then((module) => ({ default: module.EditPage }));
 const loadLibraryPage = () => import("./screens/Library").then((module) => ({ default: module.LibraryPage }));
-const loadShowcasePage = () => import("./screens/Showcase").then((module) => ({ default: module.ShowcasePage }));
 
 const CharacterPage = lazy(loadCharacterPage);
 const InputPage = lazy(loadInputPage);
 const EditPage = lazy(loadEditPage);
 const LibraryPage = lazy(loadLibraryPage);
-const ShowcasePage = lazy(loadShowcasePage);
 
 const BOOT_ASSETS = [
   imageAssets.logo,
@@ -79,7 +77,9 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
 
   // Load characters on mount
   useEffect(() => {
-    loadCharacters().then((saved) => {
+    loadRemoteCharacters().then((remote) => {
+      if (!remote.enabled) return;
+      const saved = remote.characters;
       const known = new Set(characters.value.map((item) => item.id));
       characters.value = [...saved.filter((item) => !known.has(item.id)), ...characters.value];
     }).catch(() => undefined);
@@ -144,7 +144,6 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
   else if (activeRoute === "/input") page = <InputPage />;
   else if (activeRoute === "/edit") page = <EditPage />;
   else if (activeRoute.startsWith("/library")) page = <LibraryPage />;
-  else if (activeRoute === "/showcase") page = <ShowcasePage />;
 
   const routeBusy = routePhase !== "idle";
 
@@ -178,7 +177,7 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
       </div>
 
       {!booting && (
-        <Shell immersive={activeRoute === "/home" || activeRoute === "/showcase"} dockAutoHide={workRoutes}>
+        <Shell immersive={activeRoute === "/home"} dockAutoHide={workRoutes}>
           <Suspense fallback={<div className="route-loader" role="status"><span />화면을 불러오는 중</div>}>
             <div className="route-slide-frame" key={routeKey} data-route-frame={routeKey.replace("/", "") || "home"}>
               {page}
@@ -206,7 +205,6 @@ function preloadRoute(path: RoutePath): Promise<unknown> {
   if (path === "/input") return loadInputPage();
   if (path === "/edit") return loadEditPage();
   if (path.startsWith("/library")) return loadLibraryPage();
-  if (path === "/showcase") return loadShowcasePage();
   return Promise.resolve();
 }
 

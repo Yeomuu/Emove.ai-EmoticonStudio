@@ -1,14 +1,15 @@
 import { useRef, useState, type CSSProperties } from "react";
+import { ColorPickerDropdown } from "../components/ColorPickerDropdown";
 import { Icon } from "../components/Icon";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
 import { imageAssets } from "../data";
 import { navigate } from "../router";
 import { getAIProvider } from "../services/ai-provider";
-import { persistGeneratedAsset, persistGeneratedAssets } from "../services/asset-storage";
+import { persistGeneratedAsset } from "../services/asset-storage";
 import { waitForImageAssets } from "../services/asset-readiness";
 import { characterPalettes, defaultMainColorForPalette, getCharacterPalette, normalizeHexColor, paletteIncludesColor, type CharacterPaletteId } from "../services/character-palette";
+import { buildPaletteSwatches } from "../services/color-picker";
 import { syncCharacterToRemote } from "../services/remote-store";
-import { saveCharacter } from "../services/repository";
 import { characterName, characterPrompt, characters, characterStyle, characterTone, notify, selectCharacter } from "../store";
 import type { CharacterToken, GeneratedCharacterResult } from "../types";
 
@@ -26,7 +27,6 @@ import style2dSketch from "../assets/images/character-style/character-style-2d-s
 import style2dSticker from "../assets/images/character-style/character-style-2d-sticker.png";
 import style2dWatercolor from "../assets/images/character-style/character-style-2d-watercolor.png";
 
-console.log(style3dGlossy);
 const ai = getAIProvider();
 const traits = ["밝은", "엉뚱한", "듬직한", "용감한", "차분한", "신중한", "장난스러운", "활발한", "예민한"];
 const characterTypes = ["인물", "사물", "동물", "식물", "음식"];
@@ -68,8 +68,10 @@ export function CharacterPage() {
   const [generated, setGenerated] = useState<GeneratedCharacterResult | null>(null);
   const [selectedVariationIndex, setSelectedVariationIndex] = useState(0);
   const [uploadedReference, setUploadedReference] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const generationLockRef = useRef(false);
   const saveLockRef = useRef(false);
+  const storedSelectionRef = useRef<{ source: string; url: string } | null>(null);
 
   const selectedPalette = getCharacterPalette(paletteId);
   const variationImages = generated?.imageUrls?.length ? generated.imageUrls : generated ? [generated.imageUrl] : [];
@@ -138,6 +140,8 @@ export function CharacterPage() {
       }
     }
     setGenerating(true);
+    setSaveError(null);
+    storedSelectionRef.current = null;
     setResultReady(false);
     setProcess({ title: "입력한 정보를 바탕으로 캐릭터를 생성하고 있습니다.", label: "캐릭터 설정을 정리하는 중...", percent: 8 });
     try {
@@ -147,16 +151,14 @@ export function CharacterPage() {
       setProcess({ title: "입력한 정보를 바탕으로 캐릭터를 생성하고 있습니다.", label: "캐릭터의 색상을 칠하는 중...", percent: 54 });
       const result = await ai.generateCharacter(draft);
       const images = result.imageUrls?.length ? result.imageUrls : [result.imageUrl];
-      const persisted = await persistGeneratedAssets(images, { filePrefix: draft.id, kind: "characters" });
-      const storedImages = persisted.assets.map((asset) => asset.url);
       setProcess({ title: "입력한 정보를 바탕으로 캐릭터를 생성하고 있습니다.", label: "생성 결과를 투명 캐릭터 토큰으로 정리하는 중...", percent: 85 });
-      await waitForImageAssets(storedImages);
-      const token = buildToken(storedImages[0], draft.id);
-      const next = { ...result, imageUrl: storedImages[0], imageUrls: storedImages, token: { ...token, sourceAsset: storedImages[0], referenceImages: [storedImages[0]] } };
+      await waitForImageAssets(images);
+      const token = buildToken(images[0], draft.id);
+      const next = { ...result, imageUrl: images[0], imageUrls: images, token: { ...token, sourceAsset: images[0], referenceImages: [images[0]] } };
       setGenerated(next);
       setSelectedVariationIndex(0);
       setProcess({ title: "입력한 정보를 바탕으로 캐릭터를 생성하고 있습니다.", label: "캐릭터 완성 단계...", percent: 100 });
-      notify(persisted.warning ? `새 캐릭터 초안은 생성됐지만 Firebase Storage 저장은 보류됐습니다: ${persisted.warning}` : "새 캐릭터 초안과 이미지 URL을 Firebase Storage에 저장했습니다. 베리에이션을 고른 뒤 저장하세요.");
+      notify("새 캐릭터 초안을 생성했습니다. 베리에이션을 확인한 뒤 저장해 주세요.");
     } catch (error) {
       setProcess(null);
       notify(error instanceof Error ? error.message : "캐릭터 생성에 실패했습니다.");
@@ -175,31 +177,36 @@ export function CharacterPage() {
     }
     saveLockRef.current = true;
     setSaving(true);
+    setSaveError(null);
     try {
       const selectedImage = variationImages[selectedVariationIndex] ?? generated.imageUrl;
-      const persisted = await persistGeneratedAsset(selectedImage, { fileName: `${generated.token.id}.png`, kind: "characters" });
-      const storedImage = persisted.url;
-      let saved = { ...buildToken(storedImage, generated.token.id), sourceAsset: storedImage, referenceImages: [storedImage], updatedAt: new Date().toISOString() };
-      let remoteMessage = "원격 DB 설정이 없어 IndexedDB에만 임시 저장했습니다.";
-      try {
-        const sync = await syncCharacterToRemote(saved);
-        if (sync.ownerId) saved = { ...saved, ownerId: sync.ownerId };
-        if (sync.enabled) remoteMessage = persisted.enabled ? "Firebase Storage 이미지 주소와 캐릭터 메타데이터를 Firestore에 저장했습니다." : `캐릭터 메타데이터는 저장했지만 Firebase Storage 이미지 저장은 보류됐습니다: ${persisted.error}`;
-        else if (sync.storageWarning) remoteMessage = `${sync.storageWarning} IndexedDB에만 임시 저장했습니다.`;
-      } catch (error) {
-        remoteMessage = `원격 DB 저장 실패로 IndexedDB에만 임시 저장했습니다: ${error instanceof Error ? error.message : String(error)}`;
+      let storedImage = storedSelectionRef.current?.source === selectedImage ? storedSelectionRef.current.url : "";
+      if (!storedImage) {
+        const persisted = await persistGeneratedAsset(selectedImage, { fileName: `${generated.token.id}.png`, kind: "characters" });
+        if (!persisted.enabled || !persisted.url || /^(data:|blob:)/.test(persisted.url)) {
+          throw new Error(`${persisted.error ?? "Firebase Storage 이미지 업로드에 실패했습니다."} 결과는 유지됩니다. 설정을 확인한 뒤 저장 버튼을 다시 눌러 주세요.`);
+        }
+        storedImage = persisted.url;
+        storedSelectionRef.current = { source: selectedImage, url: storedImage };
       }
-      await saveCharacter(saved);
+      let saved = { ...buildToken(storedImage, generated.token.id), sourceAsset: storedImage, referenceImages: [storedImage], updatedAt: new Date().toISOString() };
+      const sync = await syncCharacterToRemote(saved);
+      if (!sync.enabled) {
+        throw new Error(`${sync.storageWarning ?? "Firebase Storage 캐릭터 메타데이터 저장에 실패했습니다."} 결과는 유지됩니다. 저장 버튼을 다시 눌러 주세요.`);
+      }
+      if (sync.ownerId) saved = { ...saved, ownerId: sync.ownerId };
       characters.value = [saved, ...characters.value.filter((item) => item.id !== saved.id)];
       characterName.value = saved.name;
       characterPrompt.value = saved.prompt;
       characterTone.value = tone;
       characterStyle.value = style;
       selectCharacter(saved.id);
-      notify(target === "/input" ? `새 캐릭터 토큰을 저장하고 이 캐릭터로 이모티콘 제작을 시작합니다. ${remoteMessage}` : `새 캐릭터 토큰을 보관함에 저장했어요. ${remoteMessage}`);
+      notify(target === "/input" ? "Firebase Storage에 저장하고 이 캐릭터로 이모티콘 제작을 시작합니다." : "Firebase Storage 보관함에 캐릭터를 저장했습니다.");
       navigate(target);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "캐릭터 저장에 실패했습니다.");
+      const message = error instanceof Error ? error.message : "캐릭터 저장에 실패했습니다. 저장 버튼을 다시 눌러 주세요.";
+      setSaveError(message);
+      notify(message);
     } finally {
       saveLockRef.current = false;
       setSaving(false);
@@ -420,31 +427,12 @@ const previewImage =
 
           <section className="character-flow-card character-main-color-card">
             <span className="character-field-label">메인 컬러 <small>캐릭터의 메인이 될 색상을 선택합니다.</small></span>
-            <div className="character-palette-pill" role="radiogroup" aria-label={`${selectedPalette.label} 메인 컬러`}>
-              <strong>{tone}</strong>
-              <span>
-                {selectedPalette.colors.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    role="radio"
-                    aria-checked={tone === color}
-                    style={{ "--picked-color": color } as CSSProperties}
-                    onClick={() => chooseTone(color)}
-                    aria-label={`${color} 메인 컬러로 선택`}
-                    title={`${color} 메인 컬러로 선택`}
-                  />
-                ))}
-                <input
-                  type="color"
-                  value={tone}
-                  onInput={(event) => chooseTone(event.currentTarget.value)}
-                  onChange={(event) => chooseTone(event.currentTarget.value)}
-                  aria-label="원하는 메인 컬러 직접 선택"
-                  title="원하는 메인 컬러 직접 선택"
-                />
-              </span>
-            </div>
+            <ColorPickerDropdown
+              value={tone}
+              onChange={chooseTone}
+              ariaLabel={`${selectedPalette.label} 메인 컬러 선택`}
+              colors={buildPaletteSwatches(selectedPalette.colors)}
+            />
           </section>
 
           <section className="character-flow-card character-style-card">
@@ -605,6 +593,7 @@ const previewImage =
               {saving ? "저장 중..." : "이 캐릭터로 이모티콘 생성하기"}
             </button>
           </div>
+          {saveError ? <p className="character-save-error" role="alert">{saveError}</p> : null}
 
           <section className="character-result-name-card character-flow-card">
             <span className="character-field-label">캐릭터 이름</span>

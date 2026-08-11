@@ -8,9 +8,7 @@ EMOVE is a Next.js-based emoticon creation prototype. It lets users create a cha
 - Tailwind CSS v4 foundation with shadcn/ui-style local components
 - Custom CSS design system for the current dark liquid-glass visual language
 - Vercel Route Handlers for OpenAI, Firebase asset, download, and library metadata APIs
-- Firebase Storage for generated character, frame, effect, thumbnail, and animation files
-- Cloud Firestore through the Firebase Admin SDK for shared metadata and stable asset URLs
-- IndexedDB local fallback when remote storage is not configured
+- Firebase Storage for generated character, frame, thumbnail, animation, and shared JSON metadata files
 - MediaPipe Tasks Vision for camera pose and face analysis
 - APNG-first browser export with GIF compatibility fallback
 
@@ -40,27 +38,27 @@ FIREBASE_STORAGE_BUCKET=emove-aiemoticonstudio.firebasestorage.app
 
 `IMENTIV_API_KEY` is also server-only. EMOVE converts the browser's short WebM capture to mono WAV, submits it through `/api/emotion/audio`, and stores the selected emotion together with its source, provider, and confidence. Without the key, the UI clearly reports the local voice heuristic and then falls back in the requested order: voice, action, expression.
 
-Firebase Admin credentials are server-only. The client uploads generated assets through `/api/assets`; it never receives the service-account private key. The same Firebase service account manages Firestore metadata and Firebase Storage files. If the credentials are missing, metadata and generated assets remain in the browser's local persistence and the UI reports that remote storage is unavailable.
+Firebase Admin credentials are server-only. The client uploads generated assets through same-origin Route Handlers and never receives the service-account private key. If Firebase Storage is unavailable, the generated result remains on the current screen and the user is asked to press Save again after fixing the configuration. EMOVE does not silently fall back to Firestore or IndexedDB.
 
 ## Storage Model
 
 - Generated assets are uploaded through `/api/assets`; exported APNG/GIF/WebP animations use `/api/share/animation`.
-- Firebase Storage holds binary files. Firestore stores their stable same-origin image URLs and compact metadata only.
+- Firebase Storage holds binary files and compact JSON metadata under `metadata/library/`.
 - Private Firebase Storage objects are displayed through `/api/assets/file`.
 - QR codes target `/api/assets/download`, which returns the animation with `Content-Disposition: attachment`.
 - Shared library metadata is posted to and read from `/api/library/:kind`.
-- Production metadata storage uses Cloud Firestore through server-only Firebase Admin credentials.
-- Local-first work continues through IndexedDB when remote storage is unavailable.
+- The public login-free Library reads the same Storage metadata namespace in every browser.
+- There is no automatic save retry or local persistence fallback.
 
 Configure Firebase before production:
 
-- Enable Cloud Firestore in Native mode and Firebase Storage in the Firebase console.
+- Enable Firebase Storage in the Firebase console.
 - Create the server credential from Firebase Project Settings > Service accounts.
 - Keep Firebase Storage private when using the default `/api/assets/file` and `/api/assets/download` handlers.
-- Ensure that service account can read and write Firestore and Firebase Storage, then add the Firebase credentials to Vercel Production, Preview, and Development.
+- Ensure that the service account can read and write Firebase Storage, then add the Firebase credentials to Vercel Production, Preview, and Development.
 
 Redeploy after adding or changing storage environment variables so the route handlers receive them.
-The first successful save creates documents under `emove_library/{kind}/records`.
+The first successful save creates JSON objects under `metadata/library/{kind}/` and binary assets under `assets/`.
 
 ## Deployment
 

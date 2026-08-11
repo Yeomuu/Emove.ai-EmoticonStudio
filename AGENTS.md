@@ -51,6 +51,8 @@ When implementing from a selected generated mock, treat that image as the source
 - Character creation Step1 uses fixed-layout dropdown controls for character type and detailed character selection; opening the dropdown must not shift the surrounding card layout.
 - Character creation Step3 uses Unsplash-style reference mood imagery that reflects the selected character features, plus an optional freeform prompt before generation.
 - Character Step2 chooses the palette first. The selected palette defines the available main-color swatches, followed by one custom color picker; show short visible guidance that the palette controls the overall tone and the main color controls the character's primary color.
+- Character Step2's collapsed palette control shows the selected palette name plus its five representative colors; the main-color picker's default swatches must be derived from that selected palette rather than a universal color grid.
+- All editable color controls use the shared Figma `189-807` dropdown: a circular selected-color trigger, Default swatch grid, Custom HSV/HEX/RGB controls, and explicit Cancel/Select actions. Fixed emotion background colors remain read-only.
 - Library separates emoticon and character views, and item cards flow horizontally first with a 3-column desktop grid rather than masonry columns.
 - Library category filters are horizontally scrollable/draggable and should show an edge fade when overflow is possible.
 - Edit canvas must clearly show the square 1024×1024 export boundary while keeping the surrounding stage usable as the workspace.
@@ -74,6 +76,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Library group naming uses "이모티콘 그룹"; user-created groups must allow a custom group name and configurable filter conditions.
 - Library keeps the left group/search sidebar even when matching the latest Figma horizontal carousel layout.
 - Library's horizontal item rail must support pointer-hover wheel scrolling, drag-to-scroll, and seamless wraparound so the end of the list naturally continues into the beginning.
+- The latest Library reference supersedes seamless wraparound: the horizontal card rail is finite, starts with the first item in the left hero slot, and allows navigation through the final item without cloning records.
 - Library hover effects must end when the pointer leaves a card, even after clicking internal card action buttons.
 - Transparent preview grids must be smaller and lighter; grid/pattern backgrounds should appear only on intended preview surfaces, especially Library detail's `detail-stage`.
 - Edit text layer selection bounds must match the rendered text bubble exactly, including resize behavior.
@@ -85,15 +88,18 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit canvas resize/rotate control handles belong only to the current active layer; inactive selection bounds must not show handles or steal resize/rotate interactions.
 - Edit canvas may temporarily preview the currently selected layer above the other layers for easier adjustment, but this must never mutate the actual layer order or exported order. Clicking empty canvas space clears the active layer selection.
 - Source code, styles, fonts, icons, and used UI images should be referenced from `src/` and `src/assets/` in v1; old root-level source/asset folders are legacy copies only until explicitly removed.
-- Remote persistence uses Vercel Route Handlers. Firebase Storage is the binary store for generated characters, frames, effects, thumbnails, and APNG-first animation files; Cloud Firestore through the same server-only Firebase Admin SDK stores stable asset URLs and compact metadata for `characters`, `captures`, `projects`, and `stickers`; IndexedDB remains the local fallback when remote storage is unavailable.
+- Remote persistence uses Vercel Route Handlers and Firebase Storage only. Binary assets live under `assets/`; compact public Library metadata for `characters`, `captures`, `projects`, `stickers`, and `groups` lives as JSON under `metadata/library/`. Do not use Cloud Firestore or IndexedDB.
 - Input analysis must visibly show the understood behavior, expression/emotion key, voice usage, and emotion background-effect guide instead of only showing a completion toast.
+- Input analysis is a transient full-screen progress surface rather than a navigable content slide. The visible workflow is capture, pose result, and voice result while the four-dot progress guide may still represent analysis between capture and results.
 - Input camera analysis uses MediaPipe Pose Landmarker and Face Landmarker for the closest single person; if real landmarks are unavailable, the app must say the analysis failed instead of substituting preset behavior or expression data.
 - Input gesture analysis covers three separate signals across the full capture window: MediaPipe's canned hand classes, custom 21-point finger-shape geometry for common signs such as finger hearts, and 33-point body/temporal analysis for poses such as both hands up or waving. Resolve them by sustained confidence rather than hardcoding one gesture, and label unsupported motions as unclassified instead of forcing an incorrect known action.
 - Library category UI must keep display category state separate from emotion filtering so same-emotion categories such as celebration and gratitude do not appear selected at the same time.
-- Manual emotion changes after analysis affect only background/core effects, not captured expression, action, voice, or speech-bubble text facts.
+- Manual emotion changes after analysis affect both the fixed background/core effect and the generated character action. They must not rewrite captured expression, voice, or speech-bubble text facts.
 - Character tokens must store an explicit 2D/3D `styleMode`; later character frames must keep that mode instead of blending styles.
 - Input-to-edit generation automatically creates exactly five character-action frames and makes no background-effect image request; Edit connects the selected fixed background-effect preset locally.
 - The nine emotion background effects are fixed, deterministic local renderer assets keyed by the normalized emotion and never call an image-generation API. Users may edit only the separate sticker-like accent effect preset, accent color, and accent transform; the background effect remains visible, locked, canonical in color, and at the bottom of the layer stack.
+- In Edit, the fixed background effect keeps its type and canonical color read-only but exposes non-destructive blur and opacity controls. Accent and background tabs share the Figma `283-1192` two-region editor anatomy, while accent effects additionally expose preset and color controls.
+- Edit frame navigation lives below the five-frame strip, loop preview uses the same renderer as export, and the save action appears only on the fifth frame together with the explicit emoticon name.
 - Reserve `src/assets/effects/background/` for future fixed emotion background image assets. Use the normalized emotion keys (`happiness`, `joy`, `admiration`, `neutral`, `surprise`, `tension`, `sadness`, `anger`, and `anxiety`) as exact PNG-first file names; until an asset loader is implemented, keep the current procedural Canvas renderer as the sole runtime source.
 - Edit must include a live loop preview that renders the same five frame states at the selected frame delay before exporting.
 - Future UI updates may replace the current screen source. When the user provides a new canonical screen reference set, implement the app to match that supplied screen screenshot pixel-for-pixel.
@@ -102,13 +108,11 @@ When implementing from a selected generated mock, treat that image as the source
 - Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
 - OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to serverless timeout or response-size limits.
 - Use compressed `webp` image API responses by default before browser chroma-key removal; if this changes, the returned data URL MIME type must match the requested image output format.
-- On Vercel production, long image routes such as `character`, `frame`, `frames`, and `effect` should move to durable background jobs with Firebase Storage-backed or Firestore-backed status/result polling before paid production traffic. Do not make long browser-facing functions risk losing paid OpenAI results to timeout.
+- On Vercel production, long image routes such as `character`, `frame`, and `frames` use Firebase Storage-backed status/result polling so paid OpenAI results are not lost to browser-facing function timeouts.
 - Treat the Notion Design System page as fixed unless the user explicitly asks to change it; PRD, technical specification, and page/function documentation may be updated around that fixed design system.
 - When transplanting Notion page-function inventories into a technical test app, focus on the actual page functions, states, controls, and route behavior rather than recreating sidebar/navigation layout details.
 - Use the Next.js lab to stress-test accumulated EMOVE features with realistic mock state before wiring paid API calls, remote persistence, or production background jobs.
 - Home footer copy is `© 2026. EMOVE. All rights reserved.` and should sit faintly at the centered bottom of the viewport with about 0.5 opacity.
-- `/showcase` is the animated-emoticon-only archive. It reads generated APNG/GIF/Animated WebP assets from local projects and remote shared sticker metadata, never substitutes static/default assets, shows at most 12 at once, and advances through a shuffled circular deck every 20 seconds so larger libraries are not skipped.
-- Showcase emoticons should drift and bob like objects floating on water rather than falling; motion must use transform/opacity, pause under reduced-motion preferences, and remain clickable through to Library detail.
 - For the current Figma redesign pass, layout fidelity takes priority over decorative style refinement; match each 1920×1080 frame's placement and sizing before polishing visual treatment.
 - Primary app screens should occupy a fixed `100svw` × `100svh` stage with a `1920px` maximum width and hidden viewport overflow so the app behaves as a one-screen flow.
 - The Home geometric circle/line background must follow the current Figma Home frame rather than the earlier decorative pattern.
@@ -116,26 +120,21 @@ When implementing from a selected generated mock, treat that image as the source
 - Loading surfaces, including boot loading, route curtain loading, and generation/analysis progress screens, must follow the active light/dark theme.
 - Light mode shadows should be softer than dark mode shadows so glass surfaces stay clean rather than smudged.
 - Horizontal filter rails should show edge fades only on the sides where additional hidden items are available.
-- Edit save should keep Firestore records easy to inspect by upserting the project plus separate sticker, character, and capture metadata documents.
-- Export QR should prefer the hosted animation URL when available and fall back to the saved Library detail URL when direct animation sharing is unavailable.
+- Edit save uploads all five transparent character frames, thumbnail, APNG-first animation, and compact JSON records to Firebase Storage before updating the Library. Any failed part keeps the user in Edit with a persistent manual-retry message; never auto-retry or fall back to local persistence.
+- After the first successful Edit save, route to Library and open a QR export modal. Library also exposes QR export for saved emoticons, and QR targets the same-origin Firebase Storage attachment download URL.
 - The overall layout reference websites are:
   - https://startrail.stellive.me/ (stellar dynamic components and animations)
   - https://sustainability.kakao.com/ko (modern grids and liquid-glass container hierarchies)
   - https://myz-studio.com/ (clean minimalist dark layout and hover states)
   - https://towards.co.kr/ (loading sequence, typewriter vertical panels, and real-time ASCII rotating globes)
-- Showcase uses an independently implemented full-viewport pointer-reactive liquid canvas inspired by the supplied Haoqi reference. Keep empty-state copy as part of the background composition rather than a centered card, split animated emoticons between behind-text and in-front layers, and let the pointer ripple produce subtle RGB dispersion, fine water noise, and localized backdrop refraction over text and emoticons.
-- Keep all Showcase visual content below one full-screen, pointer-transparent adjustment layer so the water response refracts the background word, copy, and emoticons together. Use one fixed base color per light/dark theme, render the background `EMOVE` word as liquid glass, omit `CREATE EMOTICON` in the empty state, and guarantee a behind/front emoticon split whenever at least two animated items exist.
-- Showcase water should resemble a fast, fine `CC Drizzle`-style moving caustic surface rather than a large accumulated radial blob. Render the transparent WebGL caustic canvas inside the adjustment layer above Showcase content, keep DOM displacement subtle enough to avoid duplicated text outlines, and use darker blue-gray refraction in light mode so the motion remains visible.
-- Keep the Showcase light-mode ambient caustic restrained; pointer movement should temporarily restore the stronger RGB prism/ring dispersion without raising the whole page's water intensity.
-- Showcase pointer motion must leave a visible decaying RGB/refraction wake along the traveled path; do not reduce the effect to a single lens that only follows the current pointer position.
 - The 2026-07-19 attached `design.pdf` plus Home, Character, Input, Emoticon, and Collection SVG files are the current final dark-mode visual references; compare implementation screenshots against those 1920×1080 sources before handoff.
 - The shared production Library is public and login-free: all browsers may read generated public characters and emoticons, while browser writes remain same-origin and production upload/generation routes still require abuse controls.
-- Prototype Firebase persistence uses one server-admin public namespace with `ownerId: "public"`; do not enable anonymous Firebase Auth or partition Library records by browser UID. Cross-browser visibility comes from the shared Firestore records, while IndexedDB remains only a local fallback.
+- Prototype Firebase persistence uses one server-admin public namespace with `ownerId: "public"`; do not enable anonymous Firebase Auth or partition Library records by browser UID. Cross-browser visibility comes from shared Firebase Storage JSON records.
 - Treat Figma frames that expose open dropdowns, color pickers, hover actions, or completed generation/analysis results as interaction-state references. Initial route renders keep those overlays closed and reveal them only through the matching control or workflow state.
 - Form and media-panel internals must use containment-safe flex/grid layout. Do not position controls across unrelated parent panels or allow labels, previews, buttons, or upload controls to overflow their owning region.
 - Keep glass treatment selective: use it for navigation, modal, focused controls, and intentional overlay surfaces rather than applying it uniformly to every wireframe cell.
-- The bottom dock must always provide a clickable EMOVE logo for Home and an icon-only Showcase entry; Home uses the same responsive bottom-right dock as the other routes.
-- After a completed Input microphone/camera capture, open Showcase only after 3 minutes without pointer, keyboard, touch, or wheel activity; any user activity restarts the full 3-minute timer. Clicking the Showcase background returns to the immediately previous route.
+- The bottom dock must always provide a clickable EMOVE logo for Home. Home uses the same responsive bottom-right dock as the other routes.
+- `/showcase` and its inactivity redirect are removed from the product; do not reintroduce them without a new explicit request.
 - Keep the live camera preview mounted and visible for the full five-second Input capture while camera frames and microphone audio are recorded together. Advance to the analysis slide only after both recordings stop; capture errors must release any active microphone stream before returning to preview.
 - Character reference input prioritizes cartoon or 3D-rendered imagery and accepts one user-uploaded reference image that is included in the character generation token.
 - Emotion selection follows the explicit product priority voice → action → facial expression. Imentiv audio analysis is server-only through `/api/emotion/audio`; store the chosen source, provider, confidence, and full normalized score map, and label local heuristic fallbacks honestly.
@@ -144,18 +143,18 @@ When implementing from a selected generated mock, treat that image as the source
 
 ## Firebase Remote Data Model
 
-원격 저장은 선택 기능입니다. Firebase Admin 서비스 계정 정보가 없으면 IndexedDB 로컬 저장만 사용하고, `FIREBASE_STORAGE_BUCKET`이 없으면 로컬 개발용 메모리 애니메이션 공유 URL과 로컬 이미지 데이터만 사용하면서 설정 오류를 명확히 알립니다.
+Firebase Admin 서비스 계정 정보나 `FIREBASE_STORAGE_BUCKET`이 없으면 저장은 실패합니다. 생성 결과는 현재 화면에 유지하고 사용자가 설정을 고친 뒤 저장 버튼을 직접 다시 누르도록 안내합니다.
 
-### 1. `emove_library/{kind}/records/{recordId}`
-**Cloud Firestore shared metadata documents**
+### 1. `metadata/library/{kind}/{recordId}.json`
+**Firebase Storage shared metadata objects**
 
 ```typescript
 {
   id: string;          // character/capture/project/sticker id
-  kind: "characters" | "captures" | "projects" | "stickers";
+  kind: "characters" | "captures" | "projects" | "stickers" | "groups";
   payload: object;     // compact metadata payload, no raw Blob fields
-  createdAt: Firestore create time;
-  updatedAt: Firestore server timestamp;
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 
@@ -174,11 +173,11 @@ When implementing from a selected generated mock, treat that image as the source
 
 ### 데이터 흐름 및 저장 시점
 
-1. **Input 페이지**: 사용자 입력 → local `captures` 저장, Firebase Admin이 설정되어 있으면 `/api/library/captures`에도 compact metadata 저장
-2. **Character 페이지**: OpenAI 생성 → local `characters` 저장, Firebase Admin이 설정되어 있으면 `/api/library/characters`에도 저장
-3. **Edit 페이지**: 프레임별 편집 상태 → local `projects`, `stickers`, `characters` 저장, Firebase Admin이 설정되어 있으면 `/api/library/projects`에도 compact metadata 저장
-4. **Export**: APNG 우선 애니메이션 렌더링 → `/api/share/animation` 업로드 → Firebase Storage URL은 화면 표시/DB에 사용하고 `/api/assets/download` attachment URL은 QR에 사용
-5. **Library**: IndexedDB/local state와 Firestore 공용 레코드를 병합해 모든 브라우저에서 공개 캐릭터와 이모티콘을 함께 표시
+1. **Input 페이지**: 카메라와 마이크를 동시에 기록하고 분석하되 자동 저장하지 않음
+2. **Character 페이지**: OpenAI 생성 결과를 화면에 유지하다 사용자가 저장할 때 캐릭터 이미지와 JSON 메타데이터를 Firebase Storage에 저장
+3. **Edit 페이지**: 저장 버튼에서 5프레임, 썸네일, APNG-first 애니메이션과 `projects`, `stickers`, `characters`, `captures` JSON 메타데이터를 Firebase Storage에 저장
+4. **Export**: `/api/assets/download` attachment URL을 QR에 사용
+5. **Library**: Firebase Storage 공용 JSON 레코드를 읽어 모든 브라우저에서 같은 캐릭터, 이모티콘, 사용자 그룹을 표시
 
 ### 권한 및 보안
 - `OPENAI_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_STORAGE_BUCKET`은 서버 환경변수로만 보관합니다.

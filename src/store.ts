@@ -1,7 +1,8 @@
 import { computed, signal } from "./lib/signals";
 import { createMotionBrief, defaultCharacterTokens, emotionMeta, imageAssets, initialLayers, starterStickers } from "./data";
 import { emptyEmotionScores } from "./emotion-taxonomy";
-import type { AccentEffect, AnimationFormat, BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, LayerKind, LayerTransform, MotionStyle, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
+import { DEFAULT_TEXT_COLOR, normalizePickerHex } from "./services/color-picker";
+import type { AccentEffect, AnimationFormat, BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, ExaggerationTier, LayerKind, LayerTransform, MotionStyle, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
 
 const emptyCharacter: CharacterToken = {
   id: "character-empty",
@@ -38,6 +39,10 @@ export const effectColor = signal(emotionMeta.neutral.color);
 export const coreEffect = signal(emotionMeta.neutral.effect);
 export const accentEffect = signal<AccentEffect>("sparkles");
 export const accentColor = signal(emotionMeta.neutral.color);
+export const backgroundEffectBlur = signal(0);
+export const backgroundEffectOpacity = signal(100);
+export const accentEffectBlur = signal(0);
+export const accentEffectOpacity = signal(100);
 export const sourceTranscript = signal("");
 export const transcript = signal("");
 export const emoticonTitle = signal("");
@@ -46,11 +51,13 @@ export const audioPeak = signal(0);
 export const motionIntensity = computed(() => Math.max(0, Math.min(1, audioRms.value * 1.7)));
 export const frameDelayMs = signal(120);
 export const motionStyle = signal<MotionStyle>("smooth");
+export const exaggerationTierOverride = signal<ExaggerationTier | null>(null);
 
 export const selectedFrame = signal(0);
 export const activeLayer = signal<LayerKind | null>("text");
 export const textBoxShape = signal<TextBoxShape>("pill");
 export const textFont = signal<TextFont>("Pretendard");
+export const textColor = signal(DEFAULT_TEXT_COLOR);
 export const layers = signal(initialLayers.map((layer) => ({ ...layer })));
 export const defaultLayerTransforms: Record<LayerKind, LayerTransform> = {
   "background-effects": { x: 0, y: 0, scale: 1, rotation: 0 },
@@ -74,12 +81,10 @@ export const stickers = signal<StickerItem[]>(starterStickers.map((item) => ({ .
 export const editingProject = signal<EmoticonProject | null>(null);
 export const lastSaved = signal<string | null>(null);
 export const toast = signal<string | null>(null);
-export const exportModalOpen = signal(false);
-export const exportShareUrl = signal<string | null>(null);
-export const exportGifBlob = signal<Blob | null>(null);
 export const exportAnimationFormat = signal<AnimationFormat>("APNG");
+export const pendingQrExport = signal<import("./types").QrExportPayload | null>(null);
 
-export const motionBrief = computed(() => createMotionBrief(emotion.value, effectColor.value, sourceTranscript.value, transcript.value, motionIntensity.value, selectedCharacterId.value, frameDelayMs.value, coreEffect.value, expressionEmotion.value, behaviorCapture.value.poseSummary, motionStyle.value, accentEffect.value, accentColor.value));
+export const motionBrief = computed(() => createMotionBrief(emotion.value, effectColor.value, sourceTranscript.value, transcript.value, motionIntensity.value, selectedCharacterId.value, frameDelayMs.value, coreEffect.value, expressionEmotion.value, behaviorCapture.value.poseSummary, motionStyle.value, accentEffect.value, accentColor.value, exaggerationTierOverride.value));
 
 let toastTimer: number | undefined;
 export function notify(message: string): void {
@@ -110,12 +115,15 @@ export function selectCharacter(id: string): void {
 export function startNewEmoticonProject(): void {
   editingProject.value = null;
   emoticonTitle.value = transcript.value.trim().slice(0, 12) || "새 이모티콘";
-  exportGifBlob.value = null;
   exportAnimationFormat.value = "APNG";
-  exportShareUrl.value = null;
-  exportModalOpen.value = false;
+  pendingQrExport.value = null;
   accentEffect.value = "sparkles";
   accentColor.value = emotionMeta[emotion.value].color;
+  backgroundEffectBlur.value = 0;
+  backgroundEffectOpacity.value = 100;
+  accentEffectBlur.value = 0;
+  accentEffectOpacity.value = 100;
+  textColor.value = DEFAULT_TEXT_COLOR;
 }
 
 export function loadProjectForEditing(project: EmoticonProject): void {
@@ -134,6 +142,10 @@ export function loadProjectForEditing(project: EmoticonProject): void {
   coreEffect.value = emotionMeta[emotion.value].effect;
   accentEffect.value = project.motionBrief.accentEffect ?? "sparkles";
   accentColor.value = project.motionBrief.accentColor ?? emotionMeta[emotion.value].color;
+  backgroundEffectBlur.value = project.effectSettings?.background.blur ?? 0;
+  backgroundEffectOpacity.value = project.effectSettings?.background.opacity ?? 100;
+  accentEffectBlur.value = project.effectSettings?.accent.blur ?? 0;
+  accentEffectOpacity.value = project.effectSettings?.accent.opacity ?? 100;
   sourceTranscript.value = project.motionBrief.sourceText;
   transcript.value = project.motionBrief.shortText;
   emoticonTitle.value = project.sticker.title;
@@ -143,14 +155,13 @@ export function loadProjectForEditing(project: EmoticonProject): void {
   layers.value = normalizeEditorLayers(project.layers);
   textBoxShape.value = project.textStyle.shape;
   textFont.value = project.textStyle.font;
+  textColor.value = normalizePickerHex(project.textStyle.color ?? "") ?? DEFAULT_TEXT_COLOR;
   frameImages.value = project.frameImages.length ? [...project.frameImages] : Array.from({ length: 5 }, () => project.characterToken.sourceAsset);
   frameLayerTransforms.value = cloneFrameTransforms(project.frameLayerTransforms);
   selectedFrame.value = 0;
   activeLayer.value = "text";
-  exportGifBlob.value = null;
   exportAnimationFormat.value = project.animationFormat ?? project.sticker.animationFormat ?? "APNG";
-  exportShareUrl.value = project.sticker.animatedImage?.startsWith("http") ? project.sticker.animatedImage : null;
-  exportModalOpen.value = false;
+  pendingQrExport.value = null;
   lastSaved.value = new Date(project.updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 }
 

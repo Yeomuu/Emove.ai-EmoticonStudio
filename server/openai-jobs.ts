@@ -1,7 +1,11 @@
-import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore";
-
-import { firebaseAdminConfigurationError, getEmoveFirebaseApp } from "./firebase-admin";
-import { firebaseStorageConfigurationError, isFirebaseStorageConfigured, uploadFirebaseAsset, type FirebaseAssetKind } from "./firebase-storage";
+import {
+  firebaseStorageConfigurationError,
+  isFirebaseStorageConfigured,
+  readFirebaseJson,
+  uploadFirebaseAsset,
+  writeFirebaseJson,
+  type FirebaseAssetKind,
+} from "./firebase-storage";
 
 export type OpenAIJobStatus = "pending" | "running" | "complete" | "failed";
 
@@ -11,16 +15,14 @@ type OpenAIJobDocument = {
   status: OpenAIJobStatus;
   result?: unknown;
   error?: string;
-  createdAt?: unknown;
-  updatedAt?: unknown;
+  createdAt: string;
+  updatedAt: string;
 };
 
-const JOB_COLLECTION = "emove_openai_jobs";
-const FIRESTORE_TIMEOUT_MS = 5_000;
-let firestoreClient: Firestore | null = null;
+const JOB_METADATA_ROOT = "metadata/openai-jobs";
 
 export function openAIJobConfigurationError(): string | null {
-  return firebaseAdminConfigurationError() ?? firebaseStorageConfigurationError();
+  return firebaseStorageConfigurationError();
 }
 
 export function canUseOpenAIJobs(): boolean {
@@ -28,43 +30,38 @@ export function canUseOpenAIJobs(): boolean {
 }
 
 export async function createOpenAIJob(id: string, route: string): Promise<void> {
-  const database = jobFirestore();
-  if (!database) throw new Error(openAIJobConfigurationError() ?? "OpenAI 작업 저장소가 설정되지 않았습니다.");
-  await withTimeout(database.collection(JOB_COLLECTION).doc(id).set({
+  const now = new Date().toISOString();
+  await writeFirebaseJson(jobObjectName(id), {
     id,
     route,
     status: "pending",
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  } satisfies OpenAIJobDocument));
+    createdAt: now,
+    updatedAt: now,
+  } satisfies OpenAIJobDocument);
 }
 
 export async function markOpenAIJobRunning(id: string): Promise<void> {
-  await updateOpenAIJob(id, { status: "running", error: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
+  await updateOpenAIJob(id, { status: "running", error: undefined });
 }
 
 export async function completeOpenAIJob(id: string, result: unknown): Promise<void> {
-  await updateOpenAIJob(id, { status: "complete", result, error: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
+  await updateOpenAIJob(id, { status: "complete", result, error: undefined });
 }
 
 export async function failOpenAIJob(id: string, error: unknown): Promise<void> {
   await updateOpenAIJob(id, {
     status: "failed",
     error: error instanceof Error ? error.message : String(error),
-    result: FieldValue.delete(),
-    updatedAt: FieldValue.serverTimestamp(),
+    result: undefined,
   });
 }
 
 export async function readOpenAIJob(id: string): Promise<{ status: OpenAIJobStatus; result?: unknown; error?: string } | null> {
-  const database = jobFirestore();
-  if (!database) return null;
-  const snapshot = await withTimeout(database.collection(JOB_COLLECTION).doc(id).get());
-  if (!snapshot.exists) return null;
-  const data = snapshot.data() as Partial<OpenAIJobDocument> | undefined;
-  const status = data?.status;
+  const stored = await readFirebaseJson<OpenAIJobDocument>(jobObjectName(id));
+  if (!stored) return null;
+  const { status, result, error } = stored.value;
   if (status !== "pending" && status !== "running" && status !== "complete" && status !== "failed") return null;
-  return { status, result: data?.result, error: data?.error };
+  return { status, result, error };
 }
 
 export async function persistOpenAIJobImages(route: string, result: unknown, requestUrl: string, jobId: string): Promise<unknown> {
@@ -95,18 +92,21 @@ export async function persistOpenAIJobImages(route: string, result: unknown, req
   return output;
 }
 
-async function updateOpenAIJob(id: string, data: Record<string, unknown>): Promise<void> {
-  const database = jobFirestore();
-  if (!database) throw new Error(openAIJobConfigurationError() ?? "OpenAI 작업 저장소가 설정되지 않았습니다.");
-  await withTimeout(database.collection(JOB_COLLECTION).doc(id).set(data, { merge: true }));
+async function updateOpenAIJob(id: string, patch: Partial<OpenAIJobDocument>): Promise<void> {
+  const objectName = jobObjectName(id);
+  const stored = await readFirebaseJson<OpenAIJobDocument>(objectName);
+  if (!stored) throw new Error("OpenAI 작업 정보를 찾지 못했습니다.");
+  await writeFirebaseJson(objectName, {
+    ...stored.value,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
-function jobFirestore(): Firestore | null {
-  if (openAIJobConfigurationError()) return null;
-  if (firestoreClient) return firestoreClient;
-  const databaseId = process.env.FIREBASE_FIRESTORE_DATABASE_ID?.trim();
-  firestoreClient = databaseId ? getFirestore(getEmoveFirebaseApp(), databaseId) : getFirestore(getEmoveFirebaseApp());
-  return firestoreClient;
+function jobObjectName(id: string): string {
+  const safeId = id.trim().replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!safeId) throw new Error("올바른 OpenAI 작업 ID가 필요합니다.");
+  return `${JOB_METADATA_ROOT}/${safeId}.json`;
 }
 
 function assetKindForRoute(route: string): FirebaseAssetKind {
@@ -124,14 +124,4 @@ function extensionForMime(value: string): string {
   if (value.includes("webp")) return "webp";
   if (value.includes("jpeg")) return "jpg";
   return "png";
-}
-
-function withTimeout<T>(operation: Promise<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("OpenAI 작업 저장 시간이 초과되었습니다.")), FIRESTORE_TIMEOUT_MS);
-    operation.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (error) => { clearTimeout(timer); reject(error); },
-    );
-  });
 }

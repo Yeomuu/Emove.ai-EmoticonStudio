@@ -486,18 +486,26 @@
   gap: 4px;
 }
 
-.character-palette-pill button,
+.character-palette-pill i,
 .character-palette-list i {
   width: 24px;
   height: 24px;
+  display: block;
+  flex: 0 0 24px;
+  aspect-ratio: 1 / 1;
+  box-sizing: border-box;
   border: 0;
   border-radius: 50%;
   background: var(--picked-color);
 }
 
 .character-palette-pill .palette-custom-dot {
-  border: 1px solid rgba(255,255,255,.14);
-  background: linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.04));
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 0;
 }
 
 .character-palette-list {
@@ -534,6 +542,7 @@
 .character-palette-list i {
   width: 14px;
   height: 14px;
+  flex: 0 0 14px;
   display: block;
 }
 
@@ -795,6 +804,20 @@ margin-bottom: 36px;
 }
 
 .character-reference-picker figure > span { max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; }
+
+.character-reference-picker {
+  outline: 0;
+}
+
+.character-reference-picker input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 /* --------------------------------------------------------------------------
    묘사 프롬프트 작성

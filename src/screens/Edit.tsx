@@ -1,38 +1,53 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { ColorPickerDropdown } from "../components/ColorPickerDropdown";
+import { BackgroundEffectPreview } from "../components/BackgroundEffectPreview";
+import { EditorSelectDropdown } from "../components/EditorSelectDropdown";
 import { Icon } from "../components/Icon";
 import { Panel } from "../components/Shell";
 import { Stage } from "../components/Stage";
 import { EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import { emotionMeta } from "../data";
-import { persistGeneratedAsset } from "../services/asset-storage";
+import { navigate } from "../router";
+import { persistGeneratedAsset, persistGeneratedAssets } from "../services/asset-storage";
+import { createQrExportPayload } from "../services/qr-export";
 import { syncProjectToRemote } from "../services/remote-store";
-import { downloadBlob, exportAnimation, renderFrame, renderFrameDataUrl } from "../services/renderer";
-import { saveProject } from "../services/repository";
-import { animationExtension, animationMimeType, publishAnimationForQr } from "../services/share";
-import { accentColor, accentEffect, activeLayer, behaviorCapture, editingProject, effectColor, emotion, emoticonTitle, exportAnimationFormat, exportGifBlob, exportModalOpen, exportShareUrl, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, previewLayerOrder, sanitizeAssetUrl, selectedCharacter, selectedFrame, stickers, textBoxShape, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
-import type { AccentEffect, AnimationFormat, EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
+import { exportAnimation, renderFrame, renderFrameDataUrl } from "../services/renderer";
+import { publishAnimationForQr } from "../services/share";
+import { accentColor, accentEffect, accentEffectBlur, accentEffectOpacity, activeLayer, backgroundEffectBlur, backgroundEffectOpacity, behaviorCapture, editingProject, effectColor, emotion, emoticonTitle, exportAnimationFormat, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, pendingQrExport, previewLayerOrder, sanitizeAssetUrl, selectedCharacter, selectedFrame, stickers, textBoxShape, textColor, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
+import type { AccentEffect, EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
 import characterMain from "../assets/images/character-main.webp";
 
 const layerIcons: Record<LayerKind, "image" | "star" | "layers" | "edit"> = { "background-effects": "image", character: "layers", "accent-effects": "star", text: "edit" };
 const accentOptions: Array<{ value: AccentEffect; label: string }> = [
-  { value: "none", label: "없음" },
-  { value: "sparkles", label: "반짝임" },
-  { value: "hearts", label: "하트 스티커" },
-  { value: "stars", label: "별 스티커" },
-  { value: "motion-lines", label: "모션 라인" },
+  { value: "stars", label: "별" },
+  { value: "petals", label: "꽃잎" },
+  { value: "hearts", label: "하트" },
+  { value: "sparkles", label: "반짝이" },
+  { value: "speech-bubbles", label: "말풍선" },
+  { value: "clouds", label: "구름" },
 ];
 
+const fontOptions = [
+  { value: "Pretendard", label: "프리텐다드", fontFamily: "Pretendard" },
+  { value: "Paperlogy", label: "페이퍼로지", fontFamily: "Paperlogy" },
+] as const;
+
+const textShapeOptions = [
+  { value: "rounded", label: "라운드 박스", previewClassName: "shape-rounded" },
+  { value: "pill", label: "둥근 타원", previewClassName: "shape-pill" },
+  { value: "caption", label: "말풍선", previewClassName: "shape-caption" },
+] as const;
+
 export function EditPage() {
-  const [exporting, setExporting] = useState(false); const [density, setDensity] = useState(64); const [qr, setQr] = useState<string>();
-  const [exportPreviewUrl, setExportPreviewUrl] = useState<string>();
+  const [exporting, setExporting] = useState(false); const [density, setDensity] = useState(64);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const exportLockRef = useRef(false);
   const [dragId, setDragId] = useState<LayerKind>(); const [dragPreview, setDragPreview] = useState<EditorLayer[] | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: LayerKind; position: "before" | "after" } | null>(null); const [dragPoint, setDragPoint] = useState<{ x: number; y: number } | null>(null);
   const activeLayerId = activeLayer.value;
   const transform = activeLayerId ? layerTransforms.value[activeLayerId] : null; const active = activeLayerId ? layers.value.find((layer) => layer.id === activeLayerId) : null;
   const displayedLayers = dragPreview ?? layers.value;
-  const exportLabel = animationLabel(exportAnimationFormat.value);
-  const exportExtension = animationExtension(exportAnimationFormat.value);
   useEffect(() => {
     if (frameImages.value.length > 0 || !selectedCharacter.value.sourceAsset) return;
     const source = sanitizeAssetUrl(selectedCharacter.value.sourceAsset);
@@ -41,15 +56,6 @@ export function EditPage() {
   useEffect(() => {
     if (!emoticonTitle.value.trim()) emoticonTitle.value = editingProject.value?.sticker.title || transcript.value.trim().slice(0, 12) || "새 이모티콘";
   }, []);
-  useEffect(() => {
-    if (!exportModalOpen.value || !exportGifBlob.value) {
-      setExportPreviewUrl(undefined);
-      return;
-    }
-    const previewUrl = URL.createObjectURL(exportGifBlob.value);
-    setExportPreviewUrl(previewUrl);
-    return () => URL.revokeObjectURL(previewUrl);
-  }, [exportModalOpen.value, exportGifBlob.value]);
   const beginLayerDrag = (event: ReactPointerEvent<HTMLButtonElement>, sourceId: LayerKind) => {
     if (event.button !== 0 || sourceId === "background-effects") return;
     event.preventDefault(); event.stopPropagation();
@@ -80,16 +86,46 @@ export function EditPage() {
 
   const buildAndSave = async (): Promise<EmoticonProject> => {
     const original = editingProject.value;
-    const renderOptions = { characterUrl: sanitizeAssetUrl(selectedCharacter.value.sourceAsset), characterFrames: frameImages.value, brief: motionBrief.value, layers: layers.value, transforms: layerTransforms.value, frameTransforms: frameLayerTransforms.value, textShape: textBoxShape.value, textFont: textFont.value, width: EXPORT_SIZE, height: EXPORT_SIZE };
+    const renderOptions = {
+      characterUrl: sanitizeAssetUrl(selectedCharacter.value.sourceAsset),
+      characterFrames: frameImages.value,
+      brief: motionBrief.value,
+      layers: layers.value,
+      transforms: layerTransforms.value,
+      frameTransforms: frameLayerTransforms.value,
+      textShape: textBoxShape.value,
+      textFont: textFont.value,
+      textColor: textColor.value,
+      backgroundEffectStyle: { blur: backgroundEffectBlur.value, opacity: backgroundEffectOpacity.value },
+      accentEffectStyle: { blur: accentEffectBlur.value, opacity: accentEffectOpacity.value },
+      width: EXPORT_SIZE,
+      height: EXPORT_SIZE,
+    };
     const [animation, thumbnailSource] = await Promise.all([exportAnimation(renderOptions, "APNG"), renderFrameDataUrl(renderOptions, 0)]);
     const now = new Date().toISOString(); const id = original?.id ?? `emove-${Date.now()}`;
     const originalSticker = original?.sticker;
     const title = normalizedStickerTitle(originalSticker?.title);
     emoticonTitle.value = title;
     exportAnimationFormat.value = animation.format;
-    const localAnimationUrl = URL.createObjectURL(animation.blob);
-    const sharedAnimation = await publishAnimationForQr(animation.blob, { fileName: `${safeFileName(title)}.${animation.extension}`, format: animation.format, projectId: id, title });
-    const thumbnailAsset = await persistGeneratedAsset(thumbnailSource, { fileName: `${safeFileName(title)}-thumbnail.png`, kind: "thumbnails" });
+    if (frameImages.value.length !== FRAME_COUNT) {
+      throw new Error(`캐릭터 행동 프레임은 정확히 ${FRAME_COUNT}개여야 합니다.`);
+    }
+    const [sharedAnimation, thumbnailAsset, storedFrames] = await Promise.all([
+      publishAnimationForQr(animation.blob, { fileName: `${safeFileName(title)}.${animation.extension}`, format: animation.format, projectId: id, title }),
+      persistGeneratedAsset(thumbnailSource, { fileName: `${safeFileName(title)}-thumbnail.png`, kind: "thumbnails" }),
+      persistGeneratedAssets(frameImages.value, { filePrefix: `${id}-frame`, kind: "frames" }),
+    ]);
+    if (!sharedAnimation.enabled || !sharedAnimation.url || !sharedAnimation.path) {
+      throw new Error(sharedAnimation.error || "완성 애니메이션을 Firebase Storage에 저장하지 못했습니다.");
+    }
+    if (!thumbnailAsset.enabled || !thumbnailAsset.url) {
+      throw new Error(thumbnailAsset.error || "썸네일을 Firebase Storage에 저장하지 못했습니다.");
+    }
+    const failedFrame = storedFrames.assets.find((asset) => !asset.enabled || !asset.url || /^(data:|blob:)/.test(asset.url));
+    if (failedFrame || storedFrames.assets.length !== FRAME_COUNT) {
+      throw new Error(failedFrame?.error || storedFrames.warning || "5개 캐릭터 행동 프레임을 Firebase Storage에 저장하지 못했습니다.");
+    }
+    const storedFrameUrls = storedFrames.assets.map((asset) => asset.url);
     const thumbnail = thumbnailAsset.url;
     const sticker: StickerItem = {
       id: originalSticker?.id ?? id,
@@ -97,7 +133,7 @@ export function EditPage() {
       phrase: transcript.value,
       emotion: emotion.value,
       image: thumbnail,
-      animatedImage: sharedAnimation.url ?? localAnimationUrl,
+      animatedImage: sharedAnimation.url,
       animationFormat: animation.format,
       animationStoragePath: sharedAnimation.path ?? originalSticker?.animationStoragePath,
       thumbnail,
@@ -107,7 +143,7 @@ export function EditPage() {
       frameDelayMs: frameDelayMs.value,
       color: effectColor.value,
       favorite: originalSticker?.favorite ?? false,
-      ownerId: original?.ownerId ?? originalSticker?.ownerId ?? "local-user",
+      ownerId: "public",
       isDefault: false,
       isPublished: originalSticker?.isPublished ?? false,
       characterTokenId: selectedCharacter.value.id,
@@ -115,72 +151,39 @@ export function EditPage() {
       updatedAt: now,
     };
     const { videoBlob: _video, audioBlob: _audio, ...captureMeta } = behaviorCapture.value;
-    let project: EmoticonProject = { id, ownerId: original?.ownerId ?? sticker.ownerId, sticker, gifBlob: animation.blob, animationBlob: animation.blob, animationFormat: animation.format, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: frameImages.value, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, textStyle: { shape: textBoxShape.value, font: textFont.value }, motionBrief: motionBrief.value, createdAt: original?.createdAt ?? now, updatedAt: now };
-    let sync: Awaited<ReturnType<typeof syncProjectToRemote>> = { enabled: false };
-    let remoteError: string | null = null;
-    try {
-      sync = await syncProjectToRemote(project);
-    } catch (error) {
-      remoteError = error instanceof Error ? error.message : "원격 DB 동기화에 실패했습니다.";
+    const project: EmoticonProject = { id, ownerId: "public", sticker, gifBlob: animation.blob, animationBlob: animation.blob, animationFormat: animation.format, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: storedFrameUrls, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, textStyle: { shape: textBoxShape.value, font: textFont.value, color: textColor.value }, effectSettings: { background: { blur: backgroundEffectBlur.value, opacity: backgroundEffectOpacity.value }, accent: { blur: accentEffectBlur.value, opacity: accentEffectOpacity.value } }, motionBrief: motionBrief.value, createdAt: original?.createdAt ?? now, updatedAt: now };
+    const sync = await syncProjectToRemote(project);
+    if (!sync.enabled) {
+      throw new Error(sync.storageWarning || "프로젝트 메타데이터를 Firebase Storage에 저장하지 못했습니다.");
     }
-    if (sharedAnimation.url || sharedAnimation.path || sync.downloadUrl || sync.storagePath || sync.ownerId) {
-      const remoteAnimationUrl = sharedAnimation.url ?? sync.downloadUrl;
-      const remoteAnimationPath = sharedAnimation.path ?? sync.storagePath;
-      const syncedSticker = { ...sticker, ownerId: sync.ownerId ?? sticker.ownerId, animatedImage: remoteAnimationUrl ?? sticker.animatedImage, animationStoragePath: remoteAnimationPath ?? sticker.animationStoragePath, gifStoragePath: remoteAnimationPath ?? sticker.gifStoragePath, updatedAt: new Date().toISOString() };
-      project = { ...project, ownerId: sync.ownerId ?? project.ownerId, sticker: syncedSticker };
-    }
-    await saveProject(project);
     const currentIndex = stickers.value.findIndex((item) => item.id === project.sticker.id);
     stickers.value = currentIndex >= 0
       ? stickers.value.map((item, index) => (index === currentIndex ? project.sticker : item))
       : [project.sticker, ...stickers.value];
     editingProject.value = project;
     lastSaved.value = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
-    exportGifBlob.value = animation.blob; exportShareUrl.value = sharedAnimation.downloadUrl ?? sharedAnimation.url ?? sync.downloadUrl ?? null;
-    const savedCopy = original ? "원본 이모티콘을 현재 위치에 덮어 저장했어요." : "이모티콘을 저장했어요.";
-    notify(remoteError
-      ? `${savedCopy} 원격 DB 동기화 실패: ${remoteError}`
-      : sharedAnimation.url
-        ? `${savedCopy} QR 공유 링크도 생성했어요.`
-        : sharedAnimation.error
-          ? `${savedCopy} QR 공유 링크 생성 실패: ${sharedAnimation.error}`
-          : sync.storageWarning
-            ? `${savedCopy} ${sync.storageWarning}`
-            : original
-              ? sync.enabled ? "원본 이모티콘을 현재 위치에 덮어 저장하고 원격 DB도 갱신했어요." : "원본 이모티콘을 현재 위치에 덮어 저장했어요."
-              : sync.enabled ? `프로젝트와 1024 ${animation.format} 메타데이터를 원격 DB에 저장했어요.` : "이모티콘을 기기에 저장했어요."); return project;
+    frameImages.value = storedFrameUrls;
+    pendingQrExport.value = await createQrExportPayload(project.sticker);
+    notify(original ? "원본 이모티콘을 Firebase Storage에 덮어 저장했어요." : "이모티콘을 Firebase Storage에 저장했어요.");
+    return project;
   };
 
   const save = async () => {
     if (exportLockRef.current) return;
     exportLockRef.current = true;
     setExporting(true);
-    try { await buildAndSave(); }
-    catch (error) { notify(error instanceof Error ? error.message : "저장에 실패했습니다."); }
-    finally { exportLockRef.current = false; setExporting(false); }
-  };
-  const openExport = async () => {
-    if (exportLockRef.current) return;
-    exportLockRef.current = true;
-    setExporting(true);
+    setSaveError(null);
     try {
-      const project = await buildAndSave();
-      const qrTarget = exportShareUrl.value ?? new URL(`/library/${project.sticker.id}`, window.location.origin).toString();
-      const { default: QRCode } = await import("qrcode");
-      setQr(await QRCode.toDataURL(qrTarget, { width: 260, margin: 1, color: { dark: "#201E28", light: "#FCFCFC" } }));
-      exportModalOpen.value = true;
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "내보내기에 실패했습니다.");
-    } finally {
-      exportLockRef.current = false;
-      setExporting(false);
+      await buildAndSave();
+      navigate("/library");
     }
-  };
-  const share = async () => {
-    const format = exportAnimationFormat.value;
-    if (!exportGifBlob.value) return; const file = new File([exportGifBlob.value], `${safeFileName(emoticonTitle.value || `emove-${emotion.value}`)}.${animationExtension(format)}`, { type: animationMimeType(format) });
-    if (navigator.share && navigator.canShare?.({ files: [file] })) { await navigator.share({ title: "EMOVE 이모티콘", text: transcript.value, files: [file] }); }
-    else { window.location.href = `mailto:?subject=${encodeURIComponent("EMOVE 이모티콘")}&body=${encodeURIComponent(`${format} 다운로드: ${exportShareUrl.value ?? window.location.href}`)}`; }
+    catch (error) {
+      const detail = error instanceof Error ? error.message : "저장에 실패했습니다.";
+      const message = `저장에 실패했습니다. Firebase Storage 설정과 연결을 확인한 뒤 저장하기 버튼을 다시 눌러 주세요. ${detail}`;
+      setSaveError(message);
+      notify(message);
+    }
+    finally { exportLockRef.current = false; setExporting(false); }
   };
 
 
@@ -190,8 +193,6 @@ export function EditPage() {
         <header className="screen-brief edit-brief">
           <h1>이모티콘의 이펙트와 텍스트를<br/>자유롭게 수정하세요.</h1>
         </header>
-
-        <header className="editor-toolbar glass-panel"><div className="editor-title-group"><span className="eyebrow">STEP 03 · EDIT</span><strong>{emotionMeta[emotion.value].label} 모션 편집</strong><label className="emoticon-title-control"><span>NAME</span><input value={emoticonTitle.value} maxLength={28} onChange={(event) => (emoticonTitle.value = event.currentTarget.value)} aria-label="이모티콘 저장 이름" /></label></div><div className="toolbar-actions"><span className="save-state">{lastSaved.value ? `${lastSaved.value} 저장됨` : "저장 전"}</span><button className="button secondary" type="button" onClick={save} disabled={exporting}><Icon name="save" />{exporting ? "저장 중" : "저장"}</button><button className="button primary" type="button" onClick={openExport} disabled={exporting}><Icon name="download" />{exporting ? `${exportLabel} 만드는 중` : "내보내기"}</button></div></header>
 
         {/* Edit 화면 전체 그리드 구조 */}
         <div className="editor-grid">
@@ -346,68 +347,96 @@ export function EditPage() {
                 )}
 
                 {activeLayerId === "accent-effects" && (
-                  <section className="character-panel" aria-label="부가 이펙트 편집">
-                    <div className="character-preview-section">
-                      <h3 className="character-section-title">부가 이펙트</h3>
-                      <div className="character-preview">
-                        <span className="character-tag">사용자 편집 가능</span>
-                        <Icon name="star" />
+                  <section className="effect-editor-panel" aria-label="부가 이펙트 편집">
+                    <div className="effect-preset-browser">
+                      <header>
+                        <div>
+                          <h3>부가 이펙트</h3>
+                          <p>스티커처럼 더할 효과를 선택합니다.</p>
+                        </div>
+                        <button
+                          type="button"
+                          className={accentEffect.value === "none" ? "active" : ""}
+                          onClick={() => (accentEffect.value = "none")}
+                        >
+                          효과 없음
+                        </button>
+                      </header>
+                      <div className="effect-preset-grid">
+                        {accentOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className={accentEffect.value === option.value ? "active" : ""}
+                            aria-pressed={accentEffect.value === option.value}
+                            onClick={() => (accentEffect.value = option.value)}
+                          >
+                            <span className={`accent-effect-glyph is-${option.value}`} style={{ color: accentColor.value }} aria-hidden="true">
+                              <Icon name={option.value === "speech-bubbles" ? "image" : "star"} size={24} />
+                            </span>
+                            <strong>{option.label}</strong>
+                          </button>
+                        ))}
                       </div>
                     </div>
-                    <div className="character-info">
-                      <div className="character-group">
-                        <h3>스티커 효과</h3>
-                        <div className="option-row">
-                          {accentOptions.map((option) => (
-                            <button
-                              key={option.value}
-                              type="button"
-                              className={`property-value ${accentEffect.value === option.value ? "active" : ""}`}
-                              aria-pressed={accentEffect.value === option.value}
-                              onClick={() => (accentEffect.value = option.value)}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
+                    <div className="effect-detail-controls">
+                      <div className="effect-control-group">
+                        <span className="effect-control-label">스티커 색상</span>
+                        <ColorPickerDropdown
+                          value={accentColor.value}
+                          onChange={(color) => (accentColor.value = color)}
+                          ariaLabel="부가 이펙트 색상 선택"
+                        />
                       </div>
-                      <div className="character-group">
-                        <h3>스티커 색상</h3>
-                        <div className="palette-row">
-                          <span className="palette-name">{accentColor.value.toUpperCase()}</span>
-                          <label className="color-picker" aria-label="부가 이펙트 색상">
-                            <input type="color" value={accentColor.value} onChange={(event) => (accentColor.value = event.currentTarget.value)} />
-                          </label>
-                        </div>
-                      </div>
+                      <EffectSlider
+                        label="블러"
+                        value={accentEffectBlur.value}
+                        max={24}
+                        suffix="px"
+                        onChange={(value) => (accentEffectBlur.value = value)}
+                      />
+                      <EffectSlider
+                        label="투명도"
+                        value={accentEffectOpacity.value}
+                        max={100}
+                        suffix="%"
+                        onChange={(value) => (accentEffectOpacity.value = value)}
+                      />
                     </div>
                   </section>
                 )}
 
                 {activeLayerId === "background-effects" && (
-                  <section className="character-panel" aria-label="고정 배경 이펙트 정보">
-                    <div className="character-preview-section">
-                      <h3 className="character-section-title">배경 이펙트</h3>
-                      <div className="character-preview">
-                        <span className="character-tag">감정 분석 자동 고정</span>
-                        <Icon name="image" />
-                      </div>
+                  <section className="effect-editor-panel" aria-label="고정 배경 이펙트 정보">
+                    <div className="background-effect-card">
+                      <span className="effect-lock-badge"><Icon name="lock" size={13} /> 감정 분석 자동 고정</span>
+                      <BackgroundEffectPreview />
                     </div>
-                    <div className="character-info">
-                      <div className="character-group">
-                        <h3>분석 감정</h3>
-                        <div className="option-row">
-                          <span className="property-value">{emotionMeta[emotion.value].label}</span>
-                          <span className="property-value">{emotionMeta[emotion.value].effect}</span>
-                        </div>
+                    <div className="effect-detail-controls background-effect-controls">
+                      <div className="fixed-effect-summary">
+                        <span>분석 감정</span>
+                        <strong>{emotionMeta[emotion.value].label} · {emotionMeta[emotion.value].effect}</strong>
+                        <small>이펙트 종류와 대표 색상은 분석 결과에 따라 고정됩니다.</small>
                       </div>
-                      <div className="character-group">
-                        <h3>고정 대표 색상</h3>
-                        <div className="palette-row">
-                          <span className="palette-name">{emotionMeta[emotion.value].color}</span>
-                          <span className="color" style={{ background: emotionMeta[emotion.value].color }} aria-hidden="true" />
-                        </div>
+                      <div className="fixed-effect-color" aria-label={`고정 대표 색상 ${emotionMeta[emotion.value].color}`}>
+                        <span>고정 대표 색상</span>
+                        <strong>{emotionMeta[emotion.value].color}</strong>
+                        <i style={{ background: emotionMeta[emotion.value].color }} aria-hidden="true" />
                       </div>
+                      <EffectSlider
+                        label="블러"
+                        value={backgroundEffectBlur.value}
+                        max={24}
+                        suffix="px"
+                        onChange={(value) => (backgroundEffectBlur.value = value)}
+                      />
+                      <EffectSlider
+                        label="투명도"
+                        value={backgroundEffectOpacity.value}
+                        max={100}
+                        suffix="%"
+                        onChange={(value) => (backgroundEffectOpacity.value = value)}
+                      />
                     </div>
                   </section>
                 )}
@@ -429,36 +458,32 @@ export function EditPage() {
 
                     <label className="control-item">
                       <span>폰트 스타일</span>
-                      <select
+                      <EditorSelectDropdown<TextFont>
                         value={textFont.value}
-                        onChange={(event) =>
-                          (textFont.value =
-                            event.currentTarget.value as TextFont)
-                        }>
-                        <option value="Pretendard">Pretendard</option>
-                        <option value="Paperlogy">Paperlogy</option>
-                      </select>
+                        options={fontOptions}
+                        onChange={(value) => (textFont.value = value)}
+                        ariaLabel="폰트 스타일 선택"
+                      />
                     </label>
 
                     <label className="control-item">
                       <span>말풍선 모양</span>
-                      <select
+                      <EditorSelectDropdown<TextBoxShape>
                         value={textBoxShape.value}
-                        onChange={(event) =>
-                          (textBoxShape.value =
-                            event.currentTarget.value as TextBoxShape)
-                        }
-                      >
-                        <option value="pill">둥근 pill</option>
-                        <option value="rounded">라운드</option>
-                        <option value="caption">말풍선</option>
-                      </select>
+                        options={textShapeOptions}
+                        onChange={(value) => (textBoxShape.value = value)}
+                        ariaLabel="말풍선 모양 선택"
+                      />
                     </label>
 
-                    <label className="control-item color-picker">
+                    <div className="control-item color-picker-field">
                       <span>텍스트 색상</span>
-                      <select></select>
-                    </label>
+                      <ColorPickerDropdown
+                        value={textColor.value}
+                        onChange={(color) => (textColor.value = color)}
+                        ariaLabel="텍스트 색상 선택"
+                      />
+                    </div>
 
                   </div>
                 </div>
@@ -469,7 +494,8 @@ export function EditPage() {
           </Panel>
 
           {/* 2. 에디터 스테이지 */}
-          <div className="editor-stage"><Stage />
+          <div className={`editor-stage${previewing ? " is-previewing" : ""}`}>
+            {previewing ? <LoopPreview /> : <Stage />}
 
               {/* 스테이지 - 레이어 정보 패널 */}
               <Panel className="layer-properties">
@@ -628,13 +654,61 @@ export function EditPage() {
             <span>{index + 1}</span></button>);})}
           </div>
 
+          <div className="timeline-controls" aria-label="프레임 편집 이동">
+            <button
+              className="timeline-step-button"
+              type="button"
+              disabled={selectedFrame.value === 0}
+              onClick={() => (selectedFrame.value = Math.max(0, selectedFrame.value - 1))}
+            >
+              <Icon name="previous" />
+              이전 프레임
+            </button>
+            <button
+              className={`timeline-preview-button${previewing ? " active" : ""}`}
+              type="button"
+              aria-pressed={previewing}
+              onClick={() => setPreviewing((value) => !value)}
+            >
+              <Icon name={previewing ? "pause" : "play"} />
+              <span>{previewing ? "미리보기 정지" : "루프 미리보기"}</span>
+            </button>
+            {selectedFrame.value < FRAME_COUNT - 1 ? (
+              <button
+                className="timeline-step-button next"
+                type="button"
+                onClick={() => (selectedFrame.value = Math.min(FRAME_COUNT - 1, selectedFrame.value + 1))}
+              >
+                다음 프레임
+                <Icon name="next" />
+              </button>
+            ) : (
+              <div className="timeline-save-group">
+                <label>
+                  <span>이모티콘 이름</span>
+                  <input
+                    value={emoticonTitle.value}
+                    maxLength={28}
+                    onChange={(event) => (emoticonTitle.value = event.currentTarget.value)}
+                  />
+                </label>
+                <button className="button primary" type="button" disabled={exporting} onClick={save}>
+                  <Icon name="save" />
+                  {exporting ? "저장 중" : "저장하기"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {lastSaved.value ? <p className="timeline-save-status">마지막 저장 {lastSaved.value}</p> : null}
+          {saveError ? <p className="timeline-save-error" role="alert">{saveError}</p> : null}
+
 
         </div>
 
         {dragId && dragPoint ? <div className="layer-drag-preview" style={{ left: dragPoint.x + 14, top: dragPoint.y + 14 }}><Icon name={layerIcons[dragId]} /><span><strong>{layers.value.find((layer) => layer.id === dragId)?.label}</strong><small>놓을 위치 미리보기</small></span></div> : null}
 
       </div>
-      {exportModalOpen.value && exportGifBlob.value ? <div className="modal-backdrop" onClick={(event) => event.target === event.currentTarget && (exportModalOpen.value = false)}><section className="export-modal glass-panel" role="dialog" aria-modal="true" aria-label={`${exportLabel} 내보내기`}><header><div><span className="eyebrow">EXPORT COMPLETE</span><h2>{exportLabel}가 준비됐어요.</h2></div><button className="icon-button" type="button" onClick={() => (exportModalOpen.value = false)}><Icon name="close" /></button></header><div className="export-preview">{exportPreviewUrl ? <img src={exportPreviewUrl} alt={`완성된 ${exportLabel}`} /> : null}{qr ? <div className="qr-card"><img src={qr} alt={`${exportAnimationFormat.value} 다운로드 QR 코드`} /><span>모바일에서 바로 보기</span></div> : null}</div><p>{EXPORT_SIZE}×{EXPORT_SIZE} · {FRAME_COUNT} frames · {frameDelayMs.value}ms/frame · {exportLabel}{exportShareUrl.value ? " · QR 공유 링크" : " · 공유 API 연결 시 QR 생성"}</p><div className="export-actions"><button className="button secondary" type="button" onClick={() => downloadBlob(exportGifBlob.value!, `${safeFileName(emoticonTitle.value || "emove")}.${exportExtension}`)}><Icon name="download" />기기에 저장</button><button className="button primary" type="button" onClick={share}><Icon name="next" />메일·앱으로 보내기</button></div></section></div> : null}
     </>
   );
 }
@@ -645,12 +719,6 @@ function normalizedStickerTitle(fallback?: string): string {
 
 function safeFileName(value: string): string {
   return (value || "emove").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 40) || "emove";
-}
-
-function animationLabel(format: AnimationFormat): string {
-  if (format === "GIF") return "투명 GIF";
-  if (format === "WEBP") return "투명 WebP";
-  return "투명 APNG";
 }
 
 function LoopPreview() {
@@ -670,6 +738,9 @@ function LoopPreview() {
         frameTransforms: frameLayerTransforms.value,
         textShape: textBoxShape.value,
         textFont: textFont.value,
+        textColor: textColor.value,
+        backgroundEffectStyle: { blur: backgroundEffectBlur.value, opacity: backgroundEffectOpacity.value },
+        accentEffectStyle: { blur: accentEffectBlur.value, opacity: accentEffectOpacity.value },
         width: canvas.width,
         height: canvas.height,
         gifSafe: false,
@@ -678,12 +749,27 @@ function LoopPreview() {
     };
     void renderLoop(0);
     return () => { cancelled = true; window.clearTimeout(timeout); };
-  }, [motionBrief.value, layers.value, frameImages.value, frameLayerTransforms.value, textBoxShape.value, textFont.value, frameDelayMs.value]);
+  }, [motionBrief.value, layers.value, frameImages.value, frameLayerTransforms.value, textBoxShape.value, textFont.value, textColor.value, frameDelayMs.value, backgroundEffectBlur.value, backgroundEffectOpacity.value, accentEffectBlur.value, accentEffectOpacity.value]);
 
   return (
     <div className="loop-preview glass-panel" aria-label="루프 미리보기">
       <header><span>LOOP PREVIEW</span><strong>{frameDelayMs.value}ms / frame</strong></header>
       <canvas ref={canvasRef} width={EXPORT_SIZE} height={EXPORT_SIZE} />
     </div>
+  );
+}
+
+function EffectSlider({ label, value, max, suffix, onChange }: { label: string; value: number; max: number; suffix: string; onChange: (value: number) => void }) {
+  return (
+    <label className="effect-slider-control">
+      <span><strong>{label}</strong><output>{value}{suffix}</output></span>
+      <input
+        type="range"
+        min="0"
+        max={max}
+        value={value}
+        onChange={(event) => onChange(Number(event.currentTarget.value))}
+      />
+    </label>
   );
 }

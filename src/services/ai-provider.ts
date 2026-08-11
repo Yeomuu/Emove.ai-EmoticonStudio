@@ -2,7 +2,6 @@ import type { CharacterToken, GeneratedCharacterResult, MotionBrief, OpenAIProvi
 import { FRAME_COUNT } from "../constants";
 import { buildCharacterPrompt, buildFramePrompts, compactEmoticonText } from "./prompt-builder";
 import { compactReferenceImagesForOpenAI, removeChromaKeyBackground } from "./image-processing";
-import { persistGeneratedAsset } from "./asset-storage";
 
 const CHARACTER_VARIATION_REQUESTS = 1;
 const JOB_POLL_INTERVAL_MS = 2500;
@@ -78,8 +77,7 @@ export class ServerOpenAIProvider implements OpenAIProvider {
         chromaKeyBackground: "#00FF00",
       });
       const transparentFrame = await removeChromaKeyBackground(payload.imageUrl);
-      const storedFrame = await persistGeneratedAsset(transparentFrame, { fileName: `${token.id}-frame-${frameIndex + 1}.png`, kind: "frames" });
-      frameImages.push(storedFrame.url);
+      frameImages.push(transparentFrame);
     }
     if (frameImages.length !== FRAME_COUNT) {
       throw new Error(`캐릭터 행동 프레임은 정확히 ${FRAME_COUNT}개여야 합니다.`);

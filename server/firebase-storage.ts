@@ -8,6 +8,8 @@ import {
 
 const MAX_ASSET_BYTES = 12 * 1024 * 1024;
 const ALLOWED_PREFIXES = new Set(["animations", "characters", "effects", "frames", "thumbnails"]);
+const MAX_METADATA_BYTES = 1024 * 1024;
+const ALLOWED_METADATA_PREFIXES = new Set(["library", "openai-jobs"]);
 
 export type FirebaseAssetKind = "animations" | "characters" | "effects" | "frames" | "thumbnails";
 
@@ -17,6 +19,12 @@ export interface StoredFirebaseAsset {
   path: string;
   size: number;
   url: string;
+}
+
+export interface StoredFirebaseJson<T> {
+  objectName: string;
+  updatedAt?: string;
+  value: T;
 }
 
 export function isFirebaseStorageConfigured(): boolean {
@@ -80,6 +88,68 @@ export async function downloadFirebaseAsset(objectName: string): Promise<{ data:
   return { data, contentType: metadata.contentType || "application/octet-stream" };
 }
 
+export async function writeFirebaseJson<T>(objectName: string, value: T): Promise<{ path: string; size: number }> {
+  const configurationError = firebaseStorageConfigurationError();
+  if (configurationError) throw new Error(configurationError);
+  assertSafeMetadataObjectName(objectName);
+  const data = Buffer.from(JSON.stringify(value), "utf8");
+  if (!data.byteLength) throw new Error("저장할 메타데이터가 비어 있습니다.");
+  if (data.byteLength > MAX_METADATA_BYTES) throw new Error("메타데이터는 최대 1MB까지 저장할 수 있습니다.");
+  await storageBucket().file(objectName).save(data, {
+    resumable: false,
+    contentType: "application/json; charset=utf-8",
+    metadata: {
+      cacheControl: "no-store",
+      contentDisposition: "inline",
+      metadata: { source: "emove" },
+    },
+    validation: "crc32c",
+  });
+  return {
+    path: `firebase-storage://${firebaseStorageBucket()}/${objectName}`,
+    size: data.byteLength,
+  };
+}
+
+export async function readFirebaseJson<T>(objectName: string): Promise<StoredFirebaseJson<T> | null> {
+  const configurationError = firebaseStorageConfigurationError();
+  if (configurationError) throw new Error(configurationError);
+  assertSafeMetadataObjectName(objectName);
+  const file = storageBucket().file(objectName);
+  const [exists] = await file.exists();
+  if (!exists) return null;
+  const [[data], [metadata]] = await Promise.all([file.download(), file.getMetadata()]);
+  if (data.byteLength > MAX_METADATA_BYTES) throw new Error("저장된 메타데이터 크기가 허용 범위를 초과했습니다.");
+  return {
+    objectName,
+    updatedAt: typeof metadata.updated === "string" ? metadata.updated : undefined,
+    value: JSON.parse(data.toString("utf8")) as T,
+  };
+}
+
+export async function listFirebaseJson<T>(prefix: string, maxResults = 200): Promise<Array<StoredFirebaseJson<T>>> {
+  const configurationError = firebaseStorageConfigurationError();
+  if (configurationError) throw new Error(configurationError);
+  assertSafeMetadataPrefix(prefix);
+  const [files] = await storageBucket().getFiles({
+    prefix: prefix.endsWith("/") ? prefix : `${prefix}/`,
+    maxResults: Math.max(1, Math.min(500, Math.floor(maxResults))),
+  });
+  const records = await Promise.all(files
+    .filter((file) => file.name.endsWith(".json"))
+    .map((file) => readFirebaseJson<T>(file.name)));
+  return records.filter((record): record is StoredFirebaseJson<T> => Boolean(record));
+}
+
+export async function deleteFirebaseJson(objectName: string): Promise<void> {
+  const configurationError = firebaseStorageConfigurationError();
+  if (configurationError) throw new Error(configurationError);
+  assertSafeMetadataObjectName(objectName);
+  const file = storageBucket().file(objectName);
+  const [exists] = await file.exists();
+  if (exists) await file.delete();
+}
+
 function storageBucket() {
   return getStorage(getEmoveFirebaseApp()).bucket(firebaseStorageBucket());
 }
@@ -97,6 +167,31 @@ function assertSafeObjectName(value: string): void {
   const segments = value.split("/").filter(Boolean);
   if (segments.length < 3 || segments[0] !== "assets" || !ALLOWED_PREFIXES.has(segments[1]) || segments.some((segment) => segment === "..")) {
     throw new Error("허용되지 않은 Firebase Storage 파일 경로입니다.");
+  }
+}
+
+function assertSafeMetadataObjectName(value: string): void {
+  const segments = value.split("/").filter(Boolean);
+  if (
+    segments.length < 3
+    || segments[0] !== "metadata"
+    || !ALLOWED_METADATA_PREFIXES.has(segments[1])
+    || !value.endsWith(".json")
+    || segments.some((segment) => segment === "..")
+  ) {
+    throw new Error("허용되지 않은 Firebase Storage 메타데이터 경로입니다.");
+  }
+}
+
+function assertSafeMetadataPrefix(value: string): void {
+  const segments = value.split("/").filter(Boolean);
+  if (
+    segments.length < 2
+    || segments[0] !== "metadata"
+    || !ALLOWED_METADATA_PREFIXES.has(segments[1])
+    || segments.some((segment) => segment === "..")
+  ) {
+    throw new Error("허용되지 않은 Firebase Storage 메타데이터 목록 경로입니다.");
   }
 }
 

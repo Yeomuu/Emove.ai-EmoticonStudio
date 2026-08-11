@@ -89,10 +89,13 @@ export const defaultCharacterTokens: CharacterToken[] = [
 
 export const starterStickers: StickerItem[] = [];
 
-export function createMotionBrief(emotion: Emotion, _color: string, sourceText: string, shortText: string, intensity: number, tokenId: string, frameDelayMs = 120, _coreEffect?: string, expressionEmotion: Emotion = emotion, pose = "입력된 행동 없음", motionStyle: MotionStyle = "smooth", accentEffect: AccentEffect = "sparkles", accentColor?: string): import("./types").MotionBrief {
+export function createMotionBrief(emotion: Emotion, _color: string, sourceText: string, shortText: string, intensity: number, tokenId: string, frameDelayMs = 120, _coreEffect?: string, expressionEmotion: Emotion = emotion, pose = "입력된 행동 없음", motionStyle: MotionStyle = "smooth", accentEffect: AccentEffect = "sparkles", accentColor?: string, tierOverride?: import("./types").ExaggerationTier | null): import("./types").MotionBrief {
   const meta = emotionMeta[emotion];
-  const clampedIntensity = Math.max(0, Math.min(1, intensity));
-  const tier: import("./types").ExaggerationTier = clampedIntensity < 0.45 ? "minimal" : clampedIntensity < 0.72 ? "emotional" : "full";
+  const measuredIntensity = Math.max(0, Math.min(1, intensity));
+  const tier: import("./types").ExaggerationTier = tierOverride ?? (measuredIntensity < 0.45 ? "minimal" : measuredIntensity < 0.72 ? "emotional" : "full");
+  const clampedIntensity = tierOverride
+    ? { minimal: .28, emotional: .6, full: .9 }[tierOverride]
+    : measuredIntensity;
   return {
     sourceText: sourceText.trim(),
     shortText: shortText.trim(),

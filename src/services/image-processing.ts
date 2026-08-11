@@ -115,7 +115,11 @@ export function keyOutConnectedGreen(data: Uint8ClampedArray, width: number, hei
   }
   for (let index = 0; index < total; index += 1) {
     if (isStrictChroma(data, index)) makeTransparent(data, index);
-    else if (hasTransparentNeighbor(data, width, height, index) && isGreenSpill(data, index)) softenGreenSpill(data, index);
+  }
+  for (let pass = 0; pass < 3; pass += 1) {
+    for (let index = 0; index < total; index += 1) {
+      if (hasCutoutNeighbor(data, width, height, index) && isGreenSpill(data, index)) softenGreenSpill(data, index);
+    }
   }
 }
 
@@ -161,10 +165,13 @@ function makeTransparent(data: Uint8ClampedArray, index: number): void {
 
 function softenGreenSpill(data: Uint8ClampedArray, index: number): void {
   const cursor = offset(index);
-  data[cursor + 1] = Math.max(data[cursor], data[cursor + 2]);
+  const dominantBase = Math.max(data[cursor], data[cursor + 2]);
+  const greenDominance = Math.max(0, data[cursor + 1] - dominantBase);
+  data[cursor + 1] = dominantBase;
+  data[cursor + 3] = Math.min(data[cursor + 3], Math.max(0, Math.round(255 - greenDominance * 3.2)));
 }
 
-function hasTransparentNeighbor(data: Uint8ClampedArray, width: number, height: number, index: number): boolean {
+function hasCutoutNeighbor(data: Uint8ClampedArray, width: number, height: number, index: number): boolean {
   const x = index % width;
   const y = Math.floor(index / width);
   const candidates = [
@@ -173,5 +180,5 @@ function hasTransparentNeighbor(data: Uint8ClampedArray, width: number, height: 
     y > 0 ? index - width : -1,
     y < height - 1 ? index + width : -1,
   ];
-  return candidates.some((candidate) => candidate >= 0 && data[offset(candidate) + 3] === 0);
+  return candidates.some((candidate) => candidate >= 0 && data[offset(candidate) + 3] < 160);
 }

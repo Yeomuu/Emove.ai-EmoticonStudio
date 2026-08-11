@@ -1,8 +1,9 @@
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import { emotionMeta } from "../emotion-taxonomy";
+import { DEFAULT_TEXT_COLOR, normalizePickerHex } from "./color-picker";
 import starIcon from "../assets/icons/star.svg";
-import type { AnimationFormat, EditorLayer, LayerKind, LayerTransform, MotionBrief, TextBoxShape, TextFont } from "../types";
+import type { AnimationFormat, EditorLayer, EffectLayerStyle, LayerKind, LayerTransform, MotionBrief, TextBoxShape, TextFont } from "../types";
 
 export interface RenderOptions {
   characterUrl: string;
@@ -13,9 +14,12 @@ export interface RenderOptions {
   frameTransforms?: Array<Record<LayerKind, LayerTransform>>;
   textShape?: TextBoxShape;
   textFont?: TextFont;
+  textColor?: string;
   width?: number;
   height?: number;
   gifSafe?: boolean;
+  backgroundEffectStyle?: EffectLayerStyle;
+  accentEffectStyle?: EffectLayerStyle;
 }
 
 export interface TextBubbleBounds {
@@ -73,6 +77,7 @@ async function drawLayer(context: CanvasRenderingContext2D, id: LayerKind, optio
   context.translate(width / 2 + transform.x * unit, height / 2 + transform.y * unit);
   context.rotate(transform.rotation * Math.PI / 180); context.scale(transform.scale, transform.scale); context.translate(-width / 2, -height / 2);
   if (id === "background-effects") {
+    applyEffectLayerStyle(context, options.backgroundEffectStyle, width);
     drawEmotionBackground(context, options.brief, width, height, progress);
   } else if (id === "character") {
     const frameIndex = Math.min((options.characterFrames?.length ?? 1) - 1, Math.max(0, Math.round(progress * ((options.characterFrames?.length ?? 1) - 1))));
@@ -93,14 +98,23 @@ async function drawLayer(context: CanvasRenderingContext2D, id: LayerKind, optio
       bounds.width,
       bounds.height,
       (width - targetWidth) / 2,
-      height * .82 - targetHeight / 2,
+      (height - targetHeight) / 2,
       targetWidth,
       targetHeight,
     );
   } else if (id === "accent-effects") {
+    applyEffectLayerStyle(context, options.accentEffectStyle, width);
     await drawAccentEffect(context, options.brief, width, height, progress, unit);
   }
   context.restore();
+}
+
+function applyEffectLayerStyle(context: CanvasRenderingContext2D, style: EffectLayerStyle | undefined, width: number): void {
+  if (!style) return;
+  const opacity = Math.min(100, Math.max(0, style.opacity)) / 100;
+  const blur = Math.min(100, Math.max(0, style.blur)) / 100 * 24 * (width / EXPORT_SIZE);
+  context.globalAlpha *= opacity;
+  context.filter = blur > .01 ? `blur(${blur}px)` : "none";
 }
 
 function getVisibleImageBounds(image: HTMLImageElement, cacheKey: string): ImageBounds {
@@ -187,7 +201,8 @@ function drawTextBubble(context: CanvasRenderingContext2D, options: RenderOption
     context.roundRect(x, y, bubbleWidth, bubbleHeight, shape === "pill" ? bubbleHeight / 2 : 16 * unit);
   }
   context.fillStyle = "rgba(252,252,252,.96)"; context.fill();
-  context.fillStyle = "#201E28"; context.fillText(text, bubbleCenterX, y + bubbleHeight / 2 + 1, bubbleWidth - 36 * unit);
+  context.fillStyle = normalizePickerHex(options.textColor ?? "") ?? DEFAULT_TEXT_COLOR;
+  context.fillText(text, bubbleCenterX, y + bubbleHeight / 2 + 1, bubbleWidth - 36 * unit);
 }
 
 export function measureTextBubble(brief: MotionBrief, shape: TextBoxShape = "pill", textFont: TextFont = "Pretendard", width = DESIGN_SIZE, height = DESIGN_SIZE): TextBubbleBounds {
@@ -266,6 +281,67 @@ async function drawAccentEffect(context: CanvasRenderingContext2D, brief: Motion
       context.moveTo(width / 2 + Math.cos(angle) * inner, height / 2 + Math.sin(angle) * inner * .72);
       context.lineTo(width / 2 + Math.cos(angle) * outer, height / 2 + Math.sin(angle) * outer * .72);
       context.stroke();
+    }
+    context.restore();
+    return;
+  }
+  if (preset === "petals") {
+    context.save();
+    context.fillStyle = withAlpha(color, 0xc8);
+    for (let index = 0; index < 10; index += 1) {
+      const angle = index / 10 * Math.PI * 2 + progress * .24;
+      const radius = width * (.2 + index % 3 * .035);
+      const x = width / 2 + Math.cos(angle) * radius;
+      const y = height / 2 + Math.sin(angle) * radius * .72;
+      context.save();
+      context.translate(x, y);
+      context.rotate(angle + progress * Math.PI * .25);
+      context.globalAlpha = .48 + (index % 3) * .14;
+      context.beginPath();
+      context.ellipse(0, 0, (6 + index % 3 * 2) * unit, (11 + index % 2 * 2) * unit, 0, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+    }
+    context.restore();
+    return;
+  }
+  if (preset === "speech-bubbles") {
+    context.save();
+    context.strokeStyle = withAlpha(color, 0xd0);
+    context.lineWidth = 2 * unit;
+    for (let index = 0; index < 6; index += 1) {
+      const angle = index / 6 * Math.PI * 2 + progress * .08;
+      const x = width / 2 + Math.cos(angle) * width * .25;
+      const y = height / 2 + Math.sin(angle) * height * .18;
+      const bubbleWidth = (24 + index % 2 * 8) * unit;
+      const bubbleHeight = 17 * unit;
+      context.globalAlpha = .48 + (index % 3) * .12;
+      context.beginPath();
+      context.roundRect(x - bubbleWidth / 2, y - bubbleHeight / 2, bubbleWidth, bubbleHeight, 7 * unit);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(x + bubbleWidth * .18, y + bubbleHeight / 2);
+      context.lineTo(x + bubbleWidth * .04, y + bubbleHeight * .75);
+      context.lineTo(x - bubbleWidth * .02, y + bubbleHeight / 2);
+      context.stroke();
+    }
+    context.restore();
+    return;
+  }
+  if (preset === "clouds") {
+    context.save();
+    context.fillStyle = withAlpha(color, 0xa8);
+    for (let index = 0; index < 7; index += 1) {
+      const angle = index / 7 * Math.PI * 2 + progress * .06;
+      const x = width / 2 + Math.cos(angle) * width * .25;
+      const y = height / 2 + Math.sin(angle) * height * .18;
+      const size = (13 + index % 3 * 3) * unit;
+      context.globalAlpha = .4 + (index % 3) * .12;
+      context.beginPath();
+      context.arc(x - size * .45, y, size * .55, 0, Math.PI * 2);
+      context.arc(x, y - size * .25, size * .72, 0, Math.PI * 2);
+      context.arc(x + size * .55, y, size * .52, 0, Math.PI * 2);
+      context.fill();
     }
     context.restore();
     return;

@@ -49,7 +49,9 @@ async function transcribe(request: Request, key: string, env: ServerEnv) {
   const payload = await openai.json() as { text?: string; error?: { message?: string } };
   if (!openai.ok) throw new Error(payload.error?.message || "OpenAI 음성 전사에 실패했습니다.");
   const text = payload.text?.trim() ?? "";
-  const shortText = text ? await summarizeTranscript(text, key, env) : "";
+  const shortText = text
+    ? env.OPENAI_SUMMARIZE_TRANSCRIPT === "true" ? await summarizeTranscript(text, key, env) : compactFallback(text)
+    : "";
   return json(200, { text, shortText });
 }
 
@@ -142,8 +144,8 @@ function imageOutputOptions(env: ServerEnv): ImageOutputOptions {
   const requestedBackground = env.OPENAI_IMAGE_BACKGROUND || "auto";
   const background = requestedBackground === "transparent" ? "auto" : requestedBackground;
   const output_format = imageOutputFormat(env.OPENAI_IMAGE_OUTPUT_FORMAT || env.OPENAI_IMAGE_FORMAT || "webp");
-  const output_compression = output_format === "webp" || output_format === "jpeg" ? imageCompression(env.OPENAI_IMAGE_OUTPUT_COMPRESSION || env.OPENAI_IMAGE_COMPRESSION || "82") : undefined;
-  return { model, size: env.OPENAI_IMAGE_SIZE || "1024x1024", quality: env.OPENAI_IMAGE_QUALITY || "medium", background, output_format, output_compression };
+  const output_compression = output_format === "webp" || output_format === "jpeg" ? imageCompression(env.OPENAI_IMAGE_OUTPUT_COMPRESSION || env.OPENAI_IMAGE_COMPRESSION || "70") : undefined;
+  return { model, size: env.OPENAI_IMAGE_SIZE || "1024x1024", quality: env.OPENAI_IMAGE_QUALITY || "low", background, output_format, output_compression };
 }
 
 function imageOutputFormat(value: string): ImageOutputFormat {
@@ -152,11 +154,12 @@ function imageOutputFormat(value: string): ImageOutputFormat {
 
 function imageCompression(value: string): number {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 82;
+  if (!Number.isFinite(parsed)) return 70;
   return Math.max(0, Math.min(100, Math.round(parsed)));
 }
 
 async function refineImagePrompts(kind: PromptKind, drafts: string[], context: unknown, key: string, env: ServerEnv): Promise<string[]> {
+  if (env.OPENAI_REFINE_IMAGE_PROMPTS !== "true") return drafts;
   const model = env.OPENAI_PROMPT_MODEL || "gpt-5.5-2026-04-23";
   const system = [
     "You are EMOVE's image prompt planner.",

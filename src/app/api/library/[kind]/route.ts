@@ -3,14 +3,14 @@ import { isSameOriginRequest } from "../../../../../server/request-security";
 
 export const runtime = "nodejs";
 
-const allowedKinds = new Set(["characters", "captures", "projects", "stickers"]);
+const allowedKinds = new Set(["characters", "captures", "groups", "projects", "stickers"]);
 
 export async function GET(_request: Request, { params }: { params: Promise<{ kind: string }> }): Promise<Response> {
   const { kind } = await params;
   if (!allowedKinds.has(kind)) return json(404, { error: "지원하지 않는 라이브러리 저장소입니다." });
 
   const result = await listLibraryRecords(kind);
-  if (!result.enabled) return json(501, { error: result.error ?? libraryStoreConfigurationError() ?? "Firestore 조회를 사용할 수 없습니다." });
+  if (!result.enabled) return json(501, { error: result.error ?? libraryStoreConfigurationError() ?? "Firebase Storage 메타데이터 조회를 사용할 수 없습니다." });
   return json(200, result);
 }
 
@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ kin
   if (!body?.id || body.payload == null) return json(400, { error: "저장할 라이브러리 레코드가 비어 있습니다." });
 
   const result = await saveLibraryRecord({ id: body.id, kind, payload: body.payload });
-  if (!result.enabled) return json(501, { error: result.error ?? libraryStoreConfigurationError() ?? "Firestore 저장을 사용할 수 없습니다." });
+  if (!result.enabled) return json(501, { error: result.error ?? libraryStoreConfigurationError() ?? "Firebase Storage 메타데이터 저장을 사용할 수 없습니다." });
   return json(201, result);
 }
 
@@ -36,7 +36,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ k
   if (!id) return json(400, { error: "삭제할 라이브러리 레코드 ID가 필요합니다." });
 
   const result = await deleteLibraryRecord(kind, id);
-  if (!result.enabled) return json(501, { error: result.error ?? libraryStoreConfigurationError() ?? "Firestore 삭제를 사용할 수 없습니다." });
+  if (!result.enabled) return json(501, { error: result.error ?? libraryStoreConfigurationError() ?? "Firebase Storage 메타데이터 삭제를 사용할 수 없습니다." });
   return json(200, result);
 }
 

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Icon } from "../components/Icon";
+import { QrExportModal } from "../components/QrExportModal";
 import { emotionMeta, emotionOrder } from "../data";
 import { navigate, route } from "../router";
+import { createQrExportPayload } from "../services/qr-export";
 import { downloadBlob } from "../services/renderer";
-import { deleteCharacter, deleteProject, deleteSticker, loadProjects, loadStickers, saveCharacter, saveSticker } from "../services/repository";
-import { deleteRemoteLibraryItem, loadRemoteCharacters, loadRemoteProjects, loadRemoteStickers, syncCharacterToRemote, syncStickerToRemote } from "../services/remote-store";
+import { deleteRemoteLibraryItem, loadRemoteCharacters, loadRemoteLibraryGroups, loadRemoteProjects, loadRemoteStickers, syncCharacterToRemote, syncLibraryGroupToRemote, syncStickerToRemote } from "../services/remote-store";
 import { animationExtension } from "../services/share";
-import { characterName, characterPrompt, characterStyle, characterTone, characters, loadProjectForEditing, notify, sanitizeAssetUrl, selectCharacter, stickers } from "../store";
-import type { AnimationFormat, CharacterToken, EmoticonProject, Emotion, StickerItem } from "../types";
+import { characterName, characterPrompt, characterStyle, characterTone, characters, loadProjectForEditing, notify, pendingQrExport, sanitizeAssetUrl, selectCharacter, stickers } from "../store";
+import type { AnimationFormat, CharacterToken, EmoticonProject, Emotion, LibraryGroup, StickerItem } from "../types";
 
 type Filter = "all" | "favorite" | Emotion;
 type LibraryMode = "all" | "emoticons" | "characters";
@@ -31,33 +32,23 @@ export function LibraryPage() {
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [projects, setProjects] = useState<EmoticonProject[]>([]);
-  const [customGroups, setCustomGroups] = useState<Array<{ id: string; name: string; filter: Filter }>>([]);
+  const [customGroups, setCustomGroups] = useState<LibraryGroup[]>([]);
   const [selectedCharacterToken, setSelectedCharacterToken] = useState<CharacterToken | null>(null);
   const [railOverflow, setRailOverflow] = useState({ left: false, right: false });
 
   const detailId = route.value.startsWith("/library/") ? route.value.split("/")[2] : undefined;
 
   useEffect(() => {
-    Promise.all([loadStickers(), loadProjects(), loadRemoteStickers(), loadRemoteCharacters(), loadRemoteProjects()]).then(([saved, savedProjects, remoteStickers, remoteCharacters, remoteProjects]) => {
-      const projectById = new Map(savedProjects.map((project) => [project.id, project]));
-      const hydrated = saved.filter((item) => !item.isDefault).map((item) => {
-        const project = projectById.get(item.projectId ?? item.id);
-        const projectBlob = project?.animationBlob ?? project?.gifBlob;
-        if (!projectBlob) return item;
-        const animatedImage = item.animatedImage?.startsWith("http") ? item.animatedImage : URL.createObjectURL(projectBlob);
-        return { ...item, image: item.thumbnail ?? item.image, thumbnail: item.thumbnail ?? item.image, animatedImage };
-      });
-      const localStickers = newestById([...hydrated, ...stickers.value]);
-      stickers.value = remoteStickers.enabled
-        ? mergeNewestRecords(localStickers, remoteStickers.stickers)
-        : localStickers;
+    Promise.all([loadRemoteStickers(), loadRemoteCharacters(), loadRemoteProjects(), loadRemoteLibraryGroups()]).then(([remoteStickers, remoteCharacters, remoteProjects, remoteGroups]) => {
+      if (remoteStickers.enabled) stickers.value = mergeNewestRecords(stickers.value, remoteStickers.stickers);
       if (remoteCharacters.enabled) {
         characters.value = mergeNewestRecords(characters.value, remoteCharacters.characters);
       }
-      setProjects(remoteProjects.enabled
-        ? mergeNewestRecords(savedProjects, remoteProjects.projects)
-        : newestById(savedProjects));
-    }).catch(() => undefined);
+      setProjects(remoteProjects.enabled ? newestById(remoteProjects.projects) : []);
+      setCustomGroups(remoteGroups.enabled ? newestById(remoteGroups.groups) : []);
+      const warning = [remoteStickers, remoteCharacters, remoteProjects, remoteGroups].find((result) => !result.enabled)?.storageWarning;
+      if (warning) notify(`Firebase Storage 보관함을 불러오지 못했습니다. ${warning}`);
+    }).catch((error) => notify(`Firebase Storage 보관함을 불러오지 못했습니다. ${error instanceof Error ? error.message : String(error)}`));
   }, []);
 
   const visible = useMemo(() => stickers.value.filter((item) =>
@@ -78,7 +69,7 @@ export function LibraryPage() {
   const selected = detailId ? stickers.value.find((item) => item.id === detailId) ?? stickers.value[0] : undefined;
 
   const beginEditSticker = async (item: StickerItem, project?: EmoticonProject) => {
-    const source = project ?? (await loadProjects()).find((candidate) => candidate.id === (item.projectId ?? item.id));
+    const source = project ?? projects.find((candidate) => candidate.id === (item.projectId ?? item.id));
     if (!source) {
       notify("원본 프로젝트가 없어 이 항목은 덮어쓰기 수정이 어렵습니다.");
       return;
@@ -98,21 +89,32 @@ export function LibraryPage() {
 
   const toggleCharacterFavorite = async (token: CharacterToken) => {
     const updated = { ...token, favorite: !token.favorite, updatedAt: new Date().toISOString() };
+    const sync = await syncCharacterToRemote(updated);
+    if (!sync.enabled) {
+      notify(`즐겨찾기 저장에 실패했습니다. 다시 눌러 주세요. ${sync.storageWarning ?? "Firebase Storage를 확인해 주세요."}`);
+      return;
+    }
     characters.value = characters.value.map((item) => item.id === token.id ? updated : item);
-    await saveCharacter(updated);
-    if (!updated.isDefault) await syncCharacterToRemote(updated);
     notify(updated.favorite ? "즐겨찾기에 추가했습니다." : "즐겨찾기에서 제거했습니다.");
   };
 
   const toggleStickerFavorite = async (item: StickerItem) => {
     const updated = { ...item, favorite: !item.favorite, updatedAt: new Date().toISOString() };
-    stickers.value = stickers.value.map((candidate) => candidate.id === item.id ? updated : candidate);
-    await saveSticker(updated);
-    if (!updated.isDefault) {
-      const sync = await syncStickerToRemote(updated);
-      if (!sync.enabled && sync.storageWarning) notify(`로컬에는 저장했지만 공용 보관함 동기화에 실패했습니다. ${sync.storageWarning}`);
+    const sync = await syncStickerToRemote(updated);
+    if (!sync.enabled) {
+      notify(`즐겨찾기 저장에 실패했습니다. 다시 눌러 주세요. ${sync.storageWarning ?? "Firebase Storage를 확인해 주세요."}`);
+      return;
     }
+    stickers.value = stickers.value.map((candidate) => candidate.id === item.id ? updated : candidate);
     notify(updated.favorite ? "즐겨찾기에 추가했습니다." : "즐겨찾기에서 제거했습니다.");
+  };
+
+  const openQrExport = async (item: StickerItem) => {
+    try {
+      pendingQrExport.value = await createQrExportPayload(item);
+    } catch (error) {
+      notify(`QR 내보내기를 준비하지 못했습니다. ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   const downloadLibraryAsset = async (source: string, fileStem: string, preferredFormat?: AnimationFormat) => {
@@ -134,8 +136,6 @@ export function LibraryPage() {
   const [isListDragging, setIsListDragging] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const isScrollingRef = useRef(false);
-  const isUserInteractingRef = useRef(false);
-  const normalizeTimerRef = useRef<number | undefined>(undefined);
   const wheelCooldownRef = useRef(false);
   const carouselDragRef = useRef<{ pointerId: number; startX: number; startY: number; startScroll: number; dragged: boolean; startIndex: number } | null>(null);
   const suppressCardClickRef = useRef(false);
@@ -152,12 +152,11 @@ export function LibraryPage() {
   }, [mode, visible, visibleCharacters, mixedItems]);
 
   const virtualItems = useMemo<VirtualLibraryItem[]>(() => {
-    const copies = itemsToDisplay.length > 1 ? [-1, 0, 1] : [0];
-    return copies.flatMap((copy, copyIndex) => itemsToDisplay.map((entry, index) => ({
+    return itemsToDisplay.map((entry, index) => ({
       entry,
-      virtualIndex: copyIndex * itemsToDisplay.length + index,
-      copy,
-    })));
+      virtualIndex: index,
+      copy: 0,
+    }));
   }, [itemsToDisplay]);
 
   const positionCarouselCard = (virtualIndex: number, behavior: ScrollBehavior) => {
@@ -175,24 +174,15 @@ export function LibraryPage() {
     const clampedIndex = Math.max(0, Math.min(total - 1, virtualIndex));
     setActiveVirtualIndex(clampedIndex);
     isScrollingRef.current = true;
-    window.clearTimeout(normalizeTimerRef.current);
     window.requestAnimationFrame(() => positionCarouselCard(clampedIndex, behavior));
-
-    normalizeTimerRef.current = window.setTimeout(() => {
-      const logicalLength = itemsToDisplay.length;
-      if (logicalLength > 1 && (clampedIndex < logicalLength || clampedIndex >= logicalLength * 2)) {
-        const logicalIndex = ((clampedIndex % logicalLength) + logicalLength) % logicalLength;
-        const middleIndex = logicalLength + logicalIndex;
-        setActiveVirtualIndex(middleIndex);
-        window.requestAnimationFrame(() => positionCarouselCard(middleIndex, "auto"));
-      }
+    window.setTimeout(() => {
       isScrollingRef.current = false;
     }, behavior === "smooth" ? 520 : 60);
   };
 
   useEffect(() => {
     if (layoutMode !== "cards") return;
-    const startIndex = itemsToDisplay.length > 1 ? itemsToDisplay.length : 0;
+    const startIndex = 0;
     setActiveVirtualIndex(startIndex);
     const frame = window.requestAnimationFrame(() => scrollToVirtualIndex(startIndex, "auto"));
     return () => window.cancelAnimationFrame(frame);
@@ -278,8 +268,6 @@ export function LibraryPage() {
     if (target.closest("button, a, input, textarea, select")) return;
     const list = listRef.current;
     if (!list) return;
-    isUserInteractingRef.current = true;
-    window.clearTimeout(normalizeTimerRef.current);
     carouselDragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -314,8 +302,6 @@ export function LibraryPage() {
     }
     
     setIsListDragging(false);
-    isUserInteractingRef.current = false;
-
     if (drag) {
       const deltaX = event.clientX - drag.startX;
       const threshold = 50; // Drag more than 50px to go to next/prev card
@@ -346,23 +332,15 @@ export function LibraryPage() {
       if (kind === "emoticon") {
         const item = stickers.value.find((candidate) => candidate.id === id);
         const projectId = item?.projectId ?? id;
-        await deleteSticker(id);
-        await deleteProject(projectId).catch(() => undefined);
+        const sync = await deleteRemoteLibraryItem("emoticon", id, projectId);
+        if (!sync.enabled) throw new Error(sync.storageWarning ?? "Firebase Storage 보관함 삭제에 실패했습니다.");
         stickers.value = stickers.value.filter((s) => s.id !== id);
         setProjects((items) => items.filter((project) => project.id !== projectId));
-        if (!item?.isDefault) {
-          const sync = await deleteRemoteLibraryItem("emoticon", id, projectId);
-          if (!sync.enabled) throw new Error(sync.storageWarning ?? "공용 보관함 삭제에 실패했습니다.");
-        }
         notify("이모티콘을 삭제했습니다.");
       } else {
-        const item = characters.value.find((candidate) => candidate.id === id);
-        await deleteCharacter(id);
+        const sync = await deleteRemoteLibraryItem("character", id);
+        if (!sync.enabled) throw new Error(sync.storageWarning ?? "Firebase Storage 보관함 삭제에 실패했습니다.");
         characters.value = characters.value.filter((c) => c.id !== id);
-        if (!item?.isDefault) {
-          const sync = await deleteRemoteLibraryItem("character", id);
-          if (!sync.enabled) throw new Error(sync.storageWarning ?? "공용 보관함 삭제에 실패했습니다.");
-        }
         notify("캐릭터를 삭제했습니다.");
       }
     } catch (error) {
@@ -370,11 +348,24 @@ export function LibraryPage() {
     }
   };
 
-  const createGroup = () => {
+  const createGroup = async () => {
     const name = window.prompt("새 그룹 이름을 입력하세요.", "새 이모티콘 그룹")?.trim();
     if (!name) return;
-    const id = `group-${Date.now()}`;
-    setCustomGroups((groups) => [...groups, { id, name, filter: emotionOrder.includes(filter as Emotion) ? filter : "all" }]);
+    const now = new Date().toISOString();
+    const group: LibraryGroup = {
+      id: `group-${Date.now()}`,
+      name,
+      filter: emotionOrder.includes(filter as Emotion) ? filter : "all",
+      ownerId: "public",
+      createdAt: now,
+      updatedAt: now,
+    };
+    const sync = await syncLibraryGroupToRemote(group);
+    if (!sync.enabled) {
+      notify(`그룹 저장에 실패했습니다. 다시 생성해 주세요. ${sync.storageWarning ?? "Firebase Storage를 확인해 주세요."}`);
+      return;
+    }
+    setCustomGroups((groups) => [...groups, group]);
     notify(`${name} 그룹을 만들었어요. 현재 필터 조건이 적용됩니다.`);
   };
 
@@ -438,6 +429,7 @@ export function LibraryPage() {
           project={projects.find((item) => item.id === (selected.projectId ?? selected.id))}
           onEdit={beginEditSticker}
           onFavorite={toggleStickerFavorite}
+          onQr={openQrExport}
         />
       ) : (
         <div className="workspace-page library-page">
@@ -495,10 +487,6 @@ export function LibraryPage() {
                 >
                   <Icon name="image" />
                   이모티콘 탐색
-                </button>
-                <button type="button" onClick={() => navigate("/showcase")}>
-                  <Icon name="play" />
-                  움직이는 이모티콘
                 </button>
                 <hr />
                 <button
@@ -674,6 +662,16 @@ export function LibraryPage() {
                                 <button
                                   type="button"
                                   tabIndex={actionTabIndex}
+                                  className="btn-qr"
+                                  onClick={(e) => { e.stopPropagation(); void openQrExport(sticker); }}
+                                  aria-label="QR 내보내기"
+                                >
+                                  <Icon name="download" size={18} />
+                                  <span>QR</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  tabIndex={actionTabIndex}
                                   className="btn-download"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -792,6 +790,7 @@ export function LibraryPage() {
                           <div className="library-list-actions">
                             <button type="button" className={sticker.favorite ? "active" : ""} onClick={() => void toggleStickerFavorite(sticker)} aria-label="즐겨찾기"><Icon name="star" /></button>
                             <button type="button" onClick={() => beginEditSticker(sticker, project)} aria-label="수정"><Icon name="edit" /></button>
+                            <button type="button" onClick={() => void openQrExport(sticker)} aria-label="QR 내보내기"><Icon name="download" /></button>
                             <button type="button" onClick={() => void downloadLibraryAsset(sticker.animatedImage ?? sticker.image, sticker.id, sticker.animationFormat).catch((error) => notify(`다운로드에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`))} aria-label="다운로드"><Icon name="download" /></button>
                             <button type="button" onClick={() => void handleDelete(sticker.id, "emoticon")} aria-label="삭제"><Icon name="trash" /></button>
                           </div>
@@ -886,6 +885,7 @@ export function LibraryPage() {
           </section>
         </div>
       )}
+      {pendingQrExport.value ? <QrExportModal payload={pendingQrExport.value} onClose={() => (pendingQrExport.value = null)} /> : null}
     </>
   );
 }
@@ -913,11 +913,13 @@ function LibraryDetail({
   project,
   onEdit,
   onFavorite,
+  onQr,
 }: {
   item: StickerItem;
   project?: EmoticonProject;
   onEdit: (item: StickerItem, project?: EmoticonProject) => void;
   onFavorite: (item: StickerItem) => Promise<void>;
+  onQr: (item: StickerItem) => Promise<void>;
 }) {
   const stillImage = item.thumbnail ?? item.image;
   const animatedImage = item.animatedImage ?? item.image;
@@ -989,6 +991,9 @@ function LibraryDetail({
           </span>
         </div>
         <div className="detail-actions">
+          <button type="button" onClick={() => void onQr(item)} aria-label="QR 내보내기">
+            <Icon name="download" />
+          </button>
           <button type="button" onClick={download} aria-label="저장">
             <Icon name="download" />
           </button>

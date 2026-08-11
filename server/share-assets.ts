@@ -1,6 +1,5 @@
 import { isFirebaseStorageConfigured, uploadFirebaseAsset } from "./firebase-storage";
 import { isSameOriginRequest } from "./request-security";
-import { sharedAnimationMemoryStore } from "./share-memory";
 
 type ShareFormat = "APNG" | "GIF" | "WEBP";
 
@@ -37,43 +36,20 @@ export async function handleSharedAnimationPost(request: Request, routeName = "a
   const createdAt = new Date().toISOString();
   const fileName = safeDownloadName(headerValue(request, "x-emove-file-name", `emove-${id}.${spec.extension}`), spec.extension);
 
-  if (isFirebaseStorageConfigured()) {
-    const asset = await uploadFirebaseAsset(Buffer.from(data), {
-      contentType: spec.contentType,
-      fileName,
-      kind: "animations",
-      requestUrl: request.url,
-    });
-    return json(201, { id, url: asset.url, downloadUrl: asset.downloadUrl, path: asset.path, size: asset.size, createdAt, format: spec.format, mimeType: spec.contentType, extension: spec.extension });
+  if (!isFirebaseStorageConfigured()) {
+    return json(501, { error: "Firebase Storage가 설정되지 않아 애니메이션을 저장할 수 없습니다. 설정을 확인한 뒤 저장 버튼을 다시 눌러 주세요." });
   }
-
-  sharedAnimationMemoryStore().set(id, { data: new Uint8Array(data), fileName, contentType: spec.contentType, format: spec.format });
-  const url = new URL(`/api/share/${routeName}/${id}`, request.url);
-  const downloadUrl = new URL(url);
-  downloadUrl.searchParams.set("download", "1");
-  return json(201, { id, url: url.toString(), downloadUrl: downloadUrl.toString(), path: `dev-memory://emove-shared-animations/${id}.${spec.extension}`, size: data.byteLength, createdAt, format: spec.format, mimeType: spec.contentType, extension: spec.extension });
+  const asset = await uploadFirebaseAsset(Buffer.from(data), {
+    contentType: spec.contentType,
+    fileName,
+    kind: "animations",
+    requestUrl: request.url,
+  });
+  return json(201, { id, url: asset.url, downloadUrl: asset.downloadUrl, path: asset.path, size: asset.size, createdAt, format: spec.format, mimeType: spec.contentType, extension: spec.extension });
 }
 
-export async function handleSharedAnimationGet(id: string, download = false): Promise<Response> {
-  const entry = sharedAnimationMemoryStore().get(id);
-  if (!entry) {
-    return new Response(JSON.stringify({ error: "공유 애니메이션을 찾지 못했습니다." }), {
-      status: 404,
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-    });
-  }
-
-  const body = new ArrayBuffer(entry.data.byteLength);
-  new Uint8Array(body).set(entry.data);
-
-  return new Response(body, {
-    status: 200,
-    headers: {
-      "Cache-Control": "no-store",
-      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${entry.fileName}"`,
-      "Content-Type": entry.contentType || "image/apng",
-    },
-  });
+export async function handleSharedAnimationGet(_id: string, _download = false): Promise<Response> {
+  return json(410, { error: "이전 메모리 공유 링크는 더 이상 지원하지 않습니다. Firebase Storage 다운로드 링크를 사용해 주세요." });
 }
 
 export function handleSharedAnimationOptions(request: Request): Response {

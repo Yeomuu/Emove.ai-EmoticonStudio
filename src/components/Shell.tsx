@@ -116,9 +116,6 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
           ))}
         </nav>
         <div className="text-nav-actions">
-          <button className="showcase-icon-btn" type="button" onClick={() => navigate("/showcase")} aria-label="움직이는 이모티콘 쇼케이스">
-            <Icon name="play" size={16} />
-          </button>
           <button
             className="theme-icon-toggle"
             type="button"
@@ -134,7 +131,6 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
             aria-label="마이페이지 보관함"
           >
             <img src={imageAssets.detailProfile} alt="" />
-            <Icon name="folder" className="home-profile-glyph" size={22} />
           </button>
         </div>
       </header>
