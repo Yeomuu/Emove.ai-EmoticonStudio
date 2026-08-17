@@ -39,17 +39,23 @@ export interface ExportedAnimation {
 }
 
 const imageCache = new Map<string, HTMLImageElement>();
-const visibleBoundsCache = new Map<string, ImageBounds>();
+const visibleBoundsCache = new Map<string, LayerVisualBounds>();
 const tintedIconCache = new Map<string, HTMLCanvasElement>();
 const accentStarUrl = typeof starIcon === "string" ? starIcon : starIcon.src;
 const GIF_ALPHA_THRESHOLD = 96;
 const BAYER_4X4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
-interface ImageBounds {
+export interface LayerVisualBounds {
   x: number;
   y: number;
   width: number;
   height: number;
+}
+
+interface CharacterImagePlacement {
+  destination: LayerVisualBounds;
+  image: HTMLImageElement;
+  source: LayerVisualBounds;
 }
 
 async function loadImage(url: string): Promise<HTMLImageElement> {
@@ -86,21 +92,17 @@ async function drawLayer(context: CanvasRenderingContext2D, id: LayerKind, optio
       context.restore();
       return;
     }
-    const image = await loadImage(source);
-    const bounds = getVisibleImageBounds(image, source);
-    const fit = Math.min((width * .66) / bounds.width, (height * .74) / bounds.height);
-    const targetWidth = bounds.width * fit;
-    const targetHeight = bounds.height * fit;
+    const placement = await measureCharacterImagePlacement(source, width, height);
     context.drawImage(
-      image,
-      bounds.x,
-      bounds.y,
-      bounds.width,
-      bounds.height,
-      (width - targetWidth) / 2,
-      (height - targetHeight) / 2,
-      targetWidth,
-      targetHeight,
+      placement.image,
+      placement.source.x,
+      placement.source.y,
+      placement.source.width,
+      placement.source.height,
+      placement.destination.x,
+      placement.destination.y,
+      placement.destination.width,
+      placement.destination.height,
     );
   } else if (id === "accent-effects") {
     applyEffectLayerStyle(context, options.accentEffectStyle, width);
@@ -117,7 +119,7 @@ function applyEffectLayerStyle(context: CanvasRenderingContext2D, style: EffectL
   context.filter = blur > .01 ? `blur(${blur}px)` : "none";
 }
 
-function getVisibleImageBounds(image: HTMLImageElement, cacheKey: string): ImageBounds {
+function getVisibleImageBounds(image: HTMLImageElement, cacheKey: string): LayerVisualBounds {
   const cached = visibleBoundsCache.get(cacheKey);
   if (cached) return cached;
 
@@ -247,6 +249,29 @@ function drawEmotionBackground(context: CanvasRenderingContext2D, brief: MotionB
   else if (brief.emotion === "sadness") drawRainDrops(context, color, width, height, progress, unit);
   else if (brief.emotion === "anger") drawFlameBursts(context, color, width, height, progress, unit);
   else drawNoiseWave(context, color, width, height, progress, unit);
+}
+
+async function measureCharacterImagePlacement(source: string, width: number, height: number): Promise<CharacterImagePlacement> {
+  const image = await loadImage(source);
+  const visible = getVisibleImageBounds(image, source);
+  const fit = Math.min((width * .66) / Math.max(1, visible.width), (height * .74) / Math.max(1, visible.height));
+  const targetWidth = visible.width * fit;
+  const targetHeight = visible.height * fit;
+  return {
+    image,
+    source: visible,
+    destination: {
+      x: (width - targetWidth) / 2,
+      y: (height - targetHeight) / 2,
+      width: targetWidth,
+      height: targetHeight,
+    },
+  };
+}
+
+export async function measureCharacterRenderBounds(source: string, width = EXPORT_SIZE, height = EXPORT_SIZE): Promise<LayerVisualBounds> {
+  if (!source) return { x: width * .17, y: height * .13, width: width * .66, height: height * .74 };
+  return (await measureCharacterImagePlacement(source, width, height)).destination;
 }
 
 async function drawAccentEffect(context: CanvasRenderingContext2D, brief: MotionBrief, width: number, height: number, progress: number, unit: number): Promise<void> {
@@ -575,7 +600,7 @@ export async function exportGif(options: RenderOptions): Promise<Blob> {
   return encodeGifFrames(frames, width, height, options.brief.frameDelayMs);
 }
 
-export async function exportAnimation(options: RenderOptions, preferred: AnimationFormat = "APNG"): Promise<ExportedAnimation> {
+export async function exportAnimation(options: RenderOptions, preferred: AnimationFormat = "GIF"): Promise<ExportedAnimation> {
   if (preferred === "APNG") {
     try {
       return { blob: await exportApng(options), format: "APNG", extension: "apng", mimeType: "image/apng", label: "투명 APNG" };

@@ -296,7 +296,7 @@ function createProjectDoc(project: Omit<EmoticonProject, "gifBlob">, ownerId: st
     metadata: {
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
-      format: project.animationFormat ?? project.sticker.animationFormat ?? "APNG",
+      format: project.animationFormat ?? project.sticker.animationFormat ?? "GIF",
     },
   };
 }
@@ -323,7 +323,7 @@ function createProjectSnapshot(project: Omit<EmoticonProject, "gifBlob" | "anima
 }
 
 function createStickerDoc(item: StickerItem, ownerId: string) {
-  const format = item.animationFormat ?? inferAnimationFormat(item.animatedImage) ?? "APNG";
+  const format = item.animationFormat ?? inferAnimationFormat(item.animatedImage) ?? "GIF";
   return {
     id: item.id,
     ownerId,
@@ -717,7 +717,7 @@ function inferAnimationFormat(value: string | null | undefined): AnimationFormat
 function toAnimationFormat(value: string, url?: string): AnimationFormat {
   const upper = value.toUpperCase();
   if (upper === "GIF" || upper === "WEBP" || upper === "APNG") return upper;
-  return inferAnimationFormat(url) ?? "APNG";
+  return inferAnimationFormat(url) ?? "GIF";
 }
 
 function uniqueById<T extends { id: string }>(items: T[]): T[] {

@@ -49,6 +49,23 @@ export function ScrollSlideContainer({
   const isScrolling = useRef(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
+  const getScrollableRegion = useCallback((target: EventTarget | null) => {
+    const container = containerRef.current;
+    let element = target instanceof Element ? target : null;
+
+    while (element && element !== container) {
+      if (element instanceof HTMLElement) {
+        const { overflowY } = window.getComputedStyle(element);
+        if (/(auto|scroll)/.test(overflowY) && element.scrollHeight > element.clientHeight + 1) {
+          return element;
+        }
+      }
+      element = element.parentElement;
+    }
+
+    return null;
+  }, []);
+
   const scrollToStep = useCallback((index: number) => {
     const container = containerRef.current;
     if (!container) return;
@@ -89,13 +106,22 @@ export function ScrollSlideContainer({
     if (busy || isScrolling.current || warning) return;
     const delta = event.deltaY;
     if (Math.abs(delta) < 30) return;
+
+    const scrollRegion = getScrollableRegion(event.target);
+    if (scrollRegion) {
+      const maxScrollTop = scrollRegion.scrollHeight - scrollRegion.clientHeight;
+      const canScrollDown = delta > 0 && scrollRegion.scrollTop < maxScrollTop - 1;
+      const canScrollUp = delta < 0 && scrollRegion.scrollTop > 1;
+      if (canScrollDown || canScrollUp) return;
+    }
+
     event.preventDefault();
     if (delta > 0 && currentStep < steps.length - 1) {
       attemptNavigation(currentStep + 1);
     } else if (delta < 0 && currentStep > 0) {
       attemptNavigation(currentStep - 1);
     }
-  }, [busy, currentStep, steps.length, attemptNavigation, warning]);
+  }, [busy, currentStep, steps.length, attemptNavigation, warning, getScrollableRegion]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -106,6 +132,10 @@ export function ScrollSlideContainer({
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (busy || warning) return;
+    const target = event.target instanceof Element
+      ? event.target.closest("input, select, textarea, [role='slider']")
+      : null;
+    if (target) return;
     if (event.key === "ArrowDown" || event.key === "PageDown") {
       event.preventDefault();
       if (currentStep < steps.length - 1) attemptNavigation(currentStep + 1);
@@ -134,6 +164,15 @@ export function ScrollSlideContainer({
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
     if (Math.abs(deltaY) < 54 || Math.abs(deltaY) < Math.abs(deltaX) * 1.2) return;
+
+    const scrollRegion = getScrollableRegion(event.target);
+    if (scrollRegion) {
+      const maxScrollTop = scrollRegion.scrollHeight - scrollRegion.clientHeight;
+      const canScrollDown = deltaY < 0 && scrollRegion.scrollTop < maxScrollTop - 1;
+      const canScrollUp = deltaY > 0 && scrollRegion.scrollTop > 1;
+      if (canScrollDown || canScrollUp) return;
+    }
+
     if (deltaY < 0 && currentStep < steps.length - 1) attemptNavigation(currentStep + 1);
     else if (deltaY > 0 && currentStep > 0) attemptNavigation(currentStep - 1);
   };

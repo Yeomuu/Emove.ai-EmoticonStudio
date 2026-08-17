@@ -1,5 +1,9 @@
 html[data-theme="light"] {
   color-scheme: light;
+  --figma-canvas: #f7f7fb;
+  --figma-line: rgba(72, 72, 82, .4);
+  --figma-text: #191622;
+  --figma-muted: rgba(43, 39, 59, .62);
   --bg: #f6f6fb;
   --bg-soft: #ececf8;
   --surface: rgba(255, 255, 255, .34);
@@ -592,4 +596,17 @@ html[data-theme="light"] .home-highlight-word::before {
     linear-gradient(90deg, rgba(115, 93, 255, .12), rgba(131, 108, 255, .36) 38%, rgba(169, 145, 255, .3) 76%, rgba(115, 93, 255, .13)),
     repeating-linear-gradient(176deg, transparent 0 3px, rgba(255, 255, 255, .28) 3px 5px);
   box-shadow: 0 0 .18em rgba(111, 86, 226, .09);
+}
+
+html[data-theme="light"] .character-flow-card {
+  border-color: rgba(72, 72, 82, .4) !important;
+}
+
+html[data-theme="light"] .character-step-heading-one::before {
+  background: rgba(72, 72, 82, .4) !important;
+}
+
+html[data-theme="light"] .character-step-heading p,
+html[data-theme="light"] .character-detail-copy-card h2 {
+  color: rgba(32, 27, 52, .7) !important;
 }

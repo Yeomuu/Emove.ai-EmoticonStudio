@@ -101,7 +101,7 @@ export function EditPage() {
       width: EXPORT_SIZE,
       height: EXPORT_SIZE,
     };
-    const [animation, thumbnailSource] = await Promise.all([exportAnimation(renderOptions, "APNG"), renderFrameDataUrl(renderOptions, 0)]);
+    const [animation, thumbnailSource] = await Promise.all([exportAnimation(renderOptions, "GIF"), renderFrameDataUrl(renderOptions, 0)]);
     const now = new Date().toISOString(); const id = original?.id ?? `emove-${Date.now()}`;
     const originalSticker = original?.sticker;
     const title = normalizedStickerTitle(originalSticker?.title);
@@ -385,6 +385,7 @@ export function EditPage() {
                         <ColorPickerDropdown
                           value={accentColor.value}
                           onChange={(color) => (accentColor.value = color)}
+                          onPreview={(color) => (accentColor.value = color)}
                           ariaLabel="부가 이펙트 색상 선택"
                         />
                       </div>
@@ -481,6 +482,7 @@ export function EditPage() {
                       <ColorPickerDropdown
                         value={textColor.value}
                         onChange={(color) => (textColor.value = color)}
+                        onPreview={(color) => (textColor.value = color)}
                         ariaLabel="텍스트 색상 선택"
                       />
                     </div>

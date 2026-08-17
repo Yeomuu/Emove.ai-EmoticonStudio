@@ -1,7 +1,7 @@
-import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import { accentEffectBlur, accentEffectOpacity, activeLayer, backgroundEffectBlur, backgroundEffectOpacity, frameImages, layerTransforms, layers, motionBrief, selectedFrame, textBoxShape, textColor, textFont, updateLayerTransform } from "../store";
-import { measureTextBubble, renderFrame } from "../services/renderer";
+import { measureCharacterRenderBounds, measureTextBubble, renderFrame, type LayerVisualBounds } from "../services/renderer";
 import type { EditorLayer, LayerKind } from "../types";
 
 const selectionRects: Record<LayerKind, { x: number; y: number; width: number; height: number }> = {
@@ -23,6 +23,29 @@ function selectionClassName(id: LayerKind): string {
 export function Stage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const currentCharacterUrl = frameImages.value[selectedFrame.value] ?? frameImages.value[0] ?? "";
+  const [characterBounds, setCharacterBounds] = useState<LayerVisualBounds>(() => scaleRect(selectionRects.character));
+  const [fontReadyVersion, setFontReadyVersion] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void measureCharacterRenderBounds(currentCharacterUrl, EXPORT_SIZE, EXPORT_SIZE)
+      .then((bounds) => {
+        if (!cancelled) setCharacterBounds(bounds);
+      })
+      .catch(() => {
+        if (!cancelled) setCharacterBounds(scaleRect(selectionRects.character));
+      });
+    return () => { cancelled = true; };
+  }, [currentCharacterUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) setFontReadyVersion((value) => value + 1);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current; const context = canvas?.getContext("2d"); if (!canvas || !context) return;
@@ -40,7 +63,7 @@ export function Stage() {
       height: canvas.height,
       gifSafe: false,
     }, selectedFrame.value / (FRAME_COUNT - 1));
-  }, [motionBrief.value, layers.value, layerTransforms.value, frameImages.value, selectedFrame.value, textBoxShape.value, textFont.value, textColor.value, activeLayer.value, backgroundEffectBlur.value, backgroundEffectOpacity.value, accentEffectBlur.value, accentEffectOpacity.value]);
+  }, [motionBrief.value, layers.value, layerTransforms.value, frameImages.value, selectedFrame.value, textBoxShape.value, textFont.value, textColor.value, activeLayer.value, backgroundEffectBlur.value, backgroundEffectOpacity.value, accentEffectBlur.value, accentEffectOpacity.value, fontReadyVersion]);
 
   const beginMove = (event: ReactPointerEvent<HTMLElement>, id: LayerKind) => {
     if (layers.value.find((layer) => layer.id === id)?.locked) return;
@@ -77,12 +100,16 @@ export function Stage() {
 
   return (
     <div className="canvas-artboard" ref={surfaceRef} onPointerDown={clearSelection} aria-label="직접 편집 가능한 이모티콘 캔버스">
-      <canvas className="stage-canvas" ref={canvasRef} width={EXPORT_SIZE} height={EXPORT_SIZE} />
+      <canvas className="editor-render-canvas" ref={canvasRef} width={EXPORT_SIZE} height={EXPORT_SIZE} />
       {[...layers.value].reverse().map((layer, reverseIndex) => {
         if (!layer.visible) return null;
         if (layer.id === "background-effects") return null;
         if (layer.id === "text" && !motionBrief.value.shortText.trim()) return null;
-        const rect = layer.id === "text" ? measureTextBubble(motionBrief.value, textBoxShape.value, textFont.value, EXPORT_SIZE, EXPORT_SIZE) : scaleRect(selectionRects[layer.id]);
+        const rect = layer.id === "text"
+          ? measureTextBubble(motionBrief.value, textBoxShape.value, textFont.value, EXPORT_SIZE, EXPORT_SIZE)
+          : layer.id === "character"
+            ? characterBounds
+            : scaleRect(selectionRects[layer.id]);
         const transform = layerTransforms.value[layer.id];
         const unit = EXPORT_SIZE / DESIGN_SIZE;
         return (

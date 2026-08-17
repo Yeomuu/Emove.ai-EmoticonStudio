@@ -16,12 +16,12 @@ export function QrExportModal({ payload, onClose }: { payload: QrExportPayload; 
           <img src={payload.previewUrl} alt={`${payload.title} 미리보기`} />
           <div className="qr-card">
             <img src={payload.qrDataUrl} alt={`${payload.title} 다운로드 QR 코드`} />
-            <span>스캔하면 파일을 바로 내려받아요.</span>
+            <span>스캔하면 모바일에서 움직임을 미리 본 뒤 내려받을 수 있어요.</span>
           </div>
         </div>
-        <p>{payload.format} · Firebase Storage 직접 다운로드</p>
+        <p>{payload.format} · 투명 배경 애니메이션</p>
         <div className="export-actions">
-          <a className="button primary" href={payload.targetUrl}>
+          <a className="button primary" href={payload.downloadUrl}>
             <Icon name="download" />
             다운로드
           </a>

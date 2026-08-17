@@ -16,6 +16,7 @@ type PickerTab = "default" | "custom";
 interface ColorPickerDropdownProps {
   value: string;
   onChange: (color: string) => void;
+  onPreview?: (color: string) => void;
   ariaLabel: string;
   colors?: readonly string[];
   className?: string;
@@ -24,6 +25,7 @@ interface ColorPickerDropdownProps {
 export function ColorPickerDropdown({
   value,
   onChange,
+  onPreview,
   ariaLabel,
   colors = COLOR_PICKER_SWATCHES,
   className = "",
@@ -36,6 +38,7 @@ export function ColorPickerDropdown({
   const [position, setPosition] = useState({ left: 0, top: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const committedValueRef = useRef(normalizedValue);
   const hsv = useMemo(() => hexToHsv(draft), [draft]);
   const rgb = useMemo(() => hexToRgb(draft), [draft]);
 
@@ -44,19 +47,30 @@ export function ColorPickerDropdown({
     if (!normalized) return;
     setDraft(normalized);
     setHexInput(normalized);
+    onPreview?.(normalized);
   };
 
   const closeWithoutCommit = () => {
-    setDraft(normalizedValue);
-    setHexInput(normalizedValue);
+    const committed = committedValueRef.current;
+    setDraft(committed);
+    setHexInput(committed);
+    onPreview?.(committed);
     setOpen(false);
   };
 
   const openMenu = () => {
+    committedValueRef.current = normalizedValue;
     setDraft(normalizedValue);
     setHexInput(normalizedValue);
     setOpen(true);
   };
+
+  useEffect(() => {
+    if (open) return;
+    committedValueRef.current = normalizedValue;
+    setDraft(normalizedValue);
+    setHexInput(normalizedValue);
+  }, [normalizedValue, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -213,7 +227,10 @@ export function ColorPickerDropdown({
                   const next = event.currentTarget.value.toUpperCase();
                   setHexInput(next);
                   const normalized = normalizePickerHex(next);
-                  if (normalized) setDraft(normalized);
+                  if (normalized) {
+                    setDraft(normalized);
+                    onPreview?.(normalized);
+                  }
                 }}
                 onBlur={() => setHexInput(draft)}
               />
@@ -241,6 +258,7 @@ export function ColorPickerDropdown({
           type="button"
           className="primary"
           onClick={() => {
+            committedValueRef.current = draft;
             onChange(draft);
             setOpen(false);
             triggerRef.current?.focus();

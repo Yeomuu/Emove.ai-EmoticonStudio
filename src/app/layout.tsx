@@ -31,6 +31,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="ko" data-theme="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{const value=localStorage.getItem("emove-theme");if(value==="light"||value==="dark"){document.documentElement.dataset.theme=value;document.documentElement.style.colorScheme=value}}catch{}`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

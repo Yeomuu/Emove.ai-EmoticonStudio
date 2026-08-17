@@ -81,7 +81,7 @@ export const stickers = signal<StickerItem[]>(starterStickers.map((item) => ({ .
 export const editingProject = signal<EmoticonProject | null>(null);
 export const lastSaved = signal<string | null>(null);
 export const toast = signal<string | null>(null);
-export const exportAnimationFormat = signal<AnimationFormat>("APNG");
+export const exportAnimationFormat = signal<AnimationFormat>("GIF");
 export const pendingQrExport = signal<import("./types").QrExportPayload | null>(null);
 
 export const motionBrief = computed(() => createMotionBrief(emotion.value, effectColor.value, sourceTranscript.value, transcript.value, motionIntensity.value, selectedCharacterId.value, frameDelayMs.value, coreEffect.value, expressionEmotion.value, behaviorCapture.value.poseSummary, motionStyle.value, accentEffect.value, accentColor.value, exaggerationTierOverride.value));
@@ -115,7 +115,7 @@ export function selectCharacter(id: string): void {
 export function startNewEmoticonProject(): void {
   editingProject.value = null;
   emoticonTitle.value = transcript.value.trim().slice(0, 12) || "새 이모티콘";
-  exportAnimationFormat.value = "APNG";
+  exportAnimationFormat.value = "GIF";
   pendingQrExport.value = null;
   accentEffect.value = "sparkles";
   accentColor.value = emotionMeta[emotion.value].color;
@@ -160,7 +160,7 @@ export function loadProjectForEditing(project: EmoticonProject): void {
   frameLayerTransforms.value = cloneFrameTransforms(project.frameLayerTransforms);
   selectedFrame.value = 0;
   activeLayer.value = "text";
-  exportAnimationFormat.value = project.animationFormat ?? project.sticker.animationFormat ?? "APNG";
+  exportAnimationFormat.value = project.animationFormat ?? project.sticker.animationFormat ?? "GIF";
   pendingQrExport.value = null;
   lastSaved.value = new Date(project.updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 }

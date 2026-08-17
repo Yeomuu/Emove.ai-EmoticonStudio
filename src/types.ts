@@ -236,6 +236,7 @@ export interface QrExportPayload {
   format: AnimationFormat;
   previewUrl: string;
   targetUrl: string;
+  downloadUrl: string;
   qrDataUrl: string;
 }
 

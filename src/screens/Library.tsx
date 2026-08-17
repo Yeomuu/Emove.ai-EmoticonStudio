@@ -937,7 +937,7 @@ function LibraryDetail({
       const blob = await response.blob();
       downloadBlob(blob, `${item.id}.${extension}`);
     }
-    notify(project || item.animatedImage ? `투명 ${format ?? "APNG"}를 저장했어요.` : "기본 에셋 이미지를 저장했어요.");
+    notify(project || item.animatedImage ? `투명 ${format ?? "GIF"}를 저장했어요.` : "기본 에셋 이미지를 저장했어요.");
   };
   const modified = new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(item.updatedAt));
 
@@ -1015,7 +1015,7 @@ function LibraryDetail({
         <dl className="detail-spec">
           <div>
             <dt>파일</dt>
-            <dd>{project ? `투명 ${item.animationFormat ?? project.animationFormat ?? "APNG"}` : "투명 PNG"}</dd>
+            <dd>{project ? `투명 ${item.animationFormat ?? project.animationFormat ?? "GIF"}` : "투명 PNG"}</dd>
           </div>
           <div>
             <dt>레이어</dt>

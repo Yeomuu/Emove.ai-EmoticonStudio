@@ -15,6 +15,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Vercel is the active deployment target for the Next.js-centered architecture.
 - The production Vercel domain is `emove-emoticonstudio.vercel.app`.
 - Light mode should invert the dark visual hierarchy: dark-mode dark surfaces become light glass surfaces, and dark-mode bright text/icons become dark text/icons except for intentional accent buttons.
+- In Character creation light mode, the structural card borders and connecting guide lines use neutral gray at about 40% opacity instead of the dark-mode lavender/black line treatment.
 - Loading indicators must distinguish measured progress from simulated/estimated progress; long AI generation should show truthful job stages rather than pretending exact progress.
 - Page transitions should prefer a full-screen loading surface that rises from the bottom, briefly centers the EMOVE logo at about 120×120, then exits upward after the route is ready.
 - Loading spinner/curtain backgrounds should stay solid unless a later visual reference explicitly asks for decorated loader backgrounds.
@@ -45,6 +46,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Character playground physics should keep non-character UI controls out of pointer repulsion, while draggable characters may push nearby characters away for collision feedback.
 - Character creation starts empty: do not show an existing character until the user generates a new draft, then save the resulting token explicitly.
 - Character generation and emoticon generation are separate workflows. Character creation ends in Character/Library unless the user explicitly chooses "이 캐릭터로 이모티콘 생성하기", which saves/selects that character and then routes to Input.
+- Input requires an explicit character selection and confirmation before camera initialization and capture. Home's "이모티콘 생성하기" action routes to this selection gate, which also offers a path to create a new character.
 - Keep the bundled default character set available for users who want to skip character creation, but never use those defaults as fallback output when the user explicitly runs new character generation.
 - The current Character creation layout source is the Figma wireframe set for Step1 `166-810`, Step2 `106-537`, Step3 `107-555`, generation loading `47-801`, and result `113-834`; match the 1920x1080 wireframe coordinates before decorative polish.
 - The 2026-07-13 canonical Figma `디자인 시안` pass supersedes older page-layout frames. Its implementation nodes are Home `124-1275`, Character steps `124-586`, `124-1013`, `124-1074`, Character loading/result `189-766`, `281-796`, Input capture/loading/results `271-627`, `165-2444`, `264-476`, `265-707`, Emoticon loading `303-1248`, Edit states `175-896`, `281-1235`, `282-660`, `283-989`, Edit save loading `303-1241`, and Library `285-1866`.
@@ -82,7 +84,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit text layer selection bounds must match the rendered text bubble exactly, including resize behavior.
 - Edit canvas selection boxes must be driven only by measured renderer bounds and layer transforms; do not apply legacy CSS offsets such as margins to `.canvas-selection` variants.
 - When editing a frame, later frames should inherit the same layer transform unless the user explicitly changes them, so animation remains continuous.
-- Edit preview and APNG export must share the same 1024×1024 full-color transparent frame constraints so the looped animation does not visually diverge from the frame editor.
+- Edit preview and animated export must share the same 1024×1024 transparent frame constraints so the looped animation does not visually diverge from the frame editor.
 - Edit save overwrites the active source project/sticker in place when editing from Library; it must preserve the original id, createdAt, favorite/group metadata, and Library ordering instead of creating a duplicate.
 - Edit lets users rename the saved emoticon explicitly; the sticker title must not be overwritten by speech-bubble text unless no custom title exists.
 - Edit canvas resize/rotate control handles belong only to the current active layer; inactive selection bounds must not show handles or steal resize/rotate interactions.
@@ -104,7 +106,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit must include a live loop preview that renders the same five frame states at the selected frame delay before exporting.
 - Future UI updates may replace the current screen source. When the user provides a new canonical screen reference set, implement the app to match that supplied screen screenshot pixel-for-pixel.
 - The current final emoticon output target is a simple 1024×1024 looping emoticon generated from `gpt-image-2`-sized assets, not a Kakao 360×360 submission package.
-- Prefer APNG for final animated emoticon export and QR/mobile downloads where possible because it preserves full-color transparent frames; keep GIF as a compatibility fallback and consider Animated WebP later when file size becomes the stronger constraint.
+- The current prototype saves animated emoticons as transparent GIF by default for broad mobile preview compatibility. Keep APNG decoding/export support only for legacy records and a possible later quality mode.
 - Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
 - OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to serverless timeout or response-size limits.
 - Use compressed `webp` image API responses by default before browser chroma-key removal; if this changes, the returned data URL MIME type must match the requested image output format.
@@ -120,7 +122,9 @@ When implementing from a selected generated mock, treat that image as the source
 - Loading surfaces, including boot loading, route curtain loading, and generation/analysis progress screens, must follow the active light/dark theme.
 - Light mode shadows should be softer than dark mode shadows so glass surfaces stay clean rather than smudged.
 - Horizontal filter rails should show edge fades only on the sides where additional hidden items are available.
-- Edit save uploads all five transparent character frames, thumbnail, APNG-first animation, and compact JSON records to Firebase Storage before updating the Library. Any failed part keeps the user in Edit with a persistent manual-retry message; never auto-retry or fall back to local persistence.
+- Edit save uploads all five transparent character frames, thumbnail, GIF animation, and compact JSON records to Firebase Storage before updating the Library. Any failed part keeps the user in Edit with a persistent manual-retry message; never auto-retry or fall back to local persistence.
+- Shared color pickers are transactional: swatch/HSV/HEX/RGB changes preview live, `선택` commits, and cancel, Escape, outside click, or trigger-close restores the value captured when the picker opened.
+- QR codes open a same-origin mobile preview page first; the user confirms the animated preview there before starting the attachment download.
 - After the first successful Edit save, route to Library and open a QR export modal. Library also exposes QR export for saved emoticons, and QR targets the same-origin Firebase Storage attachment download URL.
 - The overall layout reference websites are:
   - https://startrail.stellive.me/ (stellar dynamic components and animations)
@@ -163,10 +167,10 @@ Firebase Admin 서비스 계정 정보나 `FIREBASE_STORAGE_BUCKET`이 없으면
 
 ```typescript
 {
-  path: `firebase-storage://${bucket}/assets/animations/${year}/${month}/${shareId}.apng`;
+  path: `firebase-storage://${bucket}/assets/animations/${year}/${month}/${shareId}.gif`;
   url: string;         // stable same-origin Firebase Storage proxy URL
   downloadUrl: string; // /api/assets/download attachment response used by QR
-  contentType: "image/apng" | "image/gif" | "image/webp";
+  contentType: "image/gif"; // current writes; legacy APNG/WebP records remain readable
   maxSizeBytes: 5750000;
 }
 ```
@@ -175,7 +179,7 @@ Firebase Admin 서비스 계정 정보나 `FIREBASE_STORAGE_BUCKET`이 없으면
 
 1. **Input 페이지**: 카메라와 마이크를 동시에 기록하고 분석하되 자동 저장하지 않음
 2. **Character 페이지**: OpenAI 생성 결과를 화면에 유지하다 사용자가 저장할 때 캐릭터 이미지와 JSON 메타데이터를 Firebase Storage에 저장
-3. **Edit 페이지**: 저장 버튼에서 5프레임, 썸네일, APNG-first 애니메이션과 `projects`, `stickers`, `characters`, `captures` JSON 메타데이터를 Firebase Storage에 저장
+3. **Edit 페이지**: 저장 버튼에서 5프레임, 썸네일, 투명 GIF 애니메이션과 `projects`, `stickers`, `characters`, `captures` JSON 메타데이터를 Firebase Storage에 저장
 4. **Export**: `/api/assets/download` attachment URL을 QR에 사용
 5. **Library**: Firebase Storage 공용 JSON 레코드를 읽어 모든 브라우저에서 같은 캐릭터, 이모티콘, 사용자 그룹을 표시
 

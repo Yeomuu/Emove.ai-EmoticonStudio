@@ -8,7 +8,7 @@ import { encodeApngPngFrames, encodeGifFrames } from "../src/services/renderer";
 import { persistGeneratedAsset } from "../src/services/asset-storage";
 import { characterPalettes, defaultMainColorForPalette, getCharacterPalette, normalizeHexColor } from "../src/services/character-palette";
 import { buildFramePrompts } from "../src/services/prompt-builder";
-import { qrDownloadTarget } from "../src/services/qr-export";
+import { qrDirectDownloadTarget, qrDownloadTarget } from "../src/services/qr-export";
 import { deleteRemoteLibraryItem, loadRemoteProjects, loadRemoteStickers, syncLibraryGroupToRemote, syncStickerToRemote } from "../src/services/remote-store";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
 import { handleOpenAIRequest, normalizeImageModel, normalizeImageQuality } from "../server/openai-api";
@@ -580,7 +580,7 @@ describe("character-only emoticon generation", () => {
 describe("Firebase Storage QR export", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("turns a stored APNG path into a same-origin attachment download URL", () => {
+  it("turns a stored animation path into a same-origin mobile preview and attachment URL", () => {
     vi.stubGlobal("window", { location: { origin: "https://emove.example" } });
     const item: StickerItem = {
       id: "sticker-qr",
@@ -603,9 +603,14 @@ describe("Firebase Storage QR export", () => {
 
     const target = new URL(qrDownloadTarget(item));
     expect(target.origin).toBe("https://emove.example");
-    expect(target.pathname).toBe("/api/assets/download");
+    expect(target.pathname).toBe("/download");
     expect(target.searchParams.get("path")).toBe("assets/animations/2026/08/sticker-qr.apng");
     expect(target.searchParams.get("name")).toBe("기쁜_인사.apng");
+    expect(target.searchParams.get("format")).toBe("APNG");
+
+    const download = new URL(qrDirectDownloadTarget(item));
+    expect(download.pathname).toBe("/api/assets/download");
+    expect(download.searchParams.get("path")).toBe("assets/animations/2026/08/sticker-qr.apng");
   });
 });
 

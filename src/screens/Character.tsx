@@ -430,6 +430,7 @@ const previewImage =
             <ColorPickerDropdown
               value={tone}
               onChange={chooseTone}
+              onPreview={chooseTone}
               ariaLabel={`${selectedPalette.label} 메인 컬러 선택`}
               colors={buildPaletteSwatches(selectedPalette.colors)}
             />
