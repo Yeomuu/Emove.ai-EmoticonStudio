@@ -11,7 +11,7 @@ import { buildFramePrompts } from "../src/services/prompt-builder";
 import { qrDownloadTarget } from "../src/services/qr-export";
 import { deleteRemoteLibraryItem, loadRemoteProjects, loadRemoteStickers, syncLibraryGroupToRemote, syncStickerToRemote } from "../src/services/remote-store";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
-import { handleOpenAIRequest } from "../server/openai-api";
+import { handleOpenAIRequest, normalizeImageModel } from "../server/openai-api";
 import {
   BODY_GESTURES,
   CANNED_HAND_GESTURES,
@@ -580,6 +580,36 @@ describe("Firebase Storage QR export", () => {
 });
 
 describe("OpenAI image-cost boundary", () => {
+  it("uses the official GPT Image 2 id and repairs the known Vercel typo", () => {
+    expect(normalizeImageModel(undefined)).toBe("gpt-image-2");
+    expect(normalizeImageModel("gpt-image-2")).toBe("gpt-image-2");
+    expect(normalizeImageModel("gpt-imeage-2")).toBe("gpt-image-2");
+  });
+
+  it("sends the repaired model id to the image generation endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [{ b64_json: "AA==" }] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const response = await handleOpenAIRequest(new Request("http://localhost/api/openai/character", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: "test character", token: {} }),
+      }), {
+        OPENAI_API_KEY: "sk-test-only-not-a-real-key",
+        OPENAI_IMAGE_MODEL: "gpt-imeage-2",
+      });
+      const options = fetchMock.mock.calls[0]?.[1] as RequestInit;
+      expect(response?.status).toBe(200);
+      expect(JSON.parse(String(options.body))).toMatchObject({ model: "gpt-image-2" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("does not expose a generated background-effect route", async () => {
     const response = await handleOpenAIRequest(new Request("http://localhost/api/openai/effect", { method: "POST" }), {
       OPENAI_API_KEY: "sk-test-only-not-a-real-key",

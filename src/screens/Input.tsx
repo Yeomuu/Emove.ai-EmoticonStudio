@@ -14,8 +14,8 @@ import { AudioCapture, CameraCapture, synchronizedCaptureIssue } from "../servic
 import { analyzeEmotionPriority } from "../services/emotion-analysis";
 import { getGestureLabel } from "../services/gesture-analysis";
 import { createLiveVisionAnalyzer } from "../services/vision";
-import { audioPeak, audioRms, behaviorCapture, emotion, exaggerationTierOverride, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectedCharacter, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
-import type { AudioFeatures, BehaviorCapture, Emotion, ExaggerationTier, VisionMetrics } from "../types";
+import { audioPeak, audioRms, behaviorCapture, characters, emotion, exaggerationTierOverride, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, selectedCharacterId, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
+import type { AudioFeatures, BehaviorCapture, CharacterToken, Emotion, ExaggerationTier, VisionMetrics } from "../types";
 
 const ai = getAIProvider();
 const CAPTURE_DURATION_MS = 5000;
@@ -32,8 +32,10 @@ export function InputPage() {
   const cameraConnectRef = useRef<Promise<boolean> | undefined>(undefined);
   const mountedRef = useRef(false);
 
+  const [characterConfirmed, setCharacterConfirmed] = useState(false);
+  const [draftCharacterId, setDraftCharacterId] = useState(selectedCharacterId.value);
   const [currentStep, setCurrentStep] = useState(0);
-  const [cameraStatus, setCameraStatus] = useState<CameraStatus>("connecting");
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>("closed");
   const [captureProgress, setCaptureProgress] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [capturePhase, setCapturePhase] = useState<CapturePhase>("idle");
@@ -101,17 +103,21 @@ export function InputPage() {
     }
   }, []);
 
-  // Keep the preview warm, but always leave a recoverable manual reconnect path.
+  // Camera access begins only after the user explicitly confirms a character.
   useEffect(() => {
     mountedRef.current = true;
-    void connectCamera(false);
+    if (characterConfirmed) {
+      void connectCamera(false);
+    } else {
+      setCameraStatus("closed");
+    }
     return () => {
       mountedRef.current = false;
       cameraConnectRef.current = undefined;
       camera.current.release();
       audio.current.release();
     };
-  }, [connectCamera]);
+  }, [characterConfirmed, connectCamera]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -373,6 +379,16 @@ export function InputPage() {
     { id: "voice", label: "음성 분석 결과", targetStep: 2 },
   ];
 
+  const confirmCharacter = () => {
+    const character = characters.value.find((item) => item.id === draftCharacterId);
+    if (!character?.sourceAsset) {
+      notify("이모티콘에 사용할 캐릭터를 선택해 주세요.");
+      return;
+    }
+    selectCharacter(character.id);
+    setCharacterConfirmed(true);
+  };
+
   // Define steps for ScrollSlideContainer
   const steps = [
     {
@@ -619,6 +635,17 @@ export function InputPage() {
     }
   ];
 
+  if (!characterConfirmed) {
+    return (
+      <CharacterSelectionScreen
+        characters={characters.value}
+        selectedId={draftCharacterId}
+        onSelect={setDraftCharacterId}
+        onConfirm={confirmCharacter}
+      />
+    );
+  }
+
   return (
     <div className="workspace-page input-page">
       <header className="screen-brief input-brief">
@@ -645,6 +672,79 @@ export function InputPage() {
       />
 
       {process && <WorkProcessScreen title={process.title} label={process.label} percent={process.percent} />}
+    </div>
+  );
+}
+
+function CharacterSelectionScreen({
+  characters: availableCharacters,
+  selectedId,
+  onSelect,
+  onConfirm,
+}: {
+  characters: CharacterToken[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  onConfirm: () => void;
+}) {
+  const selected = availableCharacters.find((item) => item.id === selectedId);
+
+  return (
+    <div className="workspace-page input-page input-character-selection-page">
+      <header className="screen-brief input-brief input-character-selection-brief">
+        <span>02</span>
+        <h1>이모티콘에 사용할<br />캐릭터를 선택해 주세요.</h1>
+        <p>선택한 캐릭터의 외형과 스타일을 유지해 다섯 개의 행동 프레임을 생성합니다.</p>
+      </header>
+
+      <Panel className="input-character-selection-panel">
+        <div className="input-character-selection-heading">
+          <div>
+            <span>CHARACTER</span>
+            <h2>캐릭터 선택</h2>
+          </div>
+          <button type="button" className="input-character-create-link" onClick={() => navigate("/character")}>
+            <Icon name="add" />
+            새 캐릭터 만들기
+          </button>
+        </div>
+
+        <div className="input-character-selection-list" role="listbox" aria-label="이모티콘에 사용할 캐릭터">
+          {availableCharacters.map((character) => {
+            const active = character.id === selectedId;
+            return (
+              <button
+                key={character.id}
+                type="button"
+                role="option"
+                aria-selected={active}
+                className={`input-character-option${active ? " active" : ""}`}
+                onClick={() => onSelect(character.id)}
+                disabled={!character.sourceAsset}
+              >
+                <span className="input-character-option-preview">
+                  <img src={sanitizeAssetUrl(character.sourceAsset)} alt="" />
+                </span>
+                <span className="input-character-option-copy">
+                  <strong>{character.name}</strong>
+                  <small>{character.styleMode} · {character.stylePreset}</small>
+                </span>
+                <span className="input-character-option-check" aria-hidden="true">
+                  {active ? <Icon name="check" size={14} /> : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="input-character-selection-actions">
+          <span>{selected ? `${selected.name} 선택됨` : "캐릭터를 하나 선택해 주세요."}</span>
+          <button type="button" className="btn-primary" onClick={onConfirm} disabled={!selected?.sourceAsset}>
+            이 캐릭터로 시작하기
+            <Icon name="next" />
+          </button>
+        </div>
+      </Panel>
     </div>
   );
 }

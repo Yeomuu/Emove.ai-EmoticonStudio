@@ -140,12 +140,20 @@ async function fetchImageAsDataUrl(url: string): Promise<string> {
 }
 
 function imageOutputOptions(env: ServerEnv): ImageOutputOptions {
-  const model = env.OPENAI_IMAGE_MODEL || "gpt-image-2";
+  const model = normalizeImageModel(env.OPENAI_IMAGE_MODEL);
   const requestedBackground = env.OPENAI_IMAGE_BACKGROUND || "auto";
   const background = requestedBackground === "transparent" ? "auto" : requestedBackground;
   const output_format = imageOutputFormat(env.OPENAI_IMAGE_OUTPUT_FORMAT || env.OPENAI_IMAGE_FORMAT || "webp");
   const output_compression = output_format === "webp" || output_format === "jpeg" ? imageCompression(env.OPENAI_IMAGE_OUTPUT_COMPRESSION || env.OPENAI_IMAGE_COMPRESSION || "70") : undefined;
   return { model, size: env.OPENAI_IMAGE_SIZE || "1024x1024", quality: env.OPENAI_IMAGE_QUALITY || "low", background, output_format, output_compression };
+}
+
+export function normalizeImageModel(value: string | undefined): string {
+  const requested = value?.trim() || "gpt-image-2";
+  if (/^gpt-imeage-/i.test(requested)) {
+    return requested.replace(/^gpt-imeage-/i, "gpt-image-");
+  }
+  return requested;
 }
 
 function imageOutputFormat(value: string): ImageOutputFormat {
