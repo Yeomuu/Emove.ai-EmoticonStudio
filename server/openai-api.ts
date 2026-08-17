@@ -141,19 +141,37 @@ async function fetchImageAsDataUrl(url: string): Promise<string> {
 
 function imageOutputOptions(env: ServerEnv): ImageOutputOptions {
   const model = normalizeImageModel(env.OPENAI_IMAGE_MODEL);
-  const requestedBackground = env.OPENAI_IMAGE_BACKGROUND || "auto";
+  const requestedBackground = cleanEnvValue(env.OPENAI_IMAGE_BACKGROUND) || "auto";
   const background = requestedBackground === "transparent" ? "auto" : requestedBackground;
-  const output_format = imageOutputFormat(env.OPENAI_IMAGE_OUTPUT_FORMAT || env.OPENAI_IMAGE_FORMAT || "webp");
-  const output_compression = output_format === "webp" || output_format === "jpeg" ? imageCompression(env.OPENAI_IMAGE_OUTPUT_COMPRESSION || env.OPENAI_IMAGE_COMPRESSION || "70") : undefined;
-  return { model, size: env.OPENAI_IMAGE_SIZE || "1024x1024", quality: env.OPENAI_IMAGE_QUALITY || "low", background, output_format, output_compression };
+  const output_format = imageOutputFormat(cleanEnvValue(env.OPENAI_IMAGE_OUTPUT_FORMAT) || cleanEnvValue(env.OPENAI_IMAGE_FORMAT) || "webp");
+  const output_compression = output_format === "webp" || output_format === "jpeg" ? imageCompression(cleanEnvValue(env.OPENAI_IMAGE_OUTPUT_COMPRESSION) || cleanEnvValue(env.OPENAI_IMAGE_COMPRESSION) || "70") : undefined;
+  return {
+    model,
+    size: cleanEnvValue(env.OPENAI_IMAGE_SIZE) || "1024x1024",
+    quality: normalizeImageQuality(env.OPENAI_IMAGE_QUALITY),
+    background,
+    output_format,
+    output_compression,
+  };
 }
 
 export function normalizeImageModel(value: string | undefined): string {
-  const requested = value?.trim() || "gpt-image-2";
+  const requested = cleanEnvValue(value) || "gpt-image-2";
   if (/^gpt-imeage-/i.test(requested)) {
     return requested.replace(/^gpt-imeage-/i, "gpt-image-");
   }
   return requested;
+}
+
+export function normalizeImageQuality(value: string | undefined): "low" | "medium" | "high" | "auto" {
+  const requested = cleanEnvValue(value) || "low";
+  if (requested === "low" || requested === "medium" || requested === "high" || requested === "auto") return requested;
+  throw new Error(`OPENAI_IMAGE_QUALITY 값 "${requested}"은 지원되지 않습니다. low, medium, high, auto 중 하나를 사용해 주세요.`);
+}
+
+function cleanEnvValue(value: string | undefined): string | undefined {
+  const cleaned = value?.replace(/^\uFEFF+/, "").trim();
+  return cleaned || undefined;
 }
 
 function imageOutputFormat(value: string): ImageOutputFormat {

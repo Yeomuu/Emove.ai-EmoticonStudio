@@ -168,6 +168,13 @@ export function InputPage() {
     setCurrentStep(0);
   };
 
+  const closeCameraForAnalysis = () => {
+    camera.current.release();
+    setCameraStatus("closed");
+    setPersonDetected(false);
+    setVisionAvailable(null);
+  };
+
   const startCaptureFlow = async () => {
     setCaptureError(null);
     setCameraIssue(null);
@@ -216,16 +223,19 @@ export function InputPage() {
       if (!visionTask) throw new Error("카메라 행동 분석이 녹화와 함께 시작되지 않았습니다. 다시 촬영해 주세요.");
       setCapturePhase("idle");
 
-      // Recording complete. Keep capture as the underlying slide while the full-screen analysis surface is visible.
-      setAnalyzing(true);
-      setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "사람의 포즈와 표정을 판독하는 중...", percent: 64 });
-
       let metrics: VisionMetrics;
       try {
         metrics = await visionTask;
       } catch (error) {
         metrics = { source: "unavailable", gesture: "Analyzer_Error", diagnostics: error instanceof Error ? error.message : String(error) };
       }
+
+      // The live stream is no longer needed once its final landmarks have been collected.
+      // Release it before the analysis surface becomes visible so the camera indicator
+      // cannot remain active during server-side voice and emotion analysis.
+      closeCameraForAnalysis();
+      setAnalyzing(true);
+      setProcess({ title: "입력한 포즈를 분석하고 있습니다.", label: "사람의 포즈와 표정을 판독하는 중...", percent: 64 });
       
       visionMetrics.value = metrics;
       
@@ -248,11 +258,15 @@ export function InputPage() {
       setCaptureError(message);
       notify(message);
     } finally {
+      camera.current.release();
       captureLockRef.current = false;
       setCapturing(false);
       setCapturePhase("idle");
       setRecording(false);
       setAnalyzing(false);
+      setCameraStatus("closed");
+      setPersonDetected(false);
+      setVisionAvailable(null);
       setCaptureProgress(0);
       window.setTimeout(() => setProcess(null), 420);
     }
@@ -282,13 +296,21 @@ export function InputPage() {
       }
       
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "수동 감정과 과장 설정을 생성 조건에 반영하는 중...", percent: 18 });
-      
+
+      // Freeze the user-confirmed controls before project initialization. The raw
+      // analysis remains on behaviorCapture and must not overwrite generation choices.
+      const analyzedTier: ExaggerationTier = motionIntensity.value < .45 ? "minimal" : motionIntensity.value < .72 ? "emotional" : "full";
+      const generationTier = exaggerationTierOverride.value ?? analyzedTier;
+      exaggerationTierOverride.value = generationTier;
+
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: `${FRAME_COUNT}프레임 프로젝트를 초기화하는 중...`, percent: 32 });
-      
+
       startNewEmoticonProject();
+      const generationBrief = motionBrief.value;
+      const generationCharacter = selectedCharacter.value;
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: `캐릭터 행동 프레임 ${FRAME_COUNT}장을 생성하는 중...`, percent: 46 });
-      
-      const frames = await ai.generateCharacterActionFrames(motionBrief.value, selectedCharacter.value);
+
+      const frames = await ai.generateCharacterActionFrames(generationBrief, generationCharacter);
       await waitForImageAssets(frames);
       setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: `고정 배경 이펙트와 캐릭터 행동 ${FRAME_COUNT}프레임을 연결하는 중...`, percent: 88 });
       frameImages.value = frames;
@@ -339,6 +361,12 @@ export function InputPage() {
       (label, percent) => setProcess({ title: "입력한 목소리와 포즈를 분석하고 있습니다.", label, percent }),
     );
     setEmotion(analyzedEmotion.emotion);
+    const analyzedMotionIntensity = Math.max(0, Math.min(1, audioFeatures.rms * 1.7));
+    const analyzedExaggerationTier: ExaggerationTier = analyzedMotionIntensity < .45
+      ? "minimal"
+      : analyzedMotionIntensity < .72
+        ? "emotional"
+        : "full";
     
     behaviorCapture.value = {
       ...behaviorCapture.value,
@@ -352,6 +380,9 @@ export function InputPage() {
       bodyGesture: metrics.pose?.bodyGesture,
       bodyConfidence: metrics.pose?.bodyConfidence,
       expression: metrics.face?.expression ?? "neutral",
+      analyzedEmotion: analyzedEmotion.emotion,
+      analyzedMotionIntensity,
+      analyzedExaggerationTier,
       emotionSource: analyzedEmotion.source,
       emotionProvider: analyzedEmotion.provider,
       emotionConfidence: analyzedEmotion.confidence,
@@ -554,7 +585,7 @@ export function InputPage() {
           <div className="input-result-main">
             <Panel className="voice-result-panel">
               <div className="voice-result-settings">
-                <span className="input-result-label">감정 분석 결과</span>
+                <span className="input-result-label">생성에 적용할 감정</span>
                 <div className="emotion-buttons">
                   {emotionOrder.map((item) => (
                     <button
@@ -582,9 +613,8 @@ export function InputPage() {
                         type="button"
                         className={effectiveTier === tier ? "active" : ""}
                         onClick={() => {
-                          const nextTier = tierOverride === tier ? null : tier;
-                          setTierOverride(nextTier);
-                          exaggerationTierOverride.value = nextTier;
+                          setTierOverride(tier);
+                          exaggerationTierOverride.value = tier;
                         }}
                       >
                         <span className="voice-tier-character"><img src={sanitizeAssetUrl(selectedCharacter.value.sourceAsset)} alt="" /></span>

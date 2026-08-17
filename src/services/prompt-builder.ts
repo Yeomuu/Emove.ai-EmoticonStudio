@@ -68,10 +68,15 @@ export function buildFramePrompts(brief: MotionBrief, token: CharacterToken): st
     "### Input Facts ###",
     `- Captured expression: ${brief.expressionEmotion}`,
     `- Captured gesture/action: ${brief.pose}`,
-    `- Motion amplitude: ${Math.round(brief.motionIntensity * 100)}/100`,
     `- Text bubble phrase (handled separately): "${brief.shortText}"`,
     "",
-    "### Exaggeration Level ###",
+    "### User-confirmed Generation Controls ###",
+    `- Generation emotion: ${brief.emotion}`,
+    `- Generation exaggeration: ${brief.exaggerationTier}`,
+    `- Motion amplitude: ${Math.round(brief.motionIntensity * 100)}/100`,
+    "These user-confirmed controls are authoritative. Do not replace them with an emotion or intensity inferred from the captured facts.",
+    "",
+    "### Exaggeration Directive ###",
     tierDirective,
     "",
     "### Effect Separation ###",
@@ -132,7 +137,7 @@ function buildExaggerationDirective(tier: MotionBrief["exaggerationTier"], emoti
 
   if (tier === "minimal") {
     return [
-      "Level: MINIMAL (quiet voice detected)",
+      "Level: MINIMAL (user-confirmed generation setting)",
       "Keep the character's pose and expression natural and restrained.",
       "- Use subtle, everyday body language with minimal movement between frames.",
       "- Facial expression should be gentle and understated.",
@@ -145,7 +150,7 @@ function buildExaggerationDirective(tier: MotionBrief["exaggerationTier"], emoti
 
   if (tier === "emotional") {
     return [
-      "Level: EMOTIONAL (medium voice detected)",
+      "Level: EMOTIONAL (user-confirmed generation setting)",
       "Exaggerate ONLY the emotional expression and visual effects on the character. Keep body proportions normal.",
       `- ${guide.emotional}`,
       "- Body pose changes are moderate; do not distort body proportions.",
@@ -155,7 +160,7 @@ function buildExaggerationDirective(tier: MotionBrief["exaggerationTier"], emoti
 
   // tier === "full"
   return [
-    "Level: FULL EXAGGERATION (loud voice detected)",
+    "Level: FULL EXAGGERATION (user-confirmed generation setting)",
     "Exaggerate BOTH physical motion AND emotional expression to the extreme. Ignore realistic body proportions.",
     `- ${guide.full}`,
     "- Stretch, squash, distort the body freely for maximum comedic/dramatic impact.",

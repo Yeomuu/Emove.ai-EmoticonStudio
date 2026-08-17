@@ -11,7 +11,7 @@ import { buildFramePrompts } from "../src/services/prompt-builder";
 import { qrDownloadTarget } from "../src/services/qr-export";
 import { deleteRemoteLibraryItem, loadRemoteProjects, loadRemoteStickers, syncLibraryGroupToRemote, syncStickerToRemote } from "../src/services/remote-store";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
-import { handleOpenAIRequest, normalizeImageModel } from "../server/openai-api";
+import { handleOpenAIRequest, normalizeImageModel, normalizeImageQuality } from "../server/openai-api";
 import {
   BODY_GESTURES,
   CANNED_HAND_GESTURES,
@@ -545,6 +545,36 @@ describe("character-only emoticon generation", () => {
     expect(prompts).toHaveLength(FRAME_COUNT);
     prompts.forEach((prompt) => expect(prompt).toContain("Level: FULL EXAGGERATION"));
   });
+
+  it("uses the user-confirmed emotion and medium exaggeration instead of re-inferring low voice analysis", () => {
+    const brief = createMotionBrief(
+      "joy",
+      "#000000",
+      "원본 분석 문장",
+      "신난다!",
+      .03,
+      defaultCharacterTokens[0].id,
+      120,
+      undefined,
+      "sadness",
+      "브이 포즈",
+      "dynamic",
+      "sparkles",
+      "#FF9A40",
+      "emotional",
+    );
+
+    expect(brief.emotion).toBe("joy");
+    expect(brief.expressionEmotion).toBe("sadness");
+    expect(brief.exaggerationTier).toBe("emotional");
+    expect(brief.motionIntensity).toBe(.6);
+    buildFramePrompts(brief, defaultCharacterTokens[0]).forEach((prompt) => {
+      expect(prompt).toContain("Generation emotion: joy");
+      expect(prompt).toContain("Generation exaggeration: emotional");
+      expect(prompt).toContain("Level: EMOTIONAL (user-confirmed generation setting)");
+      expect(prompt).not.toContain("quiet voice detected");
+    });
+  });
 });
 
 describe("Firebase Storage QR export", () => {
@@ -584,6 +614,13 @@ describe("OpenAI image-cost boundary", () => {
     expect(normalizeImageModel(undefined)).toBe("gpt-image-2");
     expect(normalizeImageModel("gpt-image-2")).toBe("gpt-image-2");
     expect(normalizeImageModel("gpt-imeage-2")).toBe("gpt-image-2");
+    expect(normalizeImageModel("\uFEFFgpt-image-2 ")).toBe("gpt-image-2");
+  });
+
+  it("removes a copied BOM from the Vercel image quality value", () => {
+    expect(normalizeImageQuality("\uFEFFlow")).toBe("low");
+    expect(normalizeImageQuality(" medium ")).toBe("medium");
+    expect(() => normalizeImageQuality("draft")).toThrow(/지원되지 않습니다/);
   });
 
   it("sends the repaired model id to the image generation endpoint", async () => {
@@ -600,11 +637,12 @@ describe("OpenAI image-cost boundary", () => {
         body: JSON.stringify({ prompt: "test character", token: {} }),
       }), {
         OPENAI_API_KEY: "sk-test-only-not-a-real-key",
-        OPENAI_IMAGE_MODEL: "gpt-imeage-2",
+        OPENAI_IMAGE_MODEL: "\uFEFFgpt-imeage-2",
+        OPENAI_IMAGE_QUALITY: "\uFEFFlow",
       });
       const options = fetchMock.mock.calls[0]?.[1] as RequestInit;
       expect(response?.status).toBe(200);
-      expect(JSON.parse(String(options.body))).toMatchObject({ model: "gpt-image-2" });
+      expect(JSON.parse(String(options.body))).toMatchObject({ model: "gpt-image-2", quality: "low" });
     } finally {
       vi.unstubAllGlobals();
     }

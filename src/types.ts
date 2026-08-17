@@ -97,6 +97,9 @@ export interface BehaviorCapture {
   bodyGesture?: string;
   bodyConfidence?: number;
   expression?: Emotion;
+  analyzedEmotion?: Emotion;
+  analyzedMotionIntensity?: number;
+  analyzedExaggerationTier?: ExaggerationTier;
   emotionScores: Record<Emotion, number>;
   emotionSource?: EmotionSource;
   emotionProvider?: EmotionProvider;
