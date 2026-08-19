@@ -9,6 +9,121 @@
   --reference-title-light: linear-gradient(102deg, #35516c 0%, #6b55d8 58%, #403a58 100%);
 }
 
+/* Route-only quick dock: Home ⇄ Library, with both available in workspaces. */
+.bottom-dock-text-nav.route-quick-nav,
+.app-shell.route-home .bottom-dock-text-nav.route-quick-nav {
+  height: clamp(58px, 6.6svh, 70px) !important;
+  padding: 7px !important;
+  gap: 7px !important;
+  align-items: center !important;
+}
+
+.route-quick-nav .dock-route-link {
+  position: relative;
+  min-width: 0;
+  height: clamp(44px, 5.1svh, 52px);
+  padding: 0 clamp(13px, 1svw, 17px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(231, 228, 255, .14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .035);
+  color: rgba(248, 247, 255, .82);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  transition: transform .2s var(--spring), border-color .18s ease, background-color .18s ease, color .18s ease;
+}
+
+.route-quick-nav .dock-route-icon {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+}
+
+.route-quick-nav .dock-route-logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.route-quick-nav .dock-library-glyph {
+  width: 19px;
+  height: 19px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .route-quick-nav .dock-route-link:hover {
+    transform: translateY(-2px);
+    border-color: rgba(218, 213, 255, .34);
+    background: rgba(187, 182, 255, .12);
+    color: #fff;
+  }
+
+  html[data-theme="light"] .route-quick-nav .dock-route-link:hover {
+    border-color: rgba(91, 73, 255, .28);
+    background: rgba(91, 73, 255, .1);
+    color: #2b2540;
+  }
+}
+
+.route-quick-nav .dock-route-link:focus-visible {
+  outline: 2px solid rgba(187, 182, 255, .72);
+  outline-offset: 2px;
+}
+
+html[data-theme="light"] .route-quick-nav .dock-route-link {
+  border-color: rgba(55, 48, 85, .13);
+  background: rgba(255, 255, 255, .5);
+  color: #3b3454;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .82);
+}
+
+html[data-theme="light"] .route-quick-nav .dock-library-glyph {
+  filter: brightness(0) saturate(100%);
+  opacity: .72;
+}
+
+@media (max-width: 900px) {
+  .bottom-dock-text-nav.route-quick-nav,
+  .app-shell.route-home .bottom-dock-text-nav.route-quick-nav {
+    right: calc(12px + env(safe-area-inset-right)) !important;
+    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .bottom-dock-text-nav.route-quick-nav,
+  .app-shell.route-home .bottom-dock-text-nav.route-quick-nav {
+    height: 54px !important;
+    padding: 5px !important;
+    gap: 5px !important;
+  }
+
+  .route-quick-nav .dock-route-link {
+    height: 44px;
+    padding-inline: 11px;
+    gap: 6px;
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-quick-nav .dock-route-link {
+    transition: none;
+  }
+}
+
 .home-highlight-word {
   position: relative;
   z-index: 0;

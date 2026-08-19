@@ -137,8 +137,6 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
   }, []);
 
   const routeKey = activeRoute.startsWith("/library/") ? "/library/detail" : activeRoute;
-  const workRoutes = activeRoute === "/character" || activeRoute === "/input" || activeRoute === "/edit";
-
   let page = <HomePage />;
   if (activeRoute === "/character") page = <CharacterPage />;
   else if (activeRoute === "/input") page = <InputPage />;
@@ -177,7 +175,7 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
       </div>
 
       {!booting && (
-        <Shell immersive={activeRoute === "/home"} dockAutoHide={workRoutes}>
+        <Shell immersive={activeRoute === "/home"} currentRoute={activeRoute}>
           <Suspense fallback={<div className="route-loader" role="status"><span />화면을 불러오는 중</div>}>
             <div className="route-slide-frame" key={routeKey} data-route-frame={routeKey.replace("/", "") || "home"}>
               {page}

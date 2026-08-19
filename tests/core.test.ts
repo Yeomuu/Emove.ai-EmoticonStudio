@@ -27,6 +27,7 @@ import {
   type PosePoint,
 } from "../src/services/gesture-analysis";
 import { generationProgressFromEvent } from "../src/services/generation-progress";
+import { dockDestinationsForRoute } from "../src/services/dock-navigation";
 import { isSameOriginRequest } from "../src/app/api/openai/[...path]/route";
 import { frameLayerTransforms, previewLayerOrder, selectedFrame, updateLayerTransform } from "../src/store";
 import type { StickerItem, VisionMetrics } from "../src/types";
@@ -38,6 +39,19 @@ describe("clean route normalization", () => {
     expect(normalizePath("/showcase")).toBe("/home");
     expect(normalizePath("/#home")).toBe("/home");
     expect(normalizePath("/unknown")).toBe("/home");
+  });
+});
+
+describe("route quick navigation", () => {
+  it.each([
+    ["/home", ["/library"]],
+    ["/library", ["/home"]],
+    ["/library/joy-pop", ["/home"]],
+    ["/character", ["/home", "/library"]],
+    ["/input", ["/home", "/library"]],
+    ["/edit", ["/home", "/library"]],
+  ] as const)("maps %s to only the requested destinations", (current, expected) => {
+    expect(dockDestinationsForRoute(current).map((item) => item.path)).toEqual(expected);
   });
 });
 

@@ -30,7 +30,7 @@ When implementing from a selected generated mock, treat that image as the source
 - OpenAI generation requires a server proxy. Next.js Route Handlers serve `/api/openai/*`; static-only hosting is not an active deployment target for this project.
 - The production deployment target is Vercel from GitHub `main`.
 - The `recoding` branch and `D:\대학교\EMOVE-recoding` worktree are strictly for local screen recording and testing. Never merge or promote `recoding` into `main`, and never use it as the Vercel production branch; production deployment remains connected only to GitHub `main`.
-- Only the local `recoding` branch removes the Home Library CTA and the entire bottom-right dock; its demo funnel must enter emoticon creation through the Home creation CTA. Keep those navigation removals out of `main`.
+- The Home hero exposes only the emoticon-creation CTA; Library access belongs in the production route dock. The local `recoding` branch still removes the entire bottom-right dock so its demo funnel can enter creation only through Home.
 - Keep `README.md` written for outside readers. Move implementation logs, QA notes, validation notes, and prompt-rule drafts into Notion when they are not required for the app to run.
 - For `gpt-image-2`, generate character/effect assets on flat chroma-key green and remove the green background in-browser so stored/displayed assets become transparent PNG data URLs.
 - Copy every used font, icon, and image into this project. Use coolicons only; never mix icon libraries.
@@ -70,7 +70,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Home character pointer interactions use the visible `.home-character-token` card bounds, including the glass card outline, for drag, pointer repulsion, and character-to-character collision.
 - Home's `Emotion` word uses a restrained highlighter loop: paint left-to-right within about 1–2 seconds, erase by about 3 seconds, then wait so the full cycle repeats every 10–20 seconds.
 - Header layout keeps the logo centered, primary nav pinned to the left side of the 1440px frame, and profile/theme controls pinned to the right side.
-- The current Figma redesign uses a bottom-right dock navigation. Home and Library show it by default; Character, Input, and Edit hide it during work and reveal it when the pointer enters the bottom-right dock zone.
+- Production uses an always-visible bottom-right route dock: Home shows only Library, Library and Library Detail show only Home, and Character, Input, and Edit show both Home and Library. Hide and disable it only while a blocking generation or save surface is active.
 - Glassmorphism buttons should use `backdrop-filter` so the background behind the button blurs while button text/icons remain sharp.
 - Do not show pointer-style glow outlines on text inputs after mouse click; keep only a restrained accessible keyboard focus state.
 - Character and emoticon generation prompts must request flat chroma-key green backgrounds only, not transparent backgrounds; transparency is produced by the in-browser chroma-key removal step.
@@ -142,7 +142,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Treat Figma frames that expose open dropdowns, color pickers, hover actions, or completed generation/analysis results as interaction-state references. Initial route renders keep those overlays closed and reveal them only through the matching control or workflow state.
 - Form and media-panel internals must use containment-safe flex/grid layout. Do not position controls across unrelated parent panels or allow labels, previews, buttons, or upload controls to overflow their owning region.
 - Keep glass treatment selective: use it for navigation, modal, focused controls, and intentional overlay surfaces rather than applying it uniformly to every wireframe cell.
-- The bottom dock must always provide a clickable EMOVE logo for Home. Home uses the same responsive bottom-right dock as the other routes.
+- The route dock uses the clickable EMOVE logo for its Home action and a coolicons folder glyph for Library; it must not reintroduce Character, Input, profile, or theme controls.
 - `/showcase` and its inactivity redirect are removed from the product; do not reintroduce them without a new explicit request.
 - Keep the live camera preview mounted and visible for the full five-second Input capture while camera frames and microphone audio are recorded together. Advance to the analysis slide only after both recordings stop; capture errors must release any active microphone stream before returning to preview.
 - Character reference input prioritizes cartoon or 3D-rendered imagery and accepts one user-uploaded reference image that is included in the character generation token.
