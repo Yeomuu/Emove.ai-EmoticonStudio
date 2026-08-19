@@ -81,8 +81,9 @@ export async function persistOpenAIJobImages(route: string, result: unknown, req
       kind,
       requestUrl,
     });
-    cache.set(value, stored.url);
-    return stored.url;
+    const clientUrl = openAIJobClientAssetUrl(stored.url);
+    cache.set(value, clientUrl);
+    return clientUrl;
   };
 
   const output: Record<string, unknown> = { ...source };
@@ -90,6 +91,16 @@ export async function persistOpenAIJobImages(route: string, result: unknown, req
   if (Array.isArray(source.imageUrls)) output.imageUrls = await Promise.all(source.imageUrls.map((value, index) => persist(value, `variation-${index + 1}`)));
   if (Array.isArray(source.frameImages)) output.frameImages = await Promise.all(source.frameImages.map((value, index) => persist(value, `frame-${index + 1}`)));
   return output;
+}
+
+export function openAIJobClientAssetUrl(source: string): string {
+  try {
+    const url = new URL(source);
+    if (url.pathname === "/api/assets/file") return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return source;
+  }
+  return source;
 }
 
 async function updateOpenAIJob(id: string, patch: Partial<OpenAIJobDocument>): Promise<void> {

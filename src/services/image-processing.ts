@@ -17,6 +17,20 @@ export async function removeChromaKeyBackground(source: string): Promise<string>
   return canvas.toDataURL("image/png");
 }
 
+export function normalizeGeneratedImageSource(source: string, currentHref: string): string {
+  if (!source || source.startsWith("data:") || source.startsWith("blob:")) return source;
+  try {
+    const current = new URL(currentHref);
+    const candidate = new URL(source, current);
+    if (candidate.origin !== current.origin && candidate.pathname === "/api/assets/file") {
+      return `${candidate.pathname}${candidate.search}${candidate.hash}`;
+    }
+  } catch {
+    return source;
+  }
+  return source;
+}
+
 export function isProbablyTransparentPng(source: string): boolean {
   return source.startsWith(TRANSPARENT_PNG_PREFIX);
 }
@@ -61,7 +75,7 @@ function decodeImage(source: string): Promise<HTMLImageElement> {
     image.crossOrigin = "anonymous";
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error("생성 이미지를 투명 PNG로 처리하지 못했습니다."));
-    image.src = source;
+    image.src = normalizeGeneratedImageSource(source, window.location.href);
   });
 }
 

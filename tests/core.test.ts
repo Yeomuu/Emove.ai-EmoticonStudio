@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMotionBrief, defaultCharacterTokens, emotionMeta, initialLayers } from "../src/data";
 import { FRAME_COUNT } from "../src/constants";
 import { normalizePath } from "../src/router";
-import { keyOutConnectedGreen } from "../src/services/image-processing";
+import { keyOutConnectedGreen, normalizeGeneratedImageSource, removeChromaKeyBackground } from "../src/services/image-processing";
 import { synchronizedCaptureIssue } from "../src/services/media";
 import { encodeApngPngFrames, encodeGifFrames } from "../src/services/renderer";
 import { persistGeneratedAsset } from "../src/services/asset-storage";
@@ -12,6 +12,7 @@ import { qrDirectDownloadTarget, qrDownloadTarget } from "../src/services/qr-exp
 import { deleteRemoteLibraryItem, loadRemoteProjects, loadRemoteStickers, syncLibraryGroupToRemote, syncStickerToRemote } from "../src/services/remote-store";
 import { normalizeImentivEmotionScores } from "../server/imentiv-emotion";
 import { handleOpenAIRequest, normalizeImageModel, normalizeImageQuality } from "../server/openai-api";
+import { openAIJobClientAssetUrl } from "../server/openai-jobs";
 import {
   BODY_GESTURES,
   CANNED_HAND_GESTURES,
@@ -804,6 +805,68 @@ describe("GIF export encoder", () => {
 });
 
 describe("transparent animation pipeline", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("rewrites localhost asset-proxy results to the page origin before chroma-key decoding", () => {
+    const generated = "http://localhost:3012/api/assets/file?path=assets%2Fframes%2Fframe.webp";
+    expect(normalizeGeneratedImageSource(generated, "http://127.0.0.1:3012/input")).toBe(
+      "/api/assets/file?path=assets%2Fframes%2Fframe.webp",
+    );
+    expect(normalizeGeneratedImageSource("https://images.example.test/frame.webp", "http://127.0.0.1:3012/input")).toBe(
+      "https://images.example.test/frame.webp",
+    );
+  });
+
+  it("stores new async OpenAI image results as same-origin asset paths", () => {
+    expect(openAIJobClientAssetUrl(
+      "http://localhost:3012/api/assets/file?path=assets%2Fframes%2Fframe.webp",
+    )).toBe("/api/assets/file?path=assets%2Fframes%2Fframe.webp");
+  });
+
+  it("loads a legacy localhost frame through the current origin and returns a transparent PNG", async () => {
+    const pixels = new Uint8ClampedArray([
+      0, 255, 0, 255,
+      184, 178, 255, 255,
+      0, 255, 0, 255,
+    ]);
+    let assignedSource = "";
+    class FakeImage {
+      decoding = "";
+      crossOrigin: string | null = null;
+      naturalWidth = 3;
+      naturalHeight = 1;
+      width = 3;
+      height = 1;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(value: string) {
+        assignedSource = value;
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({
+        drawImage: vi.fn(),
+        getImageData: () => ({ data: pixels }),
+        putImageData: vi.fn(),
+      }),
+      toDataURL: () => "data:image/png;base64,processed",
+    };
+    vi.stubGlobal("window", { location: { href: "http://127.0.0.1:3012/input" } });
+    vi.stubGlobal("document", { createElement: () => canvas });
+    vi.stubGlobal("Image", FakeImage);
+
+    const result = await removeChromaKeyBackground(
+      "http://localhost:3012/api/assets/file?path=assets%2Fframes%2Fframe.webp",
+    );
+
+    expect(assignedSource).toBe("/api/assets/file?path=assets%2Fframes%2Fframe.webp");
+    expect(result).toBe("data:image/png;base64,processed");
+    expect([pixels[3], pixels[7], pixels[11]]).toEqual([0, 255, 0]);
+  });
+
   it("removes connected chroma green while preserving the character-colored center pixel", () => {
     const width = 3;
     const height = 3;

@@ -113,6 +113,7 @@ When implementing from a selected generated mock, treat that image as the source
 - The current prototype saves animated emoticons as transparent GIF by default for broad mobile preview compatibility. Keep APNG decoding/export support only for legacy records and a possible later quality mode.
 - Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
 - OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to serverless timeout or response-size limits.
+- OpenAI job image results use same-origin `/api/assets/file` paths, and the client normalizes legacy absolute asset-proxy URLs before chroma-key conversion so `localhost` and `127.0.0.1` host aliases cannot break transparent PNG processing.
 - Use compressed `webp` image API responses by default before browser chroma-key removal; if this changes, the returned data URL MIME type must match the requested image output format.
 - On Vercel production, long image routes such as `character`, `frame`, and `frames` use Firebase Storage-backed status/result polling so paid OpenAI results are not lost to browser-facing function timeouts.
 - Treat the Notion Design System page as fixed unless the user explicitly asks to change it; PRD, technical specification, and page/function documentation may be updated around that fixed design system.

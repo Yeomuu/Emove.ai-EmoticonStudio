@@ -8,8 +8,10 @@ export async function GET(request: Request): Promise<Response> {
     const asset = await downloadFirebaseAsset(objectName);
     return new Response(new Uint8Array(asset.data), {
       headers: {
+        "Access-Control-Allow-Origin": "*",
         "Cache-Control": "public, max-age=31536000, immutable",
         "Content-Disposition": "inline",
+        "Cross-Origin-Resource-Policy": "cross-origin",
         "Content-Type": asset.contentType,
         "X-Content-Type-Options": "nosniff",
       },
