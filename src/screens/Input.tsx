@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Icon } from "../components/Icon";
 import { BackgroundEffectPreview } from "../components/BackgroundEffectPreview";
 import { Panel } from "../components/Shell";
@@ -13,13 +13,14 @@ import { waitForImageAssets } from "../services/asset-readiness";
 import { AudioCapture, CameraCapture, synchronizedCaptureIssue } from "../services/media";
 import { analyzeEmotionPriority } from "../services/emotion-analysis";
 import { getGestureLabel } from "../services/gesture-analysis";
+import { generationProgressFromEvent } from "../services/generation-progress";
 import { createLiveVisionAnalyzer } from "../services/vision";
-import { audioPeak, audioRms, behaviorCapture, characters, emotion, exaggerationTierOverride, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, selectedCharacterId, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
-import type { AudioFeatures, BehaviorCapture, CharacterToken, Emotion, ExaggerationTier, VisionMetrics } from "../types";
+import { audioPeak, audioRms, behaviorCapture, blockingSurfaceOpen, characters, emotion, exaggerationTierOverride, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, selectedCharacterId, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
+import type { AudioFeatures, BehaviorCapture, CharacterToken, Emotion, ExaggerationTier, FrameGenerationEvent, VisionMetrics } from "../types";
 
 const ai = getAIProvider();
 const CAPTURE_DURATION_MS = 5000;
-type ProcessState = { title: string; label: string; percent: number };
+type ProcessState = { title: string; label: string; percent: number; kind?: "analysis" | "generation"; completedFrames?: number };
 type CapturePhase = "idle" | "preparing" | "recording";
 type CameraStatus = "connecting" | "ready" | "blocked" | "unavailable" | "closed";
 
@@ -29,6 +30,7 @@ export function InputPage() {
   const audio = useRef(new AudioCapture());
   const captureLockRef = useRef(false);
   const generationLockRef = useRef(false);
+  const generationControllerRef = useRef<AbortController | undefined>(undefined);
   const cameraConnectRef = useRef<Promise<boolean> | undefined>(undefined);
   const mountedRef = useRef(false);
 
@@ -44,6 +46,7 @@ export function InputPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [generatingFrames, setGeneratingFrames] = useState(false);
   const [process, setProcess] = useState<ProcessState | null>(null);
+  const [generationPreviewFrames, setGenerationPreviewFrames] = useState<string[]>([]);
 
   const [personDetected, setPersonDetected] = useState(false);
   const [visionAvailable, setVisionAvailable] = useState<boolean | null>(null);
@@ -52,6 +55,14 @@ export function InputPage() {
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [cameraIssue, setCameraIssue] = useState<string | null>(null);
   const cameraReady = cameraStatus === "ready";
+  const generationBusy = process?.kind === "generation";
+
+  useEffect(() => {
+    blockingSurfaceOpen.value = generationBusy;
+    return () => {
+      if (generationBusy) blockingSurfaceOpen.value = false;
+    };
+  }, [generationBusy]);
 
   const connectCamera = useCallback(async (showNotification = true): Promise<boolean> => {
     const video = videoRef.current;
@@ -113,6 +124,7 @@ export function InputPage() {
     }
     return () => {
       mountedRef.current = false;
+      generationControllerRef.current?.abort();
       cameraConnectRef.current = undefined;
       camera.current.release();
       audio.current.release();
@@ -275,8 +287,7 @@ export function InputPage() {
   const proceed = async () => {
     if (generationLockRef.current || captureLockRef.current) return;
     generationLockRef.current = true;
-    setGeneratingFrames(true);
-    setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "입력 데이터 조건을 확인하는 중...", percent: 6 });
+    let generationController: AbortController | undefined;
     try {
       if (!selectedCharacter.value.sourceAsset) {
         notify("먼저 Character에서 새 캐릭터를 생성해 주세요.");
@@ -294,8 +305,19 @@ export function InputPage() {
         notify("전사 문구가 비어 있습니다. 이모티콘에 들어갈 문구를 직접 입력하거나 다시 촬영해 주세요.");
         return;
       }
-      
-      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "수동 감정과 과장 설정을 생성 조건에 반영하는 중...", percent: 18 });
+
+      generationController = new AbortController();
+      generationControllerRef.current?.abort();
+      generationControllerRef.current = generationController;
+      setGeneratingFrames(true);
+      setGenerationPreviewFrames([]);
+      setProcess({
+        title: "감정을 다섯 장면으로 이어 붙이고 있어요.",
+        label: "확정한 감정과 과장 설정을 생성 조건에 반영하는 중",
+        percent: 1,
+        kind: "generation",
+        completedFrames: 0,
+      });
 
       // Freeze the user-confirmed controls before project initialization. The raw
       // analysis remains on behaviorCapture and must not overwrite generation choices.
@@ -303,26 +325,61 @@ export function InputPage() {
       const generationTier = exaggerationTierOverride.value ?? analyzedTier;
       exaggerationTierOverride.value = generationTier;
 
-      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: `${FRAME_COUNT}프레임 프로젝트를 초기화하는 중...`, percent: 32 });
-
       startNewEmoticonProject();
       const generationBrief = motionBrief.value;
       const generationCharacter = selectedCharacter.value;
-      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: `캐릭터 행동 프레임 ${FRAME_COUNT}장을 생성하는 중...`, percent: 46 });
-
-      const frames = await ai.generateCharacterActionFrames(generationBrief, generationCharacter);
+      const frames = await ai.generateCharacterActionFrames(generationBrief, generationCharacter, {
+        signal: generationController.signal,
+        onEvent: updateGenerationProgress,
+      });
+      generationController.signal.throwIfAborted();
+      setProcess((current) => ({
+        title: "감정을 다섯 장면으로 이어 붙이고 있어요.",
+        label: "완성된 다섯 장면을 선명하게 불러오는 중",
+        percent: Math.max(current?.kind === "generation" ? current.percent : 0, 95),
+        kind: "generation",
+        completedFrames: FRAME_COUNT,
+      }));
       await waitForImageAssets(frames);
-      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: `고정 배경 이펙트와 캐릭터 행동 ${FRAME_COUNT}프레임을 연결하는 중...`, percent: 88 });
+      generationController.signal.throwIfAborted();
+      if (!mountedRef.current) return;
+      setProcess({ title: "감정을 다섯 장면으로 이어 붙이고 있어요.", label: "고정 감정 이펙트와 다섯 장면을 편집 캔버스에 연결하는 중", percent: 98, kind: "generation", completedFrames: FRAME_COUNT });
       frameImages.value = frames;
-      setProcess({ title: "포즈와 목소리 데이터를 기반으로 이모티콘을 생성중입니다.", label: "이모티콘 생성 완료", percent: 100 });
+      setProcess({ title: "감정을 다섯 장면으로 이어 붙였어요.", label: "이모티콘 편집 화면을 열 준비가 끝났어요", percent: 100, kind: "generation", completedFrames: FRAME_COUNT });
+      await waitForNextPaint();
+      await waitForCompletionHold(360, generationController.signal);
+      generationController.signal.throwIfAborted();
+      if (!mountedRef.current) return;
       navigate("/edit");
     } catch (error) {
-      setProcess(null);
-      notify(error instanceof Error ? error.message : "이모티콘 생성에 실패했습니다.");
+      if (!isAbortError(error) && mountedRef.current) {
+        setProcess(null);
+        notify(error instanceof Error ? error.message : "이모티콘 생성에 실패했습니다.");
+      }
     } finally {
+      if (generationControllerRef.current === generationController) generationControllerRef.current = undefined;
       generationLockRef.current = false;
-      setGeneratingFrames(false);
-      window.setTimeout(() => setProcess(null), 420);
+      if (mountedRef.current) {
+        setGeneratingFrames(false);
+        window.setTimeout(() => setProcess(null), 420);
+      }
+    }
+  };
+
+  const updateGenerationProgress = (event: FrameGenerationEvent) => {
+    if (!mountedRef.current) return;
+    const next = generationProgressFromEvent(event);
+    setProcess((current) => ({
+      ...next,
+      percent: Math.max(current?.kind === "generation" ? current.percent : 0, next.percent),
+      kind: "generation",
+    }));
+    if (event.phase === "frame-ready") {
+      setGenerationPreviewFrames((current) => {
+        const nextFrames = [...current];
+        nextFrames[event.index] = event.imageUrl;
+        return nextFrames;
+      });
     }
   };
 
@@ -678,30 +735,38 @@ export function InputPage() {
 
   return (
     <div className="workspace-page input-page">
-      <header className="screen-brief input-brief">
-        <span>02</span>
-        <h1>
-          {currentStep === 0 ? <>캐릭터 생성에 필요한<br />목소리와 포즈를 촬영해 주세요.</> : null}
-          {currentStep === 1 ? <>포즈 분석이<br />완료되었습니다.</> : null}
-          {currentStep === 2 ? <>음성 분석이<br />완료되었습니다.</> : null}
-        </h1>
-        <p>{currentStep === 0 ? "카메라와 마이크를 5초 동안 동시에 기록합니다." : "촬영한 입력을 단계별로 확인해 주세요."}</p>
-      </header>
+      <div className="input-workflow-underlay" inert={generationBusy ? true : undefined} aria-hidden={generationBusy ? true : undefined}>
+        <header className="screen-brief input-brief">
+          <span>02</span>
+          <h1>
+            {currentStep === 0 ? <>캐릭터 생성에 필요한<br />목소리와 포즈를 촬영해 주세요.</> : null}
+            {currentStep === 1 ? <>포즈 분석이<br />완료되었습니다.</> : null}
+            {currentStep === 2 ? <>음성 분석이<br />완료되었습니다.</> : null}
+          </h1>
+          <p>{currentStep === 0 ? "카메라와 마이크를 5초 동안 동시에 기록합니다." : "촬영한 입력을 단계별로 확인해 주세요."}</p>
+        </header>
 
-      <ScrollSlideContainer
-        steps={steps}
-        currentStep={currentStep}
-        onStepChange={(index) => setCurrentStep(index)}
-        onComplete={proceed}
-        busy={capturing || analyzing || generatingFrames}
-        completeLabel="이모티콘 생성하기"
-        busyLabel={generatingFrames ? "프레임 생성 중" : "분석 중"}
-        className="input-scroll-slider"
-        progressItems={progressItems}
-        progressIndex={progressIndex}
-      />
+        <ScrollSlideContainer
+          steps={steps}
+          currentStep={currentStep}
+          onStepChange={(index) => setCurrentStep(index)}
+          onComplete={proceed}
+          busy={capturing || analyzing || generatingFrames}
+          completeLabel="이모티콘 생성하기"
+          busyLabel={generatingFrames ? "프레임 생성 중" : "분석 중"}
+          className="input-scroll-slider"
+          progressItems={progressItems}
+          progressIndex={progressIndex}
+        />
+      </div>
 
-      {process && <WorkProcessScreen title={process.title} label={process.label} percent={process.percent} />}
+      {process && (
+        <WorkProcessScreen
+          {...process}
+          previewFrames={generationPreviewFrames}
+          fallbackImage={sanitizeAssetUrl(selectedCharacter.value.sourceAsset)}
+        />
+      )}
     </div>
   );
 }
@@ -838,18 +903,187 @@ function levelsFromCapture(features?: AudioFeatures): number[] {
   return Array.from({ length: 28 }, (_, index) => strength * (.32 + ((index * 7) % 11) / 14));
 }
 
-function WorkProcessScreen({ title, label, percent }: ProcessState) {
+function WorkProcessScreen({
+  title,
+  label,
+  percent,
+  kind = "analysis",
+  completedFrames = 0,
+  previewFrames = [],
+  fallbackImage,
+}: ProcessState & { previewFrames?: string[]; fallbackImage: string }) {
+  const screenRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (kind !== "generation") return;
+    const frame = window.requestAnimationFrame(() => screenRef.current?.focus({ preventScroll: true }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [kind]);
+
+  if (kind === "generation") {
+    return (
+      <section
+        ref={screenRef}
+        className="work-process-screen generation-process-screen"
+        role="dialog"
+        aria-modal="true"
+        aria-label="이모티콘 프레임 생성 진행 상황"
+        tabIndex={-1}
+      >
+        <GenerationPlayground frames={previewFrames} fallbackImage={fallbackImage} completedFrames={completedFrames} />
+        <div className="generation-progress-dock">
+          <div className="generation-progress-copy">
+            <div>
+              <span>5 FRAME EMOTION LOOP · 단계 기준 진행률</span>
+              <p aria-live="polite" aria-atomic="true">{label}</p>
+            </div>
+            <strong aria-hidden="true">{percent}<small>%</small></strong>
+          </div>
+          <div
+            className="work-process-meter generation-process-meter"
+            role="progressbar"
+            aria-label={label}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+            aria-valuetext={`${label}. 실제 완성 프레임 ${completedFrames}/${FRAME_COUNT}, 단계 기준 진행률 ${percent}%`}
+          >
+            <span style={{ transform: `scaleX(${percent / 100})` }} />
+          </div>
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="work-process-screen" role="status" aria-live="polite">
       <div className="work-process-inner">
         <h2>{title}</h2>
-        <div className="work-process-meter" aria-label={`진행률 ${percent}%`}>
+        <div className="work-process-meter" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
           <span style={{ width: `${percent}%` }} />
         </div>
         <p><span>{label}</span><strong>{percent}%</strong></p>
       </div>
     </section>
   );
+}
+
+function GenerationPlayground({ frames, fallbackImage, completedFrames }: { frames: string[]; fallbackImage: string; completedFrames: number }) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const manualFrameSelectionRef = useRef(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [position, setPosition] = useState({ x: 50, y: 50 });
+  const latestFrameIndex = Math.max(0, frames.reduce((latest, frame, index) => (frame ? index : latest), 0));
+  const displayedImage = frames[selectedIndex] || frames[latestFrameIndex] || fallbackImage;
+
+  useEffect(() => {
+    if (!manualFrameSelectionRef.current && frames[latestFrameIndex]) setSelectedIndex(latestFrameIndex);
+  }, [frames, latestFrameIndex]);
+
+  const moveCharacter = (clientX: number, clientY: number) => {
+    const bounds = stageRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    setPosition({
+      x: Math.max(16, Math.min(84, ((clientX - bounds.left) / bounds.width) * 100)),
+      y: Math.max(20, Math.min(80, ((clientY - bounds.top) / bounds.height) * 100)),
+    });
+  };
+
+  const beginDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const target = event.currentTarget;
+    target.setPointerCapture(event.pointerId);
+    moveCharacter(event.clientX, event.clientY);
+    const move = (next: PointerEvent) => moveCharacter(next.clientX, next.clientY);
+    const finish = () => {
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", finish);
+      target.removeEventListener("pointercancel", finish);
+    };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", finish);
+    target.addEventListener("pointercancel", finish);
+  };
+
+  const moveWithKeyboard = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const step = event.shiftKey ? 10 : 4;
+    if (event.key === "Home") {
+      event.preventDefault();
+      setPosition({ x: 50, y: 50 });
+      return;
+    }
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    setPosition((current) => ({
+      x: Math.max(16, Math.min(84, current.x + (event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0))),
+      y: Math.max(20, Math.min(80, current.y + (event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0))),
+    }));
+  };
+
+  return (
+    <div className="generation-playground-shell">
+      <div className="generation-playground-heading">
+        <span>WAITING PLAYGROUND</span>
+        <h2>기다리는 동안 캐릭터를 움직여 보세요.</h2>
+        <p>완성된 프레임은 아래 컷 버튼에서 바로 확인할 수 있어요.</p>
+      </div>
+      <div className="generation-playground" ref={stageRef}>
+        <button
+          type="button"
+          className="generation-play-character"
+          style={{ left: `${position.x}%`, top: `${position.y}%` }}
+          onPointerDown={beginDrag}
+          onKeyDown={moveWithKeyboard}
+          aria-label="캐릭터 드래그하기. 방향키로도 움직일 수 있습니다."
+        >
+          <img src={displayedImage} alt="생성 중인 캐릭터" draggable={false} />
+        </button>
+        <button type="button" className="generation-play-reset" onClick={() => setPosition({ x: 50, y: 50 })}>
+          <Icon name="reload" size={15} />
+          중앙으로
+        </button>
+      </div>
+      <div className="generation-frame-picker" aria-label={`완료 프레임 ${completedFrames}개`}>
+        {Array.from({ length: FRAME_COUNT }, (_, index) => (
+          <button
+            key={index}
+            type="button"
+            className={selectedIndex === index && frames[index] ? "active" : ""}
+            disabled={!frames[index]}
+            onClick={() => {
+              manualFrameSelectionRef.current = true;
+              setSelectedIndex(index);
+            }}
+            aria-label={frames[index] ? `${index + 1}번째 완성 프레임 보기` : `${index + 1}번째 프레임 생성 대기 중`}
+          >
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <i aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function waitForNextPaint(): Promise<void> {
+  return new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+}
+
+function waitForCompletionHold(milliseconds: number, signal: AbortSignal): Promise<void> {
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, milliseconds);
+    const onAbort = () => {
+      window.clearTimeout(timer);
+      reject(signal.reason ?? new DOMException("작업이 취소되었습니다.", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 function describePose(metrics: VisionMetrics): string {

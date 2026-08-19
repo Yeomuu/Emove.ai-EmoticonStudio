@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import { imageAssets } from "../data";
 import { navigate, route } from "../router";
-import { toast } from "../store";
+import { blockingSurfaceOpen, toast } from "../store";
 import type { RoutePath } from "../types";
 
 const navItems: Array<{ icon: "layers" | "image"; label: string; path: RoutePath }> = [
@@ -21,6 +21,7 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
   const [dockVisible, setDockVisible] = useState(!dockAutoHide);
   const closeTimer = useRef<number | undefined>(undefined);
   const current = route.value;
+  const dockBlocked = blockingSurfaceOpen.value;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -31,15 +32,15 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
   useEffect(() => {
     window.clearTimeout(closeTimer.current);
     closeTimer.current = undefined;
-    setDockVisible(!dockAutoHide);
+    setDockVisible(dockBlocked ? false : !dockAutoHide);
     return () => {
       window.clearTimeout(closeTimer.current);
       closeTimer.current = undefined;
     };
-  }, [dockAutoHide, current]);
+  }, [dockAutoHide, current, dockBlocked]);
 
   useEffect(() => {
-    if (!dockAutoHide) return;
+    if (!dockAutoHide || dockBlocked) return;
     const coarsePointer = window.matchMedia("(hover: none), (pointer: coarse)");
     if (coarsePointer.matches) {
       setDockVisible(true);
@@ -61,7 +62,7 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
     };
     window.addEventListener("pointermove", onPointerMove, { passive: true });
     return () => window.removeEventListener("pointermove", onPointerMove);
-  }, [dockAutoHide, current, dockVisible]);
+  }, [dockAutoHide, current, dockVisible, dockBlocked]);
 
   const revealDock = () => {
     window.clearTimeout(closeTimer.current);
@@ -84,12 +85,12 @@ export function Shell({ children, immersive = false, dockAutoHide = false }: { c
       data-current-route={current}
     >
       <main>{children}</main>
-      {dockAutoHide ? <div className="nav-hover-zone" aria-hidden="true" onPointerEnter={revealDock} /> : null}
+      {dockAutoHide && !dockBlocked ? <div className="nav-hover-zone" aria-hidden="true" onPointerEnter={revealDock} /> : null}
       <header
         className={`bottom-dock-text-nav ${dockAutoHide ? "is-work-mode" : ""} ${dockVisible ? "is-visible" : "is-hidden"}`}
         aria-label="주요 메뉴"
-        aria-hidden={dockAutoHide && !dockVisible ? true : undefined}
-        inert={dockAutoHide && !dockVisible ? true : undefined}
+        aria-hidden={dockBlocked || (dockAutoHide && !dockVisible) ? true : undefined}
+        inert={dockBlocked || (dockAutoHide && !dockVisible) ? true : undefined}
         onPointerEnter={revealDock}
         onPointerLeave={scheduleDockHide}
         onPointerDown={(event) => event.stopPropagation()}

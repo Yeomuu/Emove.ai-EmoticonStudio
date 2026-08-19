@@ -1,6 +1,6 @@
 import { EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import { coerceEmotion, emotionMeta, emptyEmotionScores as createEmptyEmotionScores, normalizeEmotionScores } from "../emotion-taxonomy";
-import { DEFAULT_TEXT_COLOR, normalizePickerHex } from "./color-picker";
+import { DEFAULT_TEXT_COLOR, LEGACY_TEXT_BACKGROUND_COLOR, normalizePickerHex } from "./color-picker";
 import type { AnimationFormat, BehaviorCapture, CharacterToken, EmoticonProject, LayerKind, LayerTransform, LibraryGroup, StickerItem } from "../types";
 
 export interface RemoteSyncResult {
@@ -429,7 +429,11 @@ function projectFromRemoteDoc(value: unknown, updatedAt?: string): EmoticonProje
     layers,
     layerTransforms,
     frameLayerTransforms,
-    textStyle,
+    textStyle: {
+      ...textStyle,
+      color: normalizePickerHex(textStyle.color ?? "") ?? DEFAULT_TEXT_COLOR,
+      backgroundColor: normalizePickerHex(textStyle.backgroundColor ?? "") ?? LEGACY_TEXT_BACKGROUND_COLOR,
+    },
     effectSettings: {
       background: normalizeEffectLayerStyle(asRecord(effectSettings?.background)),
       accent: normalizeEffectLayerStyle(asRecord(effectSettings?.accent)),
@@ -480,6 +484,7 @@ function legacyProjectFromRemoteDoc(envelope: Record<string, unknown> | null, up
   const shape = text(textStyleRow?.shape);
   const font = text(textStyleRow?.font);
   const color = normalizePickerHex(text(textStyleRow?.color)) ?? DEFAULT_TEXT_COLOR;
+  const backgroundColor = normalizePickerHex(text(textStyleRow?.backgroundColor)) ?? LEGACY_TEXT_BACKGROUND_COLOR;
   const emotion = sticker.emotion;
   const createdAt = text(asRecord(project.metadata)?.createdAt) || sticker.createdAt || updatedAt || new Date().toISOString();
 
@@ -497,6 +502,7 @@ function legacyProjectFromRemoteDoc(envelope: Record<string, unknown> | null, up
       shape: shape === "rounded" || shape === "caption" ? shape : "pill",
       font: font === "Paperlogy" ? "Paperlogy" : "Pretendard",
       color,
+      backgroundColor,
     },
     motionBrief: {
       sourceText: text(project.generatedPrompt) || shortText,

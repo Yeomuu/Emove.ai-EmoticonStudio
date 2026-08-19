@@ -35,6 +35,21 @@ export type AnimationFormat = "APNG" | "GIF" | "WEBP";
 export type ExaggerationTier = "minimal" | "emotional" | "full";
 export type EmotionSource = "voice" | "action" | "expression";
 export type EmotionProvider = "imentiv" | "local-voice-heuristic" | "mediapipe";
+export type FrameGenerationJobStatus = "pending" | "running";
+
+export type FrameGenerationEvent =
+  | { phase: "reference-preparing"; total: number }
+  | { phase: "reference-ready"; total: number }
+  | { phase: "frame-requested"; index: number; total: number }
+  | { phase: "job-status"; index: number; total: number; status: FrameGenerationJobStatus }
+  | { phase: "frame-received"; index: number; total: number }
+  | { phase: "frame-processing"; index: number; total: number }
+  | { phase: "frame-ready"; index: number; completed: number; total: number; imageUrl: string };
+
+export interface FrameGenerationOptions {
+  signal?: AbortSignal;
+  onEvent?: (event: FrameGenerationEvent) => void;
+}
 
 export interface EditorLayer {
   id: LayerKind;
@@ -167,7 +182,7 @@ export interface EmoticonProject {
   layers: EditorLayer[];
   layerTransforms: Record<LayerKind, LayerTransform>;
   frameLayerTransforms: Array<Record<LayerKind, LayerTransform>>;
-  textStyle: { shape: TextBoxShape; font: TextFont; color?: string };
+  textStyle: { shape: TextBoxShape; font: TextFont; color?: string; backgroundColor?: string };
   effectSettings?: {
     background: EffectLayerStyle;
     accent: EffectLayerStyle;
@@ -218,7 +233,7 @@ export interface OpenAIProvider {
   readonly mode: "openai";
   transcribe(audio: Blob): Promise<TranscriptionResult>;
   generateCharacter(token: CharacterToken): Promise<GeneratedCharacterResult>;
-  generateCharacterActionFrames(brief: MotionBrief, token: CharacterToken): Promise<string[]>;
+  generateCharacterActionFrames(brief: MotionBrief, token: CharacterToken, options?: FrameGenerationOptions): Promise<string[]>;
 }
 
 export interface LibraryGroup {

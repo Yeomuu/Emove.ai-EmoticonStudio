@@ -1,7 +1,7 @@
 import { computed, signal } from "./lib/signals";
 import { createMotionBrief, defaultCharacterTokens, emotionMeta, imageAssets, initialLayers, starterStickers } from "./data";
 import { emptyEmotionScores } from "./emotion-taxonomy";
-import { DEFAULT_TEXT_COLOR, normalizePickerHex } from "./services/color-picker";
+import { DEFAULT_TEXT_BACKGROUND_COLOR, DEFAULT_TEXT_COLOR, LEGACY_TEXT_BACKGROUND_COLOR, normalizePickerHex } from "./services/color-picker";
 import type { AccentEffect, AnimationFormat, BehaviorCapture, CharacterToken, EditorLayer, Emotion, EmoticonProject, ExaggerationTier, LayerKind, LayerTransform, MotionStyle, StickerItem, TextBoxShape, TextFont, VisionMetrics } from "./types";
 
 const emptyCharacter: CharacterToken = {
@@ -58,6 +58,7 @@ export const activeLayer = signal<LayerKind | null>("text");
 export const textBoxShape = signal<TextBoxShape>("pill");
 export const textFont = signal<TextFont>("Pretendard");
 export const textColor = signal(DEFAULT_TEXT_COLOR);
+export const textBackgroundColor = signal(DEFAULT_TEXT_BACKGROUND_COLOR);
 export const layers = signal(initialLayers.map((layer) => ({ ...layer })));
 export const defaultLayerTransforms: Record<LayerKind, LayerTransform> = {
   "background-effects": { x: 0, y: 0, scale: 1, rotation: 0 },
@@ -81,6 +82,7 @@ export const stickers = signal<StickerItem[]>(starterStickers.map((item) => ({ .
 export const editingProject = signal<EmoticonProject | null>(null);
 export const lastSaved = signal<string | null>(null);
 export const toast = signal<string | null>(null);
+export const blockingSurfaceOpen = signal(false);
 export const exportAnimationFormat = signal<AnimationFormat>("GIF");
 export const pendingQrExport = signal<import("./types").QrExportPayload | null>(null);
 
@@ -124,6 +126,7 @@ export function startNewEmoticonProject(): void {
   accentEffectBlur.value = 0;
   accentEffectOpacity.value = 100;
   textColor.value = DEFAULT_TEXT_COLOR;
+  textBackgroundColor.value = DEFAULT_TEXT_BACKGROUND_COLOR;
 }
 
 export function loadProjectForEditing(project: EmoticonProject): void {
@@ -156,6 +159,7 @@ export function loadProjectForEditing(project: EmoticonProject): void {
   textBoxShape.value = project.textStyle.shape;
   textFont.value = project.textStyle.font;
   textColor.value = normalizePickerHex(project.textStyle.color ?? "") ?? DEFAULT_TEXT_COLOR;
+  textBackgroundColor.value = normalizePickerHex(project.textStyle.backgroundColor ?? "") ?? LEGACY_TEXT_BACKGROUND_COLOR;
   frameImages.value = project.frameImages.length ? [...project.frameImages] : Array.from({ length: 5 }, () => project.characterToken.sourceAsset);
   frameLayerTransforms.value = cloneFrameTransforms(project.frameLayerTransforms);
   selectedFrame.value = 0;
@@ -167,15 +171,19 @@ export function loadProjectForEditing(project: EmoticonProject): void {
 
 export function updateLayerTransform(id: LayerKind, update: Partial<LayerTransform>): void {
   if (id === "background-effects") return;
+  const normalizedUpdate = normalizeTransformUpdate(update);
+  if (!Object.keys(normalizedUpdate).length) return;
   const frameIndex = Math.max(0, Math.min(4, selectedFrame.value));
   frameLayerTransforms.value = frameLayerTransforms.value.map((frame, index) => (
-    index >= frameIndex ? { ...frame, [id]: { ...frame[id], ...update } } : frame
+    index >= frameIndex ? { ...frame, [id]: normalizeTransform({ ...frame[id], ...normalizedUpdate }, frame[id]) } : frame
   ));
 }
 
 export function updateLayerTransformForAllFrames(id: LayerKind, update: Partial<LayerTransform>): void {
   if (id === "background-effects") return;
-  frameLayerTransforms.value = frameLayerTransforms.value.map((frame) => ({ ...frame, [id]: { ...frame[id], ...update } }));
+  const normalizedUpdate = normalizeTransformUpdate(update);
+  if (!Object.keys(normalizedUpdate).length) return;
+  frameLayerTransforms.value = frameLayerTransforms.value.map((frame) => ({ ...frame, [id]: normalizeTransform({ ...frame[id], ...normalizedUpdate }, frame[id]) }));
 }
 
 export function toggleLayer(id: LayerKind, key: "visible" | "locked"): void {
@@ -229,11 +237,29 @@ function cloneFrameTransforms(source: Array<Record<LayerKind, LayerTransform>>):
     if (!sourceFrame) return frame;
     return {
       "background-effects": { ...defaultLayerTransforms["background-effects"] },
-      character: { ...frame.character, ...sourceFrame.character },
-      "accent-effects": { ...frame["accent-effects"], ...sourceFrame["accent-effects"] },
-      text: { ...frame.text, ...sourceFrame.text },
+      character: normalizeTransform(sourceFrame.character, frame.character),
+      "accent-effects": normalizeTransform(sourceFrame["accent-effects"], frame["accent-effects"]),
+      text: normalizeTransform(sourceFrame.text, frame.text),
     };
   });
+}
+
+function normalizeTransformUpdate(update: Partial<LayerTransform>): Partial<LayerTransform> {
+  const normalized: Partial<LayerTransform> = {};
+  if (Number.isFinite(update.x)) normalized.x = update.x;
+  if (Number.isFinite(update.y)) normalized.y = update.y;
+  if (Number.isFinite(update.rotation)) normalized.rotation = update.rotation;
+  if (Number.isFinite(update.scale)) normalized.scale = Math.max(.25, Math.min(2.4, update.scale!));
+  return normalized;
+}
+
+function normalizeTransform(source: Partial<LayerTransform> | undefined, fallback: LayerTransform): LayerTransform {
+  return {
+    x: Number.isFinite(source?.x) ? source!.x! : fallback.x,
+    y: Number.isFinite(source?.y) ? source!.y! : fallback.y,
+    scale: Number.isFinite(source?.scale) ? Math.max(.25, Math.min(2.4, source!.scale!)) : fallback.scale,
+    rotation: Number.isFinite(source?.rotation) ? source!.rotation! : fallback.rotation,
+  };
 }
 
 export function normalizeEditorLayers(source: EditorLayer[]): EditorLayer[] {

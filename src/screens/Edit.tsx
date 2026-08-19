@@ -13,8 +13,8 @@ import { createQrExportPayload } from "../services/qr-export";
 import { syncProjectToRemote } from "../services/remote-store";
 import { exportAnimation, renderFrame, renderFrameDataUrl } from "../services/renderer";
 import { publishAnimationForQr } from "../services/share";
-import { accentColor, accentEffect, accentEffectBlur, accentEffectOpacity, activeLayer, backgroundEffectBlur, backgroundEffectOpacity, behaviorCapture, editingProject, effectColor, emotion, emoticonTitle, exportAnimationFormat, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, pendingQrExport, previewLayerOrder, sanitizeAssetUrl, selectedCharacter, selectedFrame, stickers, textBoxShape, textColor, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
-import type { AccentEffect, EditorLayer, EmoticonProject, LayerKind, StickerItem, TextBoxShape, TextFont } from "../types";
+import { accentColor, accentEffect, accentEffectBlur, accentEffectOpacity, activeLayer, backgroundEffectBlur, backgroundEffectOpacity, behaviorCapture, blockingSurfaceOpen, editingProject, effectColor, emotion, emoticonTitle, exportAnimationFormat, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, pendingQrExport, previewLayerOrder, sanitizeAssetUrl, selectedCharacter, selectedFrame, stickers, textBackgroundColor, textBoxShape, textColor, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
+import type { AccentEffect, EditorLayer, EmoticonProject, LayerKind, LayerTransform, StickerItem, TextBoxShape, TextFont } from "../types";
 import characterMain from "../assets/images/character-main.webp";
 
 const layerIcons: Record<LayerKind, "image" | "star" | "layers" | "edit"> = { "background-effects": "image", character: "layers", "accent-effects": "star", text: "edit" };
@@ -43,11 +43,26 @@ export function EditPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const exportLockRef = useRef(false);
+  const mountedRef = useRef(false);
+  const saveRunRef = useRef(0);
   const [dragId, setDragId] = useState<LayerKind>(); const [dragPreview, setDragPreview] = useState<EditorLayer[] | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: LayerKind; position: "before" | "after" } | null>(null); const [dragPoint, setDragPoint] = useState<{ x: number; y: number } | null>(null);
   const activeLayerId = activeLayer.value;
   const transform = activeLayerId ? layerTransforms.value[activeLayerId] : null; const active = activeLayerId ? layers.value.find((layer) => layer.id === activeLayerId) : null;
   const displayedLayers = dragPreview ?? layers.value;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      saveRunRef.current += 1;
+    };
+  }, []);
+  useEffect(() => {
+    blockingSurfaceOpen.value = exporting;
+    return () => {
+      if (exporting) blockingSurfaceOpen.value = false;
+    };
+  }, [exporting]);
   useEffect(() => {
     if (frameImages.value.length > 0 || !selectedCharacter.value.sourceAsset) return;
     const source = sanitizeAssetUrl(selectedCharacter.value.sourceAsset);
@@ -86,34 +101,64 @@ export function EditPage() {
 
   const buildAndSave = async (): Promise<EmoticonProject> => {
     const original = editingProject.value;
+    const originalSticker = original?.sticker;
+    const title = normalizedStickerTitle(originalSticker?.title);
+    const characterSnapshot = {
+      ...selectedCharacter.value,
+      referenceImages: [...selectedCharacter.value.referenceImages],
+      observableTraits: [...selectedCharacter.value.observableTraits],
+      personalityTags: [...selectedCharacter.value.personalityTags],
+      colors: { ...selectedCharacter.value.colors },
+      fixedTraits: [...selectedCharacter.value.fixedTraits],
+      doNotChange: [...selectedCharacter.value.doNotChange],
+    };
+    const frameImagesSnapshot = [...frameImages.value];
+    const layersSnapshot = layers.value.map((layer) => ({ ...layer }));
+    const layerTransformsSnapshot = cloneLayerTransforms(layerTransforms.value);
+    const frameLayerTransformsSnapshot = frameLayerTransforms.value.map(cloneLayerTransforms);
+    const briefSnapshot = { ...motionBrief.value };
+    const textStyleSnapshot = { shape: textBoxShape.value, font: textFont.value, color: textColor.value, backgroundColor: textBackgroundColor.value };
+    const effectSettingsSnapshot = {
+      background: { blur: backgroundEffectBlur.value, opacity: backgroundEffectOpacity.value },
+      accent: { blur: accentEffectBlur.value, opacity: accentEffectOpacity.value },
+    };
+    const captureSnapshot = {
+      ...behaviorCapture.value,
+      emotionScores: { ...behaviorCapture.value.emotionScores },
+      audio: { ...behaviorCapture.value.audio },
+    };
+    const phraseSnapshot = transcript.value;
+    const emotionSnapshot = emotion.value;
+    const effectColorSnapshot = effectColor.value;
+    const frameDelaySnapshot = frameDelayMs.value;
+    if (frameImagesSnapshot.length !== FRAME_COUNT) {
+      throw new Error(`캐릭터 행동 프레임은 정확히 ${FRAME_COUNT}개여야 합니다.`);
+    }
+
     const renderOptions = {
-      characterUrl: sanitizeAssetUrl(selectedCharacter.value.sourceAsset),
-      characterFrames: frameImages.value,
-      brief: motionBrief.value,
-      layers: layers.value,
-      transforms: layerTransforms.value,
-      frameTransforms: frameLayerTransforms.value,
-      textShape: textBoxShape.value,
-      textFont: textFont.value,
-      textColor: textColor.value,
-      backgroundEffectStyle: { blur: backgroundEffectBlur.value, opacity: backgroundEffectOpacity.value },
-      accentEffectStyle: { blur: accentEffectBlur.value, opacity: accentEffectOpacity.value },
+      characterUrl: sanitizeAssetUrl(characterSnapshot.sourceAsset),
+      characterFrames: frameImagesSnapshot,
+      brief: briefSnapshot,
+      layers: layersSnapshot,
+      transforms: layerTransformsSnapshot,
+      frameTransforms: frameLayerTransformsSnapshot,
+      textShape: textStyleSnapshot.shape,
+      textFont: textStyleSnapshot.font,
+      textColor: textStyleSnapshot.color,
+      textBackgroundColor: textStyleSnapshot.backgroundColor,
+      backgroundEffectStyle: effectSettingsSnapshot.background,
+      accentEffectStyle: effectSettingsSnapshot.accent,
       width: EXPORT_SIZE,
       height: EXPORT_SIZE,
     };
     const [animation, thumbnailSource] = await Promise.all([exportAnimation(renderOptions, "GIF"), renderFrameDataUrl(renderOptions, 0)]);
     const now = new Date().toISOString(); const id = original?.id ?? `emove-${Date.now()}`;
-    const originalSticker = original?.sticker;
-    const title = normalizedStickerTitle(originalSticker?.title);
     emoticonTitle.value = title;
     exportAnimationFormat.value = animation.format;
-    if (frameImages.value.length !== FRAME_COUNT) {
-      throw new Error(`캐릭터 행동 프레임은 정확히 ${FRAME_COUNT}개여야 합니다.`);
-    }
     const [sharedAnimation, thumbnailAsset, storedFrames] = await Promise.all([
       publishAnimationForQr(animation.blob, { fileName: `${safeFileName(title)}.${animation.extension}`, format: animation.format, projectId: id, title }),
       persistGeneratedAsset(thumbnailSource, { fileName: `${safeFileName(title)}-thumbnail.png`, kind: "thumbnails" }),
-      persistGeneratedAssets(frameImages.value, { filePrefix: `${id}-frame`, kind: "frames" }),
+      persistGeneratedAssets(frameImagesSnapshot, { filePrefix: `${id}-frame`, kind: "frames" }),
     ]);
     if (!sharedAnimation.enabled || !sharedAnimation.url || !sharedAnimation.path) {
       throw new Error(sharedAnimation.error || "완성 애니메이션을 Firebase Storage에 저장하지 못했습니다.");
@@ -130,8 +175,8 @@ export function EditPage() {
     const sticker: StickerItem = {
       id: originalSticker?.id ?? id,
       title,
-      phrase: transcript.value,
-      emotion: emotion.value,
+      phrase: phraseSnapshot,
+      emotion: emotionSnapshot,
       image: thumbnail,
       animatedImage: sharedAnimation.url,
       animationFormat: animation.format,
@@ -140,22 +185,24 @@ export function EditPage() {
       projectId: id,
       gifStoragePath: sharedAnimation.path ?? originalSticker?.gifStoragePath,
       group: originalSticker?.group,
-      frameDelayMs: frameDelayMs.value,
-      color: effectColor.value,
+      frameDelayMs: frameDelaySnapshot,
+      color: effectColorSnapshot,
       favorite: originalSticker?.favorite ?? false,
       ownerId: "public",
       isDefault: false,
       isPublished: originalSticker?.isPublished ?? false,
-      characterTokenId: selectedCharacter.value.id,
+      characterTokenId: characterSnapshot.id,
       createdAt: originalSticker?.createdAt ?? original?.createdAt ?? now,
       updatedAt: now,
     };
-    const { videoBlob: _video, audioBlob: _audio, ...captureMeta } = behaviorCapture.value;
-    const project: EmoticonProject = { id, ownerId: "public", sticker, gifBlob: animation.blob, animationBlob: animation.blob, animationFormat: animation.format, characterToken: selectedCharacter.value, behaviorCapture: captureMeta, frameImages: storedFrameUrls, layers: layers.value, layerTransforms: layerTransforms.value, frameLayerTransforms: frameLayerTransforms.value, textStyle: { shape: textBoxShape.value, font: textFont.value, color: textColor.value }, effectSettings: { background: { blur: backgroundEffectBlur.value, opacity: backgroundEffectOpacity.value }, accent: { blur: accentEffectBlur.value, opacity: accentEffectOpacity.value } }, motionBrief: motionBrief.value, createdAt: original?.createdAt ?? now, updatedAt: now };
+    const { videoBlob: _video, audioBlob: _audio, ...captureMeta } = captureSnapshot;
+    const project: EmoticonProject = { id, ownerId: "public", sticker, gifBlob: animation.blob, animationBlob: animation.blob, animationFormat: animation.format, characterToken: characterSnapshot, behaviorCapture: captureMeta, frameImages: storedFrameUrls, layers: layersSnapshot, layerTransforms: layerTransformsSnapshot, frameLayerTransforms: frameLayerTransformsSnapshot, textStyle: textStyleSnapshot, effectSettings: effectSettingsSnapshot, motionBrief: briefSnapshot, createdAt: original?.createdAt ?? now, updatedAt: now };
     const sync = await syncProjectToRemote(project);
     if (!sync.enabled) {
       throw new Error(sync.storageWarning || "프로젝트 메타데이터를 Firebase Storage에 저장하지 못했습니다.");
     }
+    const qrPayload = await createQrExportPayload(project.sticker);
+    if (!mountedRef.current) return project;
     const currentIndex = stickers.value.findIndex((item) => item.id === project.sticker.id);
     stickers.value = currentIndex >= 0
       ? stickers.value.map((item, index) => (index === currentIndex ? project.sticker : item))
@@ -163,7 +210,7 @@ export function EditPage() {
     editingProject.value = project;
     lastSaved.value = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
     frameImages.value = storedFrameUrls;
-    pendingQrExport.value = await createQrExportPayload(project.sticker);
+    pendingQrExport.value = qrPayload;
     notify(original ? "원본 이모티콘을 Firebase Storage에 덮어 저장했어요." : "이모티콘을 Firebase Storage에 저장했어요.");
     return project;
   };
@@ -171,25 +218,35 @@ export function EditPage() {
   const save = async () => {
     if (exportLockRef.current) return;
     exportLockRef.current = true;
+    const runId = ++saveRunRef.current;
     setExporting(true);
     setSaveError(null);
     try {
       await buildAndSave();
+      if (!mountedRef.current || saveRunRef.current !== runId) return;
       navigate("/library");
     }
     catch (error) {
+      if (!mountedRef.current || saveRunRef.current !== runId) return;
       const detail = error instanceof Error ? error.message : "저장에 실패했습니다.";
       const message = `저장에 실패했습니다. Firebase Storage 설정과 연결을 확인한 뒤 저장하기 버튼을 다시 눌러 주세요. ${detail}`;
       setSaveError(message);
       notify(message);
     }
-    finally { exportLockRef.current = false; setExporting(false); }
+    finally {
+      if (saveRunRef.current === runId) exportLockRef.current = false;
+      if (mountedRef.current && saveRunRef.current === runId) setExporting(false);
+    }
   };
 
 
   return (
     <>
-      <div className={`editor-page is-layer-${activeLayerId ?? "none"}`}>
+      <div
+        className={`editor-page is-layer-${activeLayerId ?? "none"}`}
+        inert={exporting ? true : undefined}
+        aria-busy={exporting}
+      >
         <header className="screen-brief edit-brief">
           <h1>이모티콘의 이펙트와 텍스트를<br/>자유롭게 수정하세요.</h1>
         </header>
@@ -487,6 +544,16 @@ export function EditPage() {
                       />
                     </div>
 
+                    <div className="control-item color-picker-field">
+                      <span>말풍선 배경</span>
+                      <ColorPickerDropdown
+                        value={textBackgroundColor.value}
+                        onChange={(color) => (textBackgroundColor.value = color)}
+                        onPreview={(color) => (textBackgroundColor.value = color)}
+                        ariaLabel="말풍선 배경 색상 선택"
+                      />
+                    </div>
+
                   </div>
                 </div>
                 )}
@@ -711,6 +778,12 @@ export function EditPage() {
         {dragId && dragPoint ? <div className="layer-drag-preview" style={{ left: dragPoint.x + 14, top: dragPoint.y + 14 }}><Icon name={layerIcons[dragId]} /><span><strong>{layers.value.find((layer) => layer.id === dragId)?.label}</strong><small>놓을 위치 미리보기</small></span></div> : null}
 
       </div>
+      {exporting ? (
+        <div className="edit-save-status-overlay" role="status" aria-live="polite" aria-atomic="true">
+          <Icon name="reload" className="spin" />
+          <span>이모티콘 파일과 편집 정보를 안전하게 저장하는 중입니다.</span>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -723,35 +796,55 @@ function safeFileName(value: string): string {
   return (value || "emove").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 40) || "emove";
 }
 
+function cloneLayerTransforms(source: Record<LayerKind, LayerTransform>): Record<LayerKind, LayerTransform> {
+  return {
+    "background-effects": { ...source["background-effects"] },
+    character: { ...source.character },
+    "accent-effects": { ...source["accent-effects"] },
+    text: { ...source.text },
+  };
+}
+
 function LoopPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const currentBrief = motionBrief.value;
+  const currentBriefKey = JSON.stringify(currentBrief);
+  const currentCharacterUrl = sanitizeAssetUrl(selectedCharacter.value.sourceAsset);
   useEffect(() => {
     let cancelled = false;
     let timeout = 0;
+    const buffer = document.createElement("canvas");
+    buffer.width = EXPORT_SIZE;
+    buffer.height = EXPORT_SIZE;
+    const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
     const renderLoop = async (frame = 0) => {
       const canvas = canvasRef.current; const context = canvas?.getContext("2d", { willReadFrequently: true });
-      if (!canvas || !context || cancelled) return;
-      await renderFrame(context, {
-        characterUrl: sanitizeAssetUrl(selectedCharacter.value.sourceAsset),
+      if (!canvas || !context || !bufferContext || cancelled) return;
+      await renderFrame(bufferContext, {
+        characterUrl: currentCharacterUrl,
         characterFrames: frameImages.value,
-        brief: motionBrief.value,
+        brief: currentBrief,
         layers: layers.value,
         transforms: frameLayerTransforms.value[frame] ?? layerTransforms.value,
         frameTransforms: frameLayerTransforms.value,
         textShape: textBoxShape.value,
         textFont: textFont.value,
         textColor: textColor.value,
+        textBackgroundColor: textBackgroundColor.value,
         backgroundEffectStyle: { blur: backgroundEffectBlur.value, opacity: backgroundEffectOpacity.value },
         accentEffectStyle: { blur: accentEffectBlur.value, opacity: accentEffectOpacity.value },
         width: canvas.width,
         height: canvas.height,
         gifSafe: false,
       }, frame / (FRAME_COUNT - 1));
-      timeout = window.setTimeout(() => renderLoop((frame + 1) % FRAME_COUNT), frameDelayMs.value);
+      if (cancelled) return;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(buffer, 0, 0);
+      timeout = window.setTimeout(() => void renderLoop((frame + 1) % FRAME_COUNT).catch(() => undefined), frameDelayMs.value);
     };
-    void renderLoop(0);
+    void renderLoop(0).catch(() => undefined);
     return () => { cancelled = true; window.clearTimeout(timeout); };
-  }, [motionBrief.value, layers.value, frameImages.value, frameLayerTransforms.value, textBoxShape.value, textFont.value, textColor.value, frameDelayMs.value, backgroundEffectBlur.value, backgroundEffectOpacity.value, accentEffectBlur.value, accentEffectOpacity.value]);
+  }, [currentBriefKey, currentCharacterUrl, layers.value, frameImages.value, frameLayerTransforms.value, textBoxShape.value, textFont.value, textColor.value, textBackgroundColor.value, frameDelayMs.value, backgroundEffectBlur.value, backgroundEffectOpacity.value, accentEffectBlur.value, accentEffectOpacity.value]);
 
   return (
     <div className="loop-preview glass-panel" aria-label="루프 미리보기">

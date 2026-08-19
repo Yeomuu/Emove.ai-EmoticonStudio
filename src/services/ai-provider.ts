@@ -1,4 +1,4 @@
-import type { CharacterToken, GeneratedCharacterResult, MotionBrief, OpenAIProvider, TranscriptionResult } from "../types";
+import type { CharacterToken, FrameGenerationEvent, FrameGenerationJobStatus, FrameGenerationOptions, GeneratedCharacterResult, MotionBrief, OpenAIProvider, TranscriptionResult } from "../types";
 import { FRAME_COUNT } from "../constants";
 import { buildCharacterPrompt, buildFramePrompts, compactEmoticonText } from "./prompt-builder";
 import { compactReferenceImagesForOpenAI, removeChromaKeyBackground } from "./image-processing";
@@ -60,14 +60,20 @@ export class ServerOpenAIProvider implements OpenAIProvider {
     };
   }
 
-  async generateCharacterActionFrames(brief: MotionBrief, token: CharacterToken): Promise<string[]> {
+  async generateCharacterActionFrames(brief: MotionBrief, token: CharacterToken, options: FrameGenerationOptions = {}): Promise<string[]> {
     const prompts = buildFramePrompts(brief, token).slice(0, FRAME_COUNT);
     if (prompts.length !== FRAME_COUNT) {
       throw new Error(`캐릭터 행동 프레임 프롬프트가 ${FRAME_COUNT}개 준비되지 않았습니다.`);
     }
+    emitGenerationEvent(options, { phase: "reference-preparing", total: FRAME_COUNT });
+    throwIfAborted(options.signal);
     const referenceImages = await compactReferenceImagesForOpenAI(token.referenceImages.length ? token.referenceImages : token.sourceAsset ? [token.sourceAsset] : []);
+    throwIfAborted(options.signal);
+    emitGenerationEvent(options, { phase: "reference-ready", total: FRAME_COUNT });
     const frameImages: string[] = [];
     for (const [frameIndex, prompt] of prompts.entries()) {
+      throwIfAborted(options.signal);
+      emitGenerationEvent(options, { phase: "frame-requested", index: frameIndex, total: FRAME_COUNT });
       const payload = await requestJson<{ imageUrl: string }>(openAIEndpoint("frame"), {
         brief,
         token: compactCharacterTokenForRequest(token),
@@ -75,9 +81,23 @@ export class ServerOpenAIProvider implements OpenAIProvider {
         frameIndex,
         referenceImages,
         chromaKeyBackground: "#00FF00",
+      }, {
+        signal: options.signal,
+        onJobStatus: (status) => emitGenerationEvent(options, { phase: "job-status", index: frameIndex, total: FRAME_COUNT, status }),
       });
+      emitGenerationEvent(options, { phase: "frame-received", index: frameIndex, total: FRAME_COUNT });
+      throwIfAborted(options.signal);
+      emitGenerationEvent(options, { phase: "frame-processing", index: frameIndex, total: FRAME_COUNT });
       const transparentFrame = await removeChromaKeyBackground(payload.imageUrl);
+      throwIfAborted(options.signal);
       frameImages.push(transparentFrame);
+      emitGenerationEvent(options, {
+        phase: "frame-ready",
+        index: frameIndex,
+        completed: frameImages.length,
+        total: FRAME_COUNT,
+        imageUrl: transparentFrame,
+      });
     }
     if (frameImages.length !== FRAME_COUNT) {
       throw new Error(`캐릭터 행동 프레임은 정확히 ${FRAME_COUNT}개여야 합니다.`);
@@ -87,16 +107,23 @@ export class ServerOpenAIProvider implements OpenAIProvider {
 
 }
 
-async function requestJson<T>(url: string, body: unknown): Promise<T> {
+interface RequestJsonOptions {
+  signal?: AbortSignal;
+  onJobStatus?: (status: FrameGenerationJobStatus) => void;
+}
+
+async function requestJson<T>(url: string, body: unknown, options: RequestJsonOptions = {}): Promise<T> {
+  throwIfAborted(options.signal);
   const jsonBody = JSON.stringify(body);
   if (new Blob([jsonBody]).size > MAX_JSON_PAYLOAD_BYTES) {
     throw new Error("AI 생성 요청의 참조 이미지 용량이 너무 큽니다. 캐릭터 이미지를 다시 선택하거나 새로 생성해 주세요.");
   }
-  const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: jsonBody });
+  const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: jsonBody, signal: options.signal });
   const payload = (await response.json().catch(() => undefined)) as { error?: string } | T | undefined;
   if (response.status === 202 && isAsyncJobAccepted(payload)) {
     const statusUrl = payload.statusUrl?.startsWith("http") ? payload.statusUrl : openAIEndpoint(`jobs/${payload.jobId}`);
-    return await pollAsyncJob<T>(statusUrl);
+    options.onJobStatus?.("pending");
+    return await pollAsyncJob<T>(statusUrl, options);
   }
   if (!response.ok) {
     throw new Error(errorMessageFromPayload(response.status, payload));
@@ -104,14 +131,16 @@ async function requestJson<T>(url: string, body: unknown): Promise<T> {
   return payload as T;
 }
 
-async function pollAsyncJob<T>(statusUrl: string): Promise<T> {
+async function pollAsyncJob<T>(statusUrl: string, options: RequestJsonOptions = {}): Promise<T> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < JOB_TIMEOUT_MS) {
-    await delay(JOB_POLL_INTERVAL_MS);
-    const response = await fetch(statusUrl, { method: "GET" });
+    await delay(JOB_POLL_INTERVAL_MS, options.signal);
+    throwIfAborted(options.signal);
+    const response = await fetch(statusUrl, { method: "GET", signal: options.signal });
     const payload = (await response.json().catch(() => undefined)) as AsyncJobResult<T> | { error?: string } | undefined;
     if (!response.ok) throw new Error(errorMessageFromPayload(response.status, payload));
     if (isAsyncJobResult<T>(payload)) {
+      if (payload.status === "pending" || payload.status === "running") options.onJobStatus?.(payload.status);
       if (payload.status === "complete") {
         if (payload.result == null) throw new Error("OpenAI 작업 결과가 비어 있습니다.");
         return payload.result;
@@ -130,8 +159,36 @@ function isAsyncJobResult<T>(payload: unknown): payload is AsyncJobResult<T> {
   return !!payload && typeof payload === "object" && "status" in payload && typeof payload.status === "string";
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+  throwIfAborted(signal);
+  return new Promise((resolve, reject) => {
+    const timer = globalThis.setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      globalThis.clearTimeout(timer);
+      reject(abortReason(signal));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function emitGenerationEvent(options: FrameGenerationOptions, event: FrameGenerationEvent): void {
+  try {
+    options.onEvent?.(event);
+  } catch {
+    // UI observers must never interrupt an already paid generation request.
+  }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortReason(signal);
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new DOMException("작업이 취소되었습니다.", "AbortError");
 }
 
 function compactCharacterTokenForRequest(token: CharacterToken): CharacterToken {

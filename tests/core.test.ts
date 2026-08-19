@@ -25,8 +25,9 @@ import {
   selectDominantHandGesture,
   type PosePoint,
 } from "../src/services/gesture-analysis";
+import { generationProgressFromEvent } from "../src/services/generation-progress";
 import { isSameOriginRequest } from "../src/app/api/openai/[...path]/route";
-import { previewLayerOrder } from "../src/store";
+import { frameLayerTransforms, previewLayerOrder, selectedFrame, updateLayerTransform } from "../src/store";
 import type { StickerItem, VisionMetrics } from "../src/types";
 
 describe("clean route normalization", () => {
@@ -422,7 +423,7 @@ describe("shared Firebase library", () => {
               frameIndex,
               delay: 120,
               layers: [
-                layer("text", 0, "text-layer", { content: "안녕!", style: { shape: "pill", font: "Pretendard" } }),
+                layer("text", 0, "text-layer", { content: "안녕!", style: { shape: "pill", font: "Pretendard", color: "#123456", backgroundColor: "#FFC96F" } }),
                 layer("accentEffect", 1, "procedural-accent-effect"),
                 layer("character", 2, `https://example.test/frame-${frameIndex}.png`),
                 layer("backgroundEffect", 3, "procedural-background-effect"),
@@ -453,12 +454,30 @@ describe("shared Firebase library", () => {
       characterToken: { id: "character-1" },
       frameImages: expect.arrayContaining(["https://example.test/frame-0.png"]),
       motionBrief: { shortText: "안녕!", pose: "브이 포즈" },
+      textStyle: { color: "#123456", backgroundColor: "#FFC96F" },
     });
     expect(result.projects[0].frameLayerTransforms).toHaveLength(5);
   });
 });
 
 describe("four layer edit contract", () => {
+  it("clamps transform scale before it reaches selection CSS or saved frame state", () => {
+    const originalFrames = frameLayerTransforms.value;
+    const originalFrame = selectedFrame.value;
+    try {
+      selectedFrame.value = 0;
+      updateLayerTransform("text", { scale: 0 });
+      expect(frameLayerTransforms.value.every((frame) => frame.text.scale === .25)).toBe(true);
+      updateLayerTransform("text", { scale: Number.POSITIVE_INFINITY });
+      expect(frameLayerTransforms.value.every((frame) => frame.text.scale === .25)).toBe(true);
+      updateLayerTransform("text", { scale: 9 });
+      expect(frameLayerTransforms.value.every((frame) => frame.text.scale === 2.4)).toBe(true);
+    } finally {
+      frameLayerTransforms.value = originalFrames;
+      selectedFrame.value = originalFrame;
+    }
+  });
+
   it("contains the required layers in top-to-bottom editor order", () => {
     expect(initialLayers.map((layer) => layer.id)).toEqual([
       "text",
@@ -499,6 +518,25 @@ describe("character palette flow", () => {
 });
 
 describe("character-only emoticon generation", () => {
+  it("maps real five-frame lifecycle events to monotonic stage progress", () => {
+    const events = [
+      { phase: "reference-preparing", total: FRAME_COUNT },
+      { phase: "reference-ready", total: FRAME_COUNT },
+      ...Array.from({ length: FRAME_COUNT }, (_, index) => [
+        { phase: "frame-requested", index, total: FRAME_COUNT },
+        { phase: "job-status", index, total: FRAME_COUNT, status: "running" },
+        { phase: "frame-received", index, total: FRAME_COUNT },
+        { phase: "frame-processing", index, total: FRAME_COUNT },
+        { phase: "frame-ready", index, completed: index + 1, total: FRAME_COUNT, imageUrl: `data:image/png;base64,${index}` },
+      ]).flat(),
+    ] as Parameters<typeof generationProgressFromEvent>[0][];
+    const progress = events.map(generationProgressFromEvent);
+
+    expect(progress.map((item) => item.percent)).toEqual([...progress.map((item) => item.percent)].sort((a, b) => a - b));
+    expect(progress.filter((_, index) => events[index].phase === "frame-ready").map((item) => item.percent)).toEqual([25, 42, 59, 76, 93]);
+    expect(progress.at(-1)).toMatchObject({ completedFrames: FRAME_COUNT, label: expect.stringContaining("마무리 동작 준비 완료") });
+  });
+
   it("builds exactly five character-action prompts and keeps background effects local", () => {
     const brief = createMotionBrief("joy", "#000000", "정말 신나요", "신난다!", .7, defaultCharacterTokens[0].id, 120, "generated-background");
     const prompts = buildFramePrompts(brief, defaultCharacterTokens[0]);

@@ -21,6 +21,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Loading spinner/curtain backgrounds should stay solid unless a later visual reference explicitly asks for decorated loader backgrounds.
 - In-page depth changes inside dense flows such as behavior input should not show the global loading curtain; reserve the global curtain for route/page transitions and long generation work.
 - Generation and analysis progress bars should advance on real app work stages; when a single stage takes a long time and exact model progress is unavailable, keep the percent anchored to that stage while the bar surface continues flowing.
+- Long five-frame emoticon generation must surface the real reference-preparation, per-frame request/job/response/chroma-key, asset-readiness, and editor-handoff stages. Its full-screen loader keeps the boot loader's bottom progress anatomy and a center playground that uses the selected or actually completed character frames without changing measured progress.
 - Keep desktop content at a maximum width of 1440px and make every screen responsive.
 - The current canonical Figma `디자인시안` layout uses 1920×1080 page frames; keep page content at a maximum width of 1920px for that redesign while preserving responsive behavior below desktop.
 - Use 760px as the global minimum screen height; if the viewport is shorter, the page must scroll instead of clipping.
@@ -29,6 +30,7 @@ When implementing from a selected generated mock, treat that image as the source
 - OpenAI generation requires a server proxy. Next.js Route Handlers serve `/api/openai/*`; static-only hosting is not an active deployment target for this project.
 - The production deployment target is Vercel from GitHub `main`.
 - The `recoding` branch and `D:\대학교\EMOVE-recoding` worktree are strictly for local screen recording and testing. Never merge or promote `recoding` into `main`, and never use it as the Vercel production branch; production deployment remains connected only to GitHub `main`.
+- Only the local `recoding` branch removes the Home Library CTA and the entire bottom-right dock; its demo funnel must enter emoticon creation through the Home creation CTA. Keep those navigation removals out of `main`.
 - Keep `README.md` written for outside readers. Move implementation logs, QA notes, validation notes, and prompt-rule drafts into Notion when they are not required for the app to run.
 - For `gpt-image-2`, generate character/effect assets on flat chroma-key green and remove the green background in-browser so stored/displayed assets become transparent PNG data URLs.
 - Copy every used font, icon, and image into this project. Use coolicons only; never mix icon libraries.
@@ -83,6 +85,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Library hover effects must end when the pointer leaves a card, even after clicking internal card action buttons.
 - Transparent preview grids must be smaller and lighter; grid/pattern backgrounds should appear only on intended preview surfaces, especially Library detail's `detail-stage`.
 - Edit text layer selection bounds must match the rendered text bubble exactly, including resize behavior.
+- Edit text controls expose both foreground and speech-bubble background colors, and both colors must preview, export, save, and restore through the same project text-style record.
 - Edit canvas selection boxes must be driven only by measured renderer bounds and layer transforms; do not apply legacy CSS offsets such as margins to `.canvas-selection` variants.
 - When editing a frame, later frames should inherit the same layer transform unless the user explicitly changes them, so animation remains continuous.
 - Edit preview and animated export must share the same 1024×1024 transparent frame constraints so the looped animation does not visually diverge from the frame editor.

@@ -6,6 +6,8 @@ export const COLOR_PICKER_SWATCHES = [
 ] as const;
 
 export const DEFAULT_TEXT_COLOR = "#201E28";
+export const DEFAULT_TEXT_BACKGROUND_COLOR = "#FFC96F";
+export const LEGACY_TEXT_BACKGROUND_COLOR = "#FCFCFC";
 
 export interface RgbColor {
   r: number;

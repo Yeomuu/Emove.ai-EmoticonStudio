@@ -1,7 +1,7 @@
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import { emotionMeta } from "../emotion-taxonomy";
-import { DEFAULT_TEXT_COLOR, normalizePickerHex } from "./color-picker";
+import { DEFAULT_TEXT_BACKGROUND_COLOR, DEFAULT_TEXT_COLOR, normalizePickerHex } from "./color-picker";
 import starIcon from "../assets/icons/star.svg";
 import type { AnimationFormat, EditorLayer, EffectLayerStyle, LayerKind, LayerTransform, MotionBrief, TextBoxShape, TextFont } from "../types";
 
@@ -15,6 +15,7 @@ export interface RenderOptions {
   textShape?: TextBoxShape;
   textFont?: TextFont;
   textColor?: string;
+  textBackgroundColor?: string;
   width?: number;
   height?: number;
   gifSafe?: boolean;
@@ -114,7 +115,7 @@ async function drawLayer(context: CanvasRenderingContext2D, id: LayerKind, optio
 function applyEffectLayerStyle(context: CanvasRenderingContext2D, style: EffectLayerStyle | undefined, width: number): void {
   if (!style) return;
   const opacity = Math.min(100, Math.max(0, style.opacity)) / 100;
-  const blur = Math.min(100, Math.max(0, style.blur)) / 100 * 24 * (width / EXPORT_SIZE);
+  const blur = Math.min(24, Math.max(0, style.blur)) * (width / EXPORT_SIZE);
   context.globalAlpha *= opacity;
   context.filter = blur > .01 ? `blur(${blur}px)` : "none";
 }
@@ -202,7 +203,7 @@ function drawTextBubble(context: CanvasRenderingContext2D, options: RenderOption
   } else {
     context.roundRect(x, y, bubbleWidth, bubbleHeight, shape === "pill" ? bubbleHeight / 2 : 16 * unit);
   }
-  context.fillStyle = "rgba(252,252,252,.96)"; context.fill();
+  context.fillStyle = normalizePickerHex(options.textBackgroundColor ?? "") ?? DEFAULT_TEXT_BACKGROUND_COLOR; context.fill();
   context.fillStyle = normalizePickerHex(options.textColor ?? "") ?? DEFAULT_TEXT_COLOR;
   context.fillText(text, bubbleCenterX, y + bubbleHeight / 2 + 1, bubbleWidth - 36 * unit);
 }
@@ -272,6 +273,46 @@ async function measureCharacterImagePlacement(source: string, width: number, hei
 export async function measureCharacterRenderBounds(source: string, width = EXPORT_SIZE, height = EXPORT_SIZE): Promise<LayerVisualBounds> {
   if (!source) return { x: width * .17, y: height * .13, width: width * .66, height: height * .74 };
   return (await measureCharacterImagePlacement(source, width, height)).destination;
+}
+
+export async function measureLayerRenderBounds(
+  id: LayerKind,
+  options: RenderOptions,
+  frameProgress = 0,
+): Promise<LayerVisualBounds | null> {
+  const width = options.width ?? EXPORT_SIZE;
+  const height = options.height ?? EXPORT_SIZE;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("레이어 선택 영역을 측정할 수 없습니다.");
+  const identity: LayerTransform = { x: 0, y: 0, scale: 1, rotation: 0 };
+  await drawLayer(context, id, { ...options, transforms: { ...options.transforms, [id]: identity } }, width, height, frameProgress);
+  return alphaBounds(context.getImageData(0, 0, width, height).data, width, height);
+}
+
+function alphaBounds(pixels: Uint8ClampedArray, width: number, height: number): LayerVisualBounds | null {
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (pixels[(y * width + x) * 4 + 3] <= 2) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) return null;
+  const padding = 1;
+  minX = Math.max(0, minX - padding);
+  minY = Math.max(0, minY - padding);
+  maxX = Math.min(width - 1, maxX + padding);
+  maxY = Math.min(height - 1, maxY + padding);
+  return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
 }
 
 async function drawAccentEffect(context: CanvasRenderingContext2D, brief: MotionBrief, width: number, height: number, progress: number, unit: number): Promise<void> {
