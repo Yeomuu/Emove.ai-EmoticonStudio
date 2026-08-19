@@ -28,6 +28,7 @@ When implementing from a selected generated mock, treat that image as the source
 - OpenAI-dependent features must not fabricate mock user assets; if the API key or server proxy is unavailable, show a clear failure instead of substituting default characters, voice text, poses, or frames.
 - OpenAI generation requires a server proxy. Next.js Route Handlers serve `/api/openai/*`; static-only hosting is not an active deployment target for this project.
 - The production deployment target is Vercel from GitHub `main`.
+- The `recoding` branch and `D:\대학교\EMOVE-recoding` worktree are strictly for local screen recording and testing. Never merge or promote `recoding` into `main`, and never use it as the Vercel production branch; production deployment remains connected only to GitHub `main`.
 - Keep `README.md` written for outside readers. Move implementation logs, QA notes, validation notes, and prompt-rule drafts into Notion when they are not required for the app to run.
 - For `gpt-image-2`, generate character/effect assets on flat chroma-key green and remove the green background in-browser so stored/displayed assets become transparent PNG data URLs.
 - Copy every used font, icon, and image into this project. Use coolicons only; never mix icon libraries.
