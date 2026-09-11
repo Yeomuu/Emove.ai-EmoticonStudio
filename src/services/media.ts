@@ -28,7 +28,6 @@ export class AudioCapture {
         "audio/webm;codecs=opus",
         "audio/webm",
         "audio/mp4",
-        "audio/aac",
       ]);
       this.recorder = mimeType
         ? new MediaRecorder(this.stream, { mimeType })

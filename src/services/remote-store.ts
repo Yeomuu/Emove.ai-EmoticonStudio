@@ -460,7 +460,7 @@ function legacyProjectFromRemoteDoc(envelope: Record<string, unknown> | null, up
     .sort((a, b) => (numberValue(a.layerOrder) ?? 0) - (numberValue(b.layerOrder) ?? 0))
     .map((layer) => layerKind(text(layer.type)))
     .filter((kind): kind is LayerKind => Boolean(kind));
-  const requiredOrder: LayerKind[] = ["text", "accent-effects", "character", "background-effects"];
+  const requiredOrder: LayerKind[] = ["text", "character", "accent-effects", "background-effects"];
   const layers = normalizeRemoteLayers(requiredOrder.map((kind) => ({
     id: kind,
     label: layerLabel(kind),
@@ -654,7 +654,7 @@ function layerAssetUrl(project: Omit<EmoticonProject, "gifBlob">, id: EmoticonPr
 }
 
 function normalizeRemoteLayers(source: EmoticonProject["layers"]): EmoticonProject["layers"] {
-  const required: LayerKind[] = ["text", "accent-effects", "character", "background-effects"];
+  const required: LayerKind[] = ["text", "character", "accent-effects", "background-effects"];
   const rows = new Map(source.map((layer) => [layer.id, layer]));
   const seen = new Set<LayerKind>();
   const editable = source.flatMap((layer) => {

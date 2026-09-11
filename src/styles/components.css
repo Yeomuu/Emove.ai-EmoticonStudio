@@ -2507,9 +2507,41 @@
         color: var(--ink);
     }
 
-    .qr-card img {
+    .qr-code-slot > img {
         width: 190px;
         height: 190px;
+    }
+
+    .qr-code-slot {
+        width: 190px;
+        height: 190px;
+        display: grid;
+        place-items: center;
+        color: #201e28;
+        text-align: center;
+    }
+
+    .qr-code-slot p {
+        margin: 0;
+        padding: 10px;
+        font-size: 13px;
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+    }
+
+    .qr-card .qr-reload {
+        margin: 8px 0;
+        color: #201e28;
+        background: #eeedf3;
+    }
+
+    .qr-reload > .icon {
+        filter: brightness(0);
+    }
+
+    .qr-reload:disabled {
+        opacity: .5;
+        cursor: wait;
     }
 
     .qr-card span {

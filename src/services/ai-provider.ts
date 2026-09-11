@@ -1,7 +1,8 @@
 import type { CharacterToken, FrameGenerationEvent, FrameGenerationJobStatus, FrameGenerationOptions, GeneratedCharacterResult, MotionBrief, OpenAIProvider, TranscriptionResult } from "../types";
 import { FRAME_COUNT } from "../constants";
 import { buildCharacterPrompt, buildFramePrompts, compactEmoticonText } from "./prompt-builder";
-import { compactReferenceImagesForOpenAI, removeChromaKeyBackground } from "./image-processing";
+import { compactReferenceImagesForOpenAI, prepareTransparentGeneratedImage } from "./image-processing";
+import { transcriptionFileName } from "./audio-format";
 
 const CHARACTER_VARIATION_REQUESTS = 1;
 const JOB_POLL_INTERVAL_MS = 2500;
@@ -24,11 +25,13 @@ export class ServerOpenAIProvider implements OpenAIProvider {
   readonly mode = "openai" as const;
 
   async transcribe(audio: Blob): Promise<TranscriptionResult> {
+    if (!audio.size) throw new Error("녹음 파일이 비어 있습니다. 다시 녹음해 주세요.");
     const form = new FormData();
-    form.append("file", audio, "emotion.webm");
-    const response = await fetch(openAIEndpoint("transcribe"), { method: "POST", body: form });
+    form.append("file", audio, transcriptionFileName(audio.type));
+    const response = await fetch(openAIEndpoint("transcribe"), { method: "POST", body: form, signal: AbortSignal.timeout(100_000) });
     if (!response.ok) throw new Error(await readErrorMessage(response));
     const payload = (await response.json()) as { text: string; shortText?: string };
+    if (!payload.text?.trim()) throw new Error("녹음에서 말을 인식하지 못했습니다. 다시 녹음하거나 문구를 직접 입력해 주세요.");
     return { sourceText: payload.text, shortText: payload.shortText ?? compactEmoticonText(payload.text, "") };
   }
 
@@ -48,7 +51,7 @@ export class ServerOpenAIProvider implements OpenAIProvider {
     const rawImages = results.flatMap((result) => result.imageUrls?.length ? result.imageUrls : result.imageUrl ? [result.imageUrl] : []);
     if (!rawImages.length) throw new Error("OpenAI가 캐릭터 이미지를 반환하지 않았습니다.");
     const imageUrls: string[] = [];
-    for (const image of rawImages) imageUrls.push(await removeChromaKeyBackground(image));
+    for (const image of rawImages) imageUrls.push(await prepareTransparentGeneratedImage(image));
     const imageUrl = imageUrls[0];
     const result = results[0];
     return {
@@ -80,7 +83,6 @@ export class ServerOpenAIProvider implements OpenAIProvider {
         prompt,
         frameIndex,
         referenceImages,
-        chromaKeyBackground: "#00FF00",
       }, {
         signal: options.signal,
         onJobStatus: (status) => emitGenerationEvent(options, { phase: "job-status", index: frameIndex, total: FRAME_COUNT, status }),
@@ -88,7 +90,7 @@ export class ServerOpenAIProvider implements OpenAIProvider {
       emitGenerationEvent(options, { phase: "frame-received", index: frameIndex, total: FRAME_COUNT });
       throwIfAborted(options.signal);
       emitGenerationEvent(options, { phase: "frame-processing", index: frameIndex, total: FRAME_COUNT });
-      const transparentFrame = await removeChromaKeyBackground(payload.imageUrl);
+      const transparentFrame = await prepareTransparentGeneratedImage(payload.imageUrl);
       throwIfAborted(options.signal);
       frameImages.push(transparentFrame);
       emitGenerationEvent(options, {

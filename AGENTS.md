@@ -21,18 +21,21 @@ When implementing from a selected generated mock, treat that image as the source
 - Loading spinner/curtain backgrounds should stay solid unless a later visual reference explicitly asks for decorated loader backgrounds.
 - In-page depth changes inside dense flows such as behavior input should not show the global loading curtain; reserve the global curtain for route/page transitions and long generation work.
 - Generation and analysis progress bars should advance on real app work stages; when a single stage takes a long time and exact model progress is unavailable, keep the percent anchored to that stage while the bar surface continues flowing.
-- Long five-frame emoticon generation must surface the real reference-preparation, per-frame request/job/response/chroma-key, asset-readiness, and editor-handoff stages. Its full-screen loader keeps the boot loader's bottom progress anatomy and a center playground that uses the selected or actually completed character frames without changing measured progress.
+- Long five-frame emoticon generation must surface the real reference-preparation, per-frame request/job/response/alpha-validation, asset-readiness, and editor-handoff stages. Its full-screen loader keeps the boot loader's bottom progress anatomy and a center playground that uses the selected or actually completed character frames without changing measured progress.
 - Keep desktop content at a maximum width of 1440px and make every screen responsive.
 - The current canonical Figma `디자인시안` layout uses 1920×1080 page frames; keep page content at a maximum width of 1920px for that redesign while preserving responsive behavior below desktop.
 - Use 760px as the global minimum screen height; if the viewport is shorter, the page must scroll instead of clipping.
-- The Edit timeline has exactly four ordered layers: background effects, character, accent effects, and text.
+- New Edit projects start with the top-to-bottom order text, character, accent effects, background effects. Preserve saved projects' custom layer orders; the background remains locked at the bottom.
+- Layer drag targets use each stationary row's upper half for insertion before and lower half for insertion after. Show an insertion marker without rearranging rows until pointer release.
+- The generation waiting screen includes an isolated, optional 30-second character-target game with score, pause, and restart. Game state never changes prompts, generation progress, API requests, saved data, or completion navigation; timers stop on unmount and pause when hidden.
+- Keep both MediaPipe hand results and measured joint-motion descriptions. Prefer reliable model classes over conflicting geometry heuristics, use temporal wrist tracking for waves, and pass observed motion to generation even when no known gesture label fits. Never claim universal semantic action recognition.
 - OpenAI-dependent features must not fabricate mock user assets; if the API key or server proxy is unavailable, show a clear failure instead of substituting default characters, voice text, poses, or frames.
 - OpenAI generation requires a server proxy. Next.js Route Handlers serve `/api/openai/*`; static-only hosting is not an active deployment target for this project.
 - The production deployment target is Vercel from GitHub `main`.
 - The `recoding` branch and `D:\대학교\EMOVE-recoding` worktree are strictly for local screen recording and testing. Never merge or promote `recoding` into `main`, and never use it as the Vercel production branch; production deployment remains connected only to GitHub `main`.
 - The Home hero exposes only the emoticon-creation CTA; Library access belongs in the production route dock. The local `recoding` branch still removes the entire bottom-right dock so its demo funnel can enter creation only through Home.
 - Keep `README.md` written for outside readers. Move implementation logs, QA notes, validation notes, and prompt-rule drafts into Notion when they are not required for the app to run.
-- For `gpt-image-2`, generate character/effect assets on flat chroma-key green and remove the green background in-browser so stored/displayed assets become transparent PNG data URLs.
+- For `gpt-image-2`, request native transparent backgrounds (`background: "transparent"`, PNG/WebP). Validate alpha and preserve pixels; never remove the background or key out character colors.
 - Copy every used font, icon, and image into this project. Use coolicons only; never mix icon libraries.
 - Work on v1 only; there is no active v2 implementation.
 - The six supplied screen references for Home, Character, Input, Edit, Library, and Library Detail are the page-level layout references.
@@ -73,7 +76,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Production uses an always-visible bottom-right route dock: Home shows only Library, Library and Library Detail show only Home, and Character, Input, and Edit show both Home and Library. Hide and disable it only while a blocking generation or save surface is active.
 - Glassmorphism buttons should use `backdrop-filter` so the background behind the button blurs while button text/icons remain sharp.
 - Do not show pointer-style glow outlines on text inputs after mouse click; keep only a restrained accessible keyboard focus state.
-- Character and emoticon generation prompts must request flat chroma-key green backgrounds only, not transparent backgrounds; transparency is produced by the in-browser chroma-key removal step.
+- Character and emoticon generation prompts request only the character on a real transparent background, without a backdrop, checkerboard, matte, or separately rendered effects. Reference compression must preserve alpha.
 - Generated character variations must be selectable, and selecting a variation must update the main preview/canvas to that exact result.
 - After saving a generated character or emoticon, route the user to Library; Library must support All, Emoticon, and Character views.
 - Library category/group filters must be distinct. Celebration and gratitude cannot activate together just because both map to happy emotion.
@@ -113,8 +116,8 @@ When implementing from a selected generated mock, treat that image as the source
 - The current prototype saves animated emoticons as transparent GIF by default for broad mobile preview compatibility. Keep APNG decoding/export support only for legacy records and a possible later quality mode.
 - Do not keep or reintroduce GitHub Pages deployment workflows unless the user explicitly changes deployment strategy.
 - OpenAI image proxy responses must contain at most one generated image. Character variations and the five emoticon frames are requested step by step from the client so paid OpenAI results are not lost to serverless timeout or response-size limits.
-- OpenAI job image results use same-origin `/api/assets/file` paths, and the client normalizes legacy absolute asset-proxy URLs before chroma-key conversion so `localhost` and `127.0.0.1` host aliases cannot break transparent PNG processing.
-- Use compressed `webp` image API responses by default before browser chroma-key removal; if this changes, the returned data URL MIME type must match the requested image output format.
+- OpenAI job image results use same-origin `/api/assets/file` paths, and the client normalizes legacy absolute asset-proxy URLs before alpha validation so `localhost` and `127.0.0.1` host aliases cannot break transparent PNG processing.
+- Use compressed transparent `webp` image API responses by default before browser alpha validation; the returned data URL MIME type must match the requested image output format. Browser PNG serialization preserves native alpha without background removal.
 - On Vercel production, long image routes such as `character`, `frame`, and `frames` use Firebase Storage-backed status/result polling so paid OpenAI results are not lost to browser-facing function timeouts.
 - Treat the Notion Design System page as fixed unless the user explicitly asks to change it; PRD, technical specification, and page/function documentation may be updated around that fixed design system.
 - When transplanting Notion page-function inventories into a technical test app, focus on the actual page functions, states, controls, and route behavior rather than recreating sidebar/navigation layout details.
@@ -130,6 +133,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Edit save uploads all five transparent character frames, thumbnail, GIF animation, and compact JSON records to Firebase Storage before updating the Library. Any failed part keeps the user in Edit with a persistent manual-retry message; never auto-retry or fall back to local persistence.
 - Shared color pickers are transactional: swatch/HSV/HEX/RGB changes preview live, `선택` commits, and cancel, Escape, outside click, or trigger-close restores the value captured when the picker opened.
 - QR codes open a same-origin mobile preview page first; the user confirms the animated preview there before starting the attachment download.
+- QR image generation runs inside the export modal after save. If QR generation fails, keep the saved animation preview and download action visible and expose a manual reload icon to retry only QR encoding, never asset generation or Firebase writes.
 - After the first successful Edit save, route to Library and open a QR export modal. Library also exposes QR export for saved emoticons, and QR targets the same-origin Firebase Storage attachment download URL.
 - The overall layout reference websites are:
   - https://startrail.stellive.me/ (stellar dynamic components and animations)

@@ -3,6 +3,8 @@ import {
   classifyCustomHandGesture,
   classifyPoseFrame,
   classifyTwoHandGesture,
+  preferReliableHandGesture,
+  summarizeObservedMotion,
   resolvePrimaryGesture,
   selectDominantBodyGesture,
   selectDominantHandGesture,
@@ -115,11 +117,19 @@ function detectCurrentVideoFrame(video: HTMLVideoElement, timestampMs: number): 
   const poseResult = poseLandmarker?.detectForVideo(video, timestampMs);
   let handGesture: HandGesture | undefined;
   let handDetected = false;
+  let hands: VisionMetrics["hands"] = [];
   let faceCategories: BlendshapeCategory[] | undefined;
   try {
     const handResult = gestureRecognizer?.recognizeForVideo(video, timestampMs);
     handDetected = Boolean(handResult?.landmarks.length);
     handGesture = pickFrameHandGesture(handResult);
+    hands = (handResult?.landmarks ?? []).map((landmarks, index) => {
+      const model = handResult?.gestures[index]?.find((category) => category.categoryName !== "None" && category.score >= .5);
+      const decision = preferReliableHandGesture(model ? { gesture: model.categoryName, confidence: model.score } : undefined, classifyCustomHandGesture(landmarks));
+      const knuckles = [5, 9, 13, 17].map((point) => landmarks[point]).filter(Boolean);
+      const palm = knuckles.length === 4 ? { x: knuckles.reduce((sum, point) => sum + point.x, 0) / 4, y: knuckles.reduce((sum, point) => sum + point.y, 0) / 4, raised: landmarks[9].y < landmarks[0].y } : undefined;
+      return { side: handResult?.handedness[index]?.[0]?.categoryName ?? "Unknown", gesture: decision?.gesture ?? "Hand_Shape_Unclassified", confidence: decision?.confidence ?? 0, palm };
+    });
   } catch {
     handGesture = undefined;
   }
@@ -128,7 +138,7 @@ function detectCurrentVideoFrame(video: HTMLVideoElement, timestampMs: number): 
   } catch {
     faceUnavailable = true;
   }
-  return buildMetrics(poseResult?.landmarks[0], faceCategories, handGesture, handDetected);
+  return { ...buildMetrics(poseResult?.landmarks[0], faceCategories, handGesture, handDetected), hands };
 }
 
 async function ensureFileset(): Promise<VisionFileset> {
@@ -256,7 +266,7 @@ function summarizeVideoSamples(samples: VisionMetrics[], lastError: Error | unde
     mediapipeSamples.flatMap((sample) => sample.hand ? [sample.hand] : []),
     mediapipeSamples.length,
   );
-  const dominantBody = selectDominantBodyGesture(poseSamples);
+  const dominantBody = selectDominantBodyGesture(mediapipeSamples);
   const handDetectedFrames = mediapipeSamples.filter((sample) => sample.handDetected).length;
   const handDetected = handDetectedFrames >= Math.max(2, Math.ceil(mediapipeSamples.length * .14));
 
@@ -273,7 +283,15 @@ function summarizeVideoSamples(samples: VisionMetrics[], lastError: Error | unde
 
   const armSpread = percentile(poseSamples.map((sample) => sample.pose?.armSpread ?? 0), .75);
   const shoulderTilt = percentile(poseSamples.map((sample) => sample.pose?.shoulderTilt ?? 0), .75);
-  const primaryGesture = resolvePrimaryGesture(dominantHand, dominantBody, handDetected);
+  const bothPalms = mediapipeSamples.filter((sample) => sample.hands?.filter((hand) => hand.gesture === "Open_Palm" && hand.confidence >= .55).length === 2).length;
+  const combinedHand = bothPalms >= Math.max(3, mediapipeSamples.length * .2)
+    ? { gesture: "Both_Open_Palms", confidence: dominantHand?.confidence ?? .55 }
+    : dominantHand;
+  const primaryGesture = resolvePrimaryGesture(combinedHand, dominantBody, handDetected);
+  const hands = ["Left", "Right"].flatMap((side) => {
+    const hand = selectDominantHandGesture(mediapipeSamples.flatMap((sample) => sample.hands?.filter((hand) => hand.side === side) ?? []), mediapipeSamples.length);
+    return hand ? [{ ...hand, side }] : [];
+  });
 
   return {
     source: "mediapipe",
@@ -284,7 +302,9 @@ function summarizeVideoSamples(samples: VisionMetrics[], lastError: Error | unde
       bodyConfidence: dominantBody?.confidence,
     },
     face: bestFace,
-    hand: dominantHand,
+    hand: combinedHand,
+    hands,
+    observedMotion: summarizeObservedMotion(poseSamples),
     handDetected,
     gesture: primaryGesture,
     diagnostics: `5초 영상에서 ${mediapipeSamples.length}회 손가락을, ${poseSamples.length}회 상체 관절과 이동 궤적을 추적했습니다. MediaPipe pose=${poseDelegate ?? "unknown"}, gesture=${gestureDelegate ?? "off"}${dominantHand ? `, hand=${dominantHand.gesture} ${Math.round(dominantHand.confidence * 100)}%` : handDetected ? ", hand=unclassified" : ""}${dominantBody ? `, body=${dominantBody.gesture} ${Math.round(dominantBody.confidence * 100)}%` : ""}${faceDelegate ? `, face=${faceDelegate}` : ""}.`,
@@ -343,9 +363,7 @@ function pickFrameHandGesture(result: GestureRecognizerResult | undefined): Hand
     .sort((left, right) => right.confidence - left.confidence);
   const custom = customCandidates[0];
   const canned = cannedCandidates[0];
-  if (twoHandGesture && twoHandGesture.confidence >= .7) return twoHandGesture;
-  if (custom && custom.confidence >= .72) return custom;
-  return canned ?? custom;
+  return preferReliableHandGesture(canned, twoHandGesture ?? custom);
 }
 
 function summarizeFace(categories: BlendshapeCategory[]): NonNullable<VisionMetrics["face"]> {

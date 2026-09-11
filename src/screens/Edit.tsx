@@ -10,6 +10,7 @@ import { emotionMeta } from "../data";
 import { navigate } from "../router";
 import { persistGeneratedAsset, persistGeneratedAssets } from "../services/asset-storage";
 import { createQrExportPayload } from "../services/qr-export";
+import { layerDropPosition } from "../services/layer-order";
 import { syncProjectToRemote } from "../services/remote-store";
 import { exportAnimation, renderFrame, renderFrameDataUrl } from "../services/renderer";
 import { publishAnimationForQr } from "../services/share";
@@ -45,15 +46,17 @@ export function EditPage() {
   const exportLockRef = useRef(false);
   const mountedRef = useRef(false);
   const saveRunRef = useRef(0);
-  const [dragId, setDragId] = useState<LayerKind>(); const [dragPreview, setDragPreview] = useState<EditorLayer[] | null>(null);
+  const [dragId, setDragId] = useState<LayerKind>();
+  const dragCleanupRef = useRef<(() => void) | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: LayerKind; position: "before" | "after" } | null>(null); const [dragPoint, setDragPoint] = useState<{ x: number; y: number } | null>(null);
   const activeLayerId = activeLayer.value;
   const transform = activeLayerId ? layerTransforms.value[activeLayerId] : null; const active = activeLayerId ? layers.value.find((layer) => layer.id === activeLayerId) : null;
-  const displayedLayers = dragPreview ?? layers.value;
+  const displayedLayers = layers.value;
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      dragCleanupRef.current?.();
       saveRunRef.current += 1;
     };
   }, []);
@@ -72,31 +75,39 @@ export function EditPage() {
     if (!emoticonTitle.value.trim()) emoticonTitle.value = editingProject.value?.sticker.title || transcript.value.trim().slice(0, 12) || "새 이모티콘";
   }, []);
   const beginLayerDrag = (event: ReactPointerEvent<HTMLButtonElement>, sourceId: LayerKind) => {
-    if (event.button !== 0 || sourceId === "background-effects") return;
+    if (event.button !== 0 || sourceId === "background-effects" || dragCleanupRef.current) return;
     event.preventDefault(); event.stopPropagation();
     const handle = event.currentTarget as HTMLButtonElement; handle.setPointerCapture(event.pointerId);
     const original = [...layers.value]; const start = { x: event.clientX, y: event.clientY }; let currentPreview: EditorLayer[] | null = null; let moved = false;
-    setDragId(sourceId); setDragPreview(original); setDragPoint(start); setDropTarget(null);
+    setDragId(sourceId); setDragPoint(start); setDropTarget(null);
     const move = (next: PointerEvent) => {
+      if (next.pointerId !== event.pointerId) return;
       next.preventDefault(); setDragPoint({ x: next.clientX, y: next.clientY });
-      if (Math.hypot(next.clientX - start.x, next.clientY - start.y) < 4) return;
+      if (!moved && Math.hypot(next.clientX - start.x, next.clientY - start.y) < 4) return;
       moved = true;
       const row = document.elementFromPoint(next.clientX, next.clientY)?.closest<HTMLElement>("[data-layer-id]");
       const targetId = row?.dataset.layerId as LayerKind | undefined;
-      if (!row || !targetId || targetId === sourceId) { currentPreview = null; setDragPreview(original); setDropTarget(null); return; }
-      const position = next.clientY < row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2 ? "before" : "after";
-      currentPreview = previewLayerOrder(original, sourceId, targetId, position); setDragPreview(currentPreview); setDropTarget({ id: targetId, position });
+      if (!row || !targetId || targetId === sourceId || targetId === "background-effects") { currentPreview = null; setDropTarget(null); return; }
+      const bounds = row.getBoundingClientRect();
+      const position = layerDropPosition(next.clientY, bounds.top, bounds.height);
+      // Keep row geometry stable until drop; reordering during hover moves the hit target.
+      currentPreview = previewLayerOrder(original, sourceId, targetId, position); setDropTarget({ id: targetId, position });
     };
     const finish = (cancelled = false) => {
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", cancel);
+      dragCleanupRef.current = null;
+      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+      if (!mountedRef.current) return;
       if (!cancelled && moved && currentPreview) {
         layers.value = currentPreview; const index = currentPreview.findIndex((layer) => layer.id === sourceId); const label = currentPreview[index]?.label ?? "레이어";
         notify(`${label} 레이어를 ${index + 1}번째 위치로 옮겼어요.`);
       } else if (!cancelled && moved) notify("레이어 행의 위쪽이나 아래쪽에 놓아주세요.");
-      setDragId(undefined); setDragPreview(null); setDropTarget(null); setDragPoint(null);
+      setDragId(undefined); setDropTarget(null); setDragPoint(null);
     };
-    const up = () => finish(false); const cancel = () => finish(true);
-    window.addEventListener("pointermove", move, { passive: false }); window.addEventListener("pointerup", up, { once: true }); window.addEventListener("pointercancel", cancel, { once: true });
+    const up = (next: PointerEvent) => { if (next.pointerId === event.pointerId) { move(next); finish(false); } };
+    const cancel = (next: PointerEvent) => { if (next.pointerId === event.pointerId) finish(true); };
+    dragCleanupRef.current = () => finish(true);
+    window.addEventListener("pointermove", move, { passive: false }); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", cancel);
   };
 
   const buildAndSave = async (): Promise<EmoticonProject> => {
@@ -201,7 +212,6 @@ export function EditPage() {
     if (!sync.enabled) {
       throw new Error(sync.storageWarning || "프로젝트 메타데이터를 Firebase Storage에 저장하지 못했습니다.");
     }
-    const qrPayload = await createQrExportPayload(project.sticker);
     if (!mountedRef.current) return project;
     const currentIndex = stickers.value.findIndex((item) => item.id === project.sticker.id);
     stickers.value = currentIndex >= 0
@@ -210,8 +220,14 @@ export function EditPage() {
     editingProject.value = project;
     lastSaved.value = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
     frameImages.value = storedFrameUrls;
-    pendingQrExport.value = qrPayload;
     notify(original ? "원본 이모티콘을 Firebase Storage에 덮어 저장했어요." : "이모티콘을 Firebase Storage에 저장했어요.");
+    pendingQrExport.value = null;
+    try {
+      const qrPayload = createQrExportPayload(project.sticker);
+      if (mountedRef.current) pendingQrExport.value = qrPayload;
+    } catch {
+      if (mountedRef.current) notify("저장은 완료됐지만 QR 코드를 만들지 못했습니다. 라이브러리에서 QR 내보내기를 다시 눌러 주세요.");
+    }
     return project;
   };
 

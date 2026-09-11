@@ -116,6 +116,7 @@ export function selectCharacter(id: string): void {
 
 export function startNewEmoticonProject(): void {
   editingProject.value = null;
+  layers.value = initialLayers.map((layer) => ({ ...layer }));
   emoticonTitle.value = transcript.value.trim().slice(0, 12) || "새 이모티콘";
   exportAnimationFormat.value = "GIF";
   pendingQrExport.value = null;

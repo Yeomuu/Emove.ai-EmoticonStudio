@@ -208,8 +208,12 @@ export interface VisionMetrics {
     bodyConfidence?: number;
     leftWrist?: { x: number; y: number; raised: boolean };
     rightWrist?: { x: number; y: number; raised: boolean };
+    shoulderWidth?: number;
+    landmarks?: Array<{ x: number; y: number; visibility?: number }>;
   };
   hand?: { gesture: string; confidence: number };
+  hands?: Array<{ side: string; gesture: string; confidence: number; palm?: { x: number; y: number; raised: boolean } }>;
+  observedMotion?: string;
   handDetected?: boolean;
   gesture?: string;
   source: "mediapipe" | "unavailable";
@@ -252,7 +256,6 @@ export interface QrExportPayload {
   previewUrl: string;
   targetUrl: string;
   downloadUrl: string;
-  qrDataUrl: string;
 }
 
 export interface AuthUser {

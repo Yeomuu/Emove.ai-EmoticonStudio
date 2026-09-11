@@ -26,7 +26,6 @@ const ENV_KEYS = [
   "OPENAI_IMAGE_OUTPUT_COMPRESSION",
   "OPENAI_IMAGE_COMPRESSION",
   "OPENAI_IMAGE_CONCURRENCY",
-  "OPENAI_CHARACTER_VARIATIONS",
 ] as const;
 
 export async function POST(request: Request): Promise<Response> {

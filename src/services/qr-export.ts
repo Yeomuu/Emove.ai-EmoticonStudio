@@ -1,16 +1,10 @@
 import type { QrExportPayload, StickerItem } from "../types";
 
-export async function createQrExportPayload(item: StickerItem): Promise<QrExportPayload> {
+export function createQrExportPayload(item: StickerItem): QrExportPayload {
   const previewUrl = item.animatedImage || item.image;
   if (!previewUrl) throw new Error("QR로 내보낼 이모티콘 파일이 없습니다.");
   const targetUrl = qrDownloadTarget(item);
   const downloadUrl = qrDirectDownloadTarget(item);
-  const { default: QRCode } = await import("qrcode");
-  const qrDataUrl = await QRCode.toDataURL(targetUrl, {
-    width: 260,
-    margin: 1,
-    color: { dark: "#201E28", light: "#FCFCFC" },
-  });
   return {
     stickerId: item.id,
     title: item.title,
@@ -18,8 +12,16 @@ export async function createQrExportPayload(item: StickerItem): Promise<QrExport
     previewUrl,
     targetUrl,
     downloadUrl,
-    qrDataUrl,
   };
+}
+
+export async function generateQrDataUrl(targetUrl: string): Promise<string> {
+  const { default: QRCode } = await import("qrcode");
+  return QRCode.toDataURL(targetUrl, {
+    width: 260,
+    margin: 1,
+    color: { dark: "#201E28", light: "#FCFCFC" },
+  });
 }
 
 export function qrDownloadTarget(item: StickerItem): string {

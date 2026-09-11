@@ -109,9 +109,9 @@ export function LibraryPage() {
     notify(updated.favorite ? "즐겨찾기에 추가했습니다." : "즐겨찾기에서 제거했습니다.");
   };
 
-  const openQrExport = async (item: StickerItem) => {
+  const openQrExport = (item: StickerItem) => {
     try {
-      pendingQrExport.value = await createQrExportPayload(item);
+      pendingQrExport.value = createQrExportPayload(item);
     } catch (error) {
       notify(`QR 내보내기를 준비하지 못했습니다. ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -885,7 +885,7 @@ export function LibraryPage() {
           </section>
         </div>
       )}
-      {pendingQrExport.value ? <QrExportModal payload={pendingQrExport.value} onClose={() => (pendingQrExport.value = null)} /> : null}
+      {pendingQrExport.value ? <QrExportModal key={`${pendingQrExport.value.stickerId}:${pendingQrExport.value.targetUrl}`} payload={pendingQrExport.value} onClose={() => (pendingQrExport.value = null)} /> : null}
     </>
   );
 }
@@ -919,7 +919,7 @@ function LibraryDetail({
   project?: EmoticonProject;
   onEdit: (item: StickerItem, project?: EmoticonProject) => void;
   onFavorite: (item: StickerItem) => Promise<void>;
-  onQr: (item: StickerItem) => Promise<void>;
+  onQr: (item: StickerItem) => void;
 }) {
   const stillImage = item.thumbnail ?? item.image;
   const animatedImage = item.animatedImage ?? item.image;

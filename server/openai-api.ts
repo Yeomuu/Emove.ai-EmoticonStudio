@@ -34,7 +34,7 @@ export async function handleOpenAIRequest(request: Request, env: ServerEnv): Pro
 }
 
 function openAIKey(value: string | undefined): string | undefined {
-  const key = value?.trim();
+  const key = cleanEnvValue(value);
   return key?.startsWith("sk-") ? key : undefined;
 }
 
@@ -42,15 +42,28 @@ async function transcribe(request: Request, key: string, env: ServerEnv) {
   const incoming = await request.formData();
   const file = incoming.get("file");
   if (!(file instanceof File)) return json(400, { error: "음성 파일이 없습니다." });
+  if (!file.size) return json(400, { error: "녹음 파일이 비어 있습니다. 마이크를 확인하고 다시 녹음해 주세요." });
+  if (file.size > 4_000_000) return json(413, { error: "녹음 파일이 너무 큽니다. 5초 분량으로 다시 녹음해 주세요." });
   const form = new FormData();
   form.append("file", file, file.name || "emotion.webm");
-  form.append("model", env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-transcribe");
-  const openai = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form });
-  const payload = await openai.json() as { text?: string; error?: { message?: string } };
-  if (!openai.ok) throw new Error(payload.error?.message || "OpenAI 음성 전사에 실패했습니다.");
+  form.append("model", cleanEnvValue(env.OPENAI_TRANSCRIBE_MODEL) || "gpt-transcribe");
+  let openai: Response;
+  try {
+    openai = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(90_000) });
+  } catch (error) {
+    const timedOut = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
+    return json(timedOut ? 504 : 502, { error: timedOut ? "음성 전사 응답 시간이 초과되었습니다. 다시 녹음하거나 문구를 직접 입력해 주세요." : "음성 전사 서버에 연결하지 못했습니다. 잠시 후 다시 녹음하거나 문구를 직접 입력해 주세요." });
+  }
+  const payload = await openai.json().catch(() => ({})) as { text?: string; error?: { message?: string; code?: string } };
+  if (!openai.ok) return json(openai.status, {
+    error: payload.error?.message || `OpenAI 음성 전사에 실패했습니다. (${openai.status})`,
+    code: payload.error?.code,
+    requestId: openai.headers.get("x-request-id") ?? undefined,
+  });
   const text = payload.text?.trim() ?? "";
+  if (!text) return json(422, { error: "녹음에서 말을 인식하지 못했습니다. 마이크를 확인하고 다시 녹음하거나 문구를 직접 입력해 주세요." });
   const shortText = text
-    ? env.OPENAI_SUMMARIZE_TRANSCRIPT === "true" ? await summarizeTranscript(text, key, env) : compactFallback(text)
+    ? cleanEnvValue(env.OPENAI_SUMMARIZE_TRANSCRIPT) === "true" ? await summarizeTranscript(text, key, env) : compactFallback(text)
     : "";
   return json(200, { text, shortText });
 }
@@ -66,7 +79,7 @@ async function generateCharacter(request: Request, key: string, env: ServerEnv) 
   const reference = body.referenceImages?.[0];
   const prompts = await refineImagePrompts("character", drafts, promptPlanningContext(body), key, env);
   const imageUrls = await mapWithConcurrency(prompts, Number(env.OPENAI_IMAGE_CONCURRENCY || 2), (prompt) => (
-    reference ? editImage(`${prompt}\nUse the supplied image only as visual reference for shape, material, color mood, or rendering style. Produce the requested EMOVE character alone on #00FF00.`, reference, key, env) : generateImage(prompt, key, env)
+    reference ? editImage(`${prompt}\nUse the supplied image only as visual reference for shape, material, color mood, or rendering style. Produce the requested EMOVE character alone on a transparent background with real alpha.`, reference, key, env) : generateImage(prompt, key, env)
   ));
   return json(200, { imageUrl: imageUrls[0], imageUrls, token: body.token, revisedPrompt: prompts[0], revisedPrompts: prompts });
 }
@@ -97,6 +110,9 @@ async function generateImage(prompt: string, key: string, env: ServerEnv): Promi
 }
 
 async function editImage(prompt: string, referenceUrl: string, key: string, env: ServerEnv): Promise<string> {
+  if (referenceUrl.length > 4_000_000 || !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(referenceUrl)) {
+    throw new Error("참조 이미지는 브라우저에서 준비한 PNG/WebP/JPEG 데이터여야 합니다. 이미지를 다시 선택해 주세요.");
+  }
   const source = await fetch(referenceUrl);
   if (!source.ok) throw new Error("캐릭터 참조 이미지를 불러오지 못했습니다.");
   const form = new FormData();
@@ -141,10 +157,10 @@ async function fetchImageAsDataUrl(url: string): Promise<string> {
 
 function imageOutputOptions(env: ServerEnv): ImageOutputOptions {
   const model = normalizeImageModel(env.OPENAI_IMAGE_MODEL);
-  const requestedBackground = cleanEnvValue(env.OPENAI_IMAGE_BACKGROUND) || "auto";
-  const background = requestedBackground === "transparent" ? "auto" : requestedBackground;
+  const background = "transparent";
   const output_format = imageOutputFormat(cleanEnvValue(env.OPENAI_IMAGE_OUTPUT_FORMAT) || cleanEnvValue(env.OPENAI_IMAGE_FORMAT) || "webp");
-  const output_compression = output_format === "webp" || output_format === "jpeg" ? imageCompression(cleanEnvValue(env.OPENAI_IMAGE_OUTPUT_COMPRESSION) || cleanEnvValue(env.OPENAI_IMAGE_COMPRESSION) || "70") : undefined;
+  if (output_format === "jpeg") throw new Error("투명 이미지에는 JPEG를 사용할 수 없습니다. OPENAI_IMAGE_OUTPUT_FORMAT을 webp 또는 png로 설정해 주세요.");
+  const output_compression = output_format === "webp" ? imageCompression(cleanEnvValue(env.OPENAI_IMAGE_OUTPUT_COMPRESSION) || cleanEnvValue(env.OPENAI_IMAGE_COMPRESSION) || "70") : undefined;
   return {
     model,
     size: cleanEnvValue(env.OPENAI_IMAGE_SIZE) || "1024x1024",
@@ -185,20 +201,22 @@ function imageCompression(value: string): number {
 }
 
 async function refineImagePrompts(kind: PromptKind, drafts: string[], context: unknown, key: string, env: ServerEnv): Promise<string[]> {
-  if (env.OPENAI_REFINE_IMAGE_PROMPTS !== "true") return drafts;
-  const model = env.OPENAI_PROMPT_MODEL || "gpt-5.5-2026-04-23";
+  if (cleanEnvValue(env.OPENAI_REFINE_IMAGE_PROMPTS) !== "true") return drafts;
+  const model = cleanEnvValue(env.OPENAI_PROMPT_MODEL) || "gpt-4.1-mini";
   const system = [
     "You are EMOVE's image prompt planner.",
     "Follow prompt-engineering fundamentals: clear instruction, concrete context, explicit constraints, output-only response, and style consistency.",
     "Return JSON only as {\"prompts\":[\"...\"]}. Keep the same number and order of prompts.",
     "Do not invent UI copy or change captured text, pose, expression facts, character identity, color palette, style mode, or frame order.",
-    "Character prompts must describe only the character on #00FF00 chroma-key green.",
+    "Character and frame prompts must request a transparent background with real alpha, never a colored backdrop or checkerboard.",
+    "User-confirmed emotion, exaggeration and motion amplitude are authoritative; never replace them with captured analysis values.",
     "Frame prompts must describe only character pose/expression/action frames, never background effects, text, bubbles, props, or scenery.",
   ].join(" ");
   const user = JSON.stringify({ kind, drafts, context });
   try {
     const openai = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(15_000),
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
@@ -224,9 +242,10 @@ async function summarizeTranscript(text: string, key: string, env: ServerEnv): P
   try {
     const openai = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(8_000),
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: env.OPENAI_PROMPT_MODEL || "gpt-4.1-mini",
+        model: cleanEnvValue(env.OPENAI_PROMPT_MODEL) || "gpt-4.1-mini",
         messages: [
           { role: "system", content: "You summarize Korean speech for a short emoticon speech bubble. Return JSON only as {\"shortText\":\"...\"}. Preserve the user's intent; do not invent emotion or new facts. Keep it 2-10 Korean characters when possible." },
           { role: "user", content: text },

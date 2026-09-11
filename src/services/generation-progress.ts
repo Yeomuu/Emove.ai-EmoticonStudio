@@ -44,7 +44,7 @@ export function generationProgressFromEvent(event: FrameGenerationEvent): Genera
     return state(`${frameLabel} 결과를 받아왔어요 · ${index + 1}/${total}`, frameBase + frameSpan * .66, completedFrames);
   }
   if (event.phase === "frame-processing") {
-    return state(`${frameLabel}의 초록 배경을 투명하게 정리하는 중 · ${index + 1}/${total}`, frameBase + frameSpan * .84, completedFrames);
+    return state(`${frameLabel}의 투명 이미지와 알파 채널을 확인하는 중 · ${index + 1}/${total}`, frameBase + frameSpan * .84, completedFrames);
   }
   return state(`${frameLabel} 준비 완료 · ${event.completed}/${total}`, frameBase + frameSpan, event.completed);
 }

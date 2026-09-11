@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMotionBrief, defaultCharacterTokens, emotionMeta, initialLayers } from "../src/data";
 import { FRAME_COUNT } from "../src/constants";
 import { normalizePath } from "../src/router";
-import { keyOutConnectedGreen, normalizeGeneratedImageSource, removeChromaKeyBackground } from "../src/services/image-processing";
+import { assertTransparentCharacterPixels, compactReferenceImageForOpenAI, normalizeGeneratedImageSource, prepareTransparentGeneratedImage } from "../src/services/image-processing";
 import { synchronizedCaptureIssue } from "../src/services/media";
 import { encodeApngPngFrames, encodeGifFrames } from "../src/services/renderer";
 import { persistGeneratedAsset } from "../src/services/asset-storage";
@@ -496,8 +496,8 @@ describe("four layer edit contract", () => {
   it("contains the required layers in top-to-bottom editor order", () => {
     expect(initialLayers.map((layer) => layer.id)).toEqual([
       "text",
-      "accent-effects",
       "character",
+      "accent-effects",
       "background-effects",
     ]);
     expect(new Set(initialLayers.map((layer) => layer.id)).size).toBe(4);
@@ -506,10 +506,10 @@ describe("four layer edit contract", () => {
 
   it("reorders editable layers while keeping the fixed background at the bottom", () => {
     expect(previewLayerOrder(initialLayers, "background-effects", "text", "before").map((layer) => layer.id)).toEqual([
-      "text", "accent-effects", "character", "background-effects",
+      "text", "character", "accent-effects", "background-effects",
     ]);
     expect(previewLayerOrder(initialLayers, "text", "background-effects", "after").map((layer) => layer.id)).toEqual([
-      "text", "accent-effects", "character", "background-effects",
+      "text", "character", "accent-effects", "background-effects",
     ]);
     expect(previewLayerOrder(initialLayers, "character", "text", "before").map((layer) => layer.id)).toEqual([
       "character", "text", "accent-effects", "background-effects",
@@ -700,7 +700,7 @@ describe("OpenAI image-cost boundary", () => {
       });
       const options = fetchMock.mock.calls[0]?.[1] as RequestInit;
       expect(response?.status).toBe(200);
-      expect(JSON.parse(String(options.body))).toMatchObject({ model: "gpt-image-2", quality: "low" });
+      expect(JSON.parse(String(options.body))).toMatchObject({ model: "gpt-image-2", quality: "low", background: "transparent", output_format: "webp" });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -821,7 +821,7 @@ describe("GIF export encoder", () => {
 describe("transparent animation pipeline", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("rewrites localhost asset-proxy results to the page origin before chroma-key decoding", () => {
+  it("rewrites localhost asset-proxy results to the page origin before native alpha validation", () => {
     const generated = "http://localhost:3012/api/assets/file?path=assets%2Fframes%2Fframe.webp";
     expect(normalizeGeneratedImageSource(generated, "http://127.0.0.1:3012/input")).toBe(
       "/api/assets/file?path=assets%2Fframes%2Fframe.webp",
@@ -839,10 +839,11 @@ describe("transparent animation pipeline", () => {
 
   it("loads a legacy localhost frame through the current origin and returns a transparent PNG", async () => {
     const pixels = new Uint8ClampedArray([
-      0, 255, 0, 255,
+      0, 255, 0, 0,
       184, 178, 255, 255,
-      0, 255, 0, 255,
+      0, 255, 0, 0,
     ]);
+    const originalPixels = pixels.slice();
     let assignedSource = "";
     class FakeImage {
       decoding = "";
@@ -872,45 +873,42 @@ describe("transparent animation pipeline", () => {
     vi.stubGlobal("document", { createElement: () => canvas });
     vi.stubGlobal("Image", FakeImage);
 
-    const result = await removeChromaKeyBackground(
+    const result = await prepareTransparentGeneratedImage(
       "http://localhost:3012/api/assets/file?path=assets%2Fframes%2Fframe.webp",
     );
 
     expect(assignedSource).toBe("/api/assets/file?path=assets%2Fframes%2Fframe.webp");
     expect(result).toBe("data:image/png;base64,processed");
+    expect(pixels).toEqual(originalPixels);
     expect([pixels[3], pixels[7], pixels[11]]).toEqual([0, 255, 0]);
   });
 
-  it("removes connected chroma green while preserving the character-colored center pixel", () => {
-    const width = 3;
-    const height = 3;
-    const pixels = new Uint8ClampedArray([
-      0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255,
-      0, 255, 0, 255, 184, 178, 255, 255, 0, 255, 0, 255,
-      0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255,
-    ]);
-
-    keyOutConnectedGreen(pixels, width, height);
-
-    expect(Array.from({ length: 9 }, (_, index) => pixels[index * 4 + 3])).toEqual([
-      0, 0, 0,
-      0, 255, 0,
-      0, 0, 0,
-    ]);
-    expect(Array.from(pixels.slice(16, 20))).toEqual([184, 178, 255, 255]);
+  it("rejects opaque and empty results without removing any pixels", () => {
+    const opaque = new Uint8ClampedArray([0, 255, 0, 255, 180, 170, 210, 255]);
+    expect(() => assertTransparentCharacterPixels(opaque)).toThrow(/투명 배경/);
+    expect(opaque[3]).toBe(255);
+    expect(() => assertTransparentCharacterPixels(new Uint8ClampedArray(8))).toThrow(/비어/);
+    expect(() => assertTransparentCharacterPixels(new Uint8ClampedArray([0, 0, 0, 0, 0, 255, 0, 255]))).not.toThrow();
   });
 
-  it("despills semi-green edge pixels next to the transparent background", () => {
-    const pixels = new Uint8ClampedArray([
-      0, 255, 0, 255,
-      85, 100, 86, 255,
-      180, 170, 210, 255,
-    ]);
-    keyOutConnectedGreen(pixels, 3, 1);
-    expect(pixels[3]).toBe(0);
-    expect(pixels[5]).toBeLessThanOrEqual(Math.max(pixels[4], pixels[6]));
-    expect(pixels[7]).toBeLessThan(255);
-    expect(Array.from(pixels.slice(8, 12))).toEqual([180, 170, 210, 255]);
+  it("compresses references without painting a backdrop or losing alpha to JPEG", async () => {
+    class FakeImage {
+      naturalWidth = 1024;
+      naturalHeight = 512;
+      onload: (() => void) | null = null;
+      set src(_value: string) { queueMicrotask(() => this.onload?.()); }
+    }
+    const fillRect = vi.fn();
+    const toDataURL = vi.fn().mockReturnValueOnce(`data:image/png;base64,${"A".repeat(1_200_001)}`).mockReturnValueOnce("data:image/webp;base64,AA==");
+    const canvas = { width: 0, height: 0, getContext: () => ({ drawImage: vi.fn(), fillRect }), toDataURL };
+    vi.stubGlobal("window", { location: { href: "http://localhost/input" } });
+    vi.stubGlobal("document", { createElement: () => canvas });
+    vi.stubGlobal("Image", FakeImage);
+    expect(await compactReferenceImageForOpenAI("data:image/png;base64,AA==")).toBe("data:image/webp;base64,AA==");
+    expect(fillRect).not.toHaveBeenCalled();
+    expect(canvas.width).toBe(512);
+    expect(canvas.height).toBe(256);
+    expect(toDataURL.mock.calls).toEqual([["image/png"], ["image/webp", .82]]);
   });
 
   it("packages multiple PNG frames into a looping APNG container", async () => {

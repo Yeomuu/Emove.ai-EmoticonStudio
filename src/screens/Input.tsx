@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import { BackgroundEffectPreview } from "../components/BackgroundEffectPreview";
 import { Panel } from "../components/Shell";
 import { Waveform } from "../components/Waveform";
+import { WaitingGame } from "../components/WaitingGame";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
 import { FRAME_COUNT } from "../constants";
 import { emotionMeta, emotionOrder, imageAssets } from "../data";
@@ -405,7 +406,7 @@ export function InputPage() {
       setTranscriptionWarning(null);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      setTranscriptionWarning(`음성 전사에 실패했습니다. 원본 녹음은 감정 분석에 사용했어요. 문구를 직접 입력하거나 다시 녹음해 주세요. (${detail})`);
+      setTranscriptionWarning(`음성 전사에 실패했습니다. 원본 녹음은 별도로 감정 분석에 전달하며, 분석 결과에서 사용한 방식을 확인할 수 있어요. 문구를 직접 입력하거나 다시 녹음해 주세요. (${detail})`);
     }
     sourceTranscript.value = resultText.sourceText;
     transcript.value = resultText.shortText;
@@ -430,7 +431,7 @@ export function InputPage() {
       id: `capture-${Date.now()}`,
       videoBlob,
       audioBlob,
-      poseSummary: describePose(metrics),
+      poseSummary: [describePose(metrics), ...(metrics.hands ?? []).map((hand) => `${hand.side}: ${getGestureLabel(hand.gesture)}`), metrics.observedMotion].filter(Boolean).join(" · "),
       gesture: metrics.gesture ?? "Not_Detected",
       handGesture: metrics.hand?.gesture,
       handConfidence: metrics.hand?.confidence,
@@ -967,95 +968,24 @@ function WorkProcessScreen({
 }
 
 function GenerationPlayground({ frames, fallbackImage, completedFrames }: { frames: string[]; fallbackImage: string; completedFrames: number }) {
-  const stageRef = useRef<HTMLDivElement>(null);
-  const manualFrameSelectionRef = useRef(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [position, setPosition] = useState({ x: 50, y: 50 });
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const latestFrameIndex = Math.max(0, frames.reduce((latest, frame, index) => (frame ? index : latest), 0));
-  const displayedImage = frames[selectedIndex] || frames[latestFrameIndex] || fallbackImage;
-
-  useEffect(() => {
-    if (!manualFrameSelectionRef.current && frames[latestFrameIndex]) setSelectedIndex(latestFrameIndex);
-  }, [frames, latestFrameIndex]);
-
-  const moveCharacter = (clientX: number, clientY: number) => {
-    const bounds = stageRef.current?.getBoundingClientRect();
-    if (!bounds) return;
-    setPosition({
-      x: Math.max(16, Math.min(84, ((clientX - bounds.left) / bounds.width) * 100)),
-      y: Math.max(20, Math.min(80, ((clientY - bounds.top) / bounds.height) * 100)),
-    });
-  };
-
-  const beginDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    const target = event.currentTarget;
-    target.setPointerCapture(event.pointerId);
-    moveCharacter(event.clientX, event.clientY);
-    const move = (next: PointerEvent) => moveCharacter(next.clientX, next.clientY);
-    const finish = () => {
-      target.removeEventListener("pointermove", move);
-      target.removeEventListener("pointerup", finish);
-      target.removeEventListener("pointercancel", finish);
-    };
-    target.addEventListener("pointermove", move);
-    target.addEventListener("pointerup", finish);
-    target.addEventListener("pointercancel", finish);
-  };
-
-  const moveWithKeyboard = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    const step = event.shiftKey ? 10 : 4;
-    if (event.key === "Home") {
-      event.preventDefault();
-      setPosition({ x: 50, y: 50 });
-      return;
-    }
-    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
-    event.preventDefault();
-    setPosition((current) => ({
-      x: Math.max(16, Math.min(84, current.x + (event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0))),
-      y: Math.max(20, Math.min(80, current.y + (event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0))),
-    }));
-  };
+  const activeIndex = selectedIndex ?? latestFrameIndex;
+  const displayedImage = frames[activeIndex] || frames[latestFrameIndex] || fallbackImage;
 
   return (
     <div className="generation-playground-shell">
       <div className="generation-playground-heading">
-        <span>WAITING PLAYGROUND</span>
-        <h2>기다리는 동안 캐릭터를 움직여 보세요.</h2>
-        <p>완성된 프레임은 아래 컷 버튼에서 바로 확인할 수 있어요.</p>
+        <span>WAITING ARCADE</span>
+        <h2>캐릭터 캐치</h2>
       </div>
-      <div className="generation-playground" ref={stageRef}>
-        <button
-          type="button"
-          className="generation-play-character"
-          style={{ left: `${position.x}%`, top: `${position.y}%` }}
-          onPointerDown={beginDrag}
-          onKeyDown={moveWithKeyboard}
-          aria-label="캐릭터 드래그하기. 방향키로도 움직일 수 있습니다."
-        >
-          <img src={displayedImage} alt="생성 중인 캐릭터" draggable={false} />
-        </button>
-        <button type="button" className="generation-play-reset" onClick={() => setPosition({ x: 50, y: 50 })}>
-          <Icon name="reload" size={15} />
-          중앙으로
-        </button>
-      </div>
+      <WaitingGame image={displayedImage} />
       <div className="generation-frame-picker" aria-label={`완료 프레임 ${completedFrames}개`}>
         {Array.from({ length: FRAME_COUNT }, (_, index) => (
-          <button
-            key={index}
-            type="button"
-            className={selectedIndex === index && frames[index] ? "active" : ""}
-            disabled={!frames[index]}
-            onClick={() => {
-              manualFrameSelectionRef.current = true;
-              setSelectedIndex(index);
-            }}
-            aria-label={frames[index] ? `${index + 1}번째 완성 프레임 보기` : `${index + 1}번째 프레임 생성 대기 중`}
-          >
-            <span>{String(index + 1).padStart(2, "0")}</span>
-            <i aria-hidden="true" />
+          <button key={index} type="button" className={activeIndex === index && frames[index] ? "active" : ""}
+            disabled={!frames[index]} onClick={() => setSelectedIndex(index)}
+            aria-label={frames[index] ? `${index + 1}번째 완성 프레임 보기` : `${index + 1}번째 프레임 생성 대기 중`}>
+            <span>{String(index + 1).padStart(2, "0")}</span><i aria-hidden="true" />
           </button>
         ))}
       </div>
@@ -1090,14 +1020,17 @@ function describePose(metrics: VisionMetrics): string {
   if (metrics.source !== "mediapipe") return "행동 미분석";
   const primary = getGestureLabel(metrics.gesture);
   const bodyGesture = metrics.pose?.bodyGesture;
-  if (!bodyGesture || bodyGesture === "Natural" || bodyGesture === metrics.gesture) return primary;
-  return `${primary} · ${getGestureLabel(bodyGesture)}`;
+  const parts = [primary];
+  if (bodyGesture && bodyGesture !== "Natural" && bodyGesture !== metrics.gesture) parts.push(getGestureLabel(bodyGesture));
+  return parts.join(" · ");
 }
 
 function describePoseDetail(metrics: VisionMetrics): string {
   if (metrics.source !== "mediapipe") return "동작 감지 실패 - 다시 촬영해 주세요.";
   const details: string[] = [];
-  if (metrics.hand) {
+  if (metrics.hands?.length) {
+    metrics.hands.forEach((hand) => details.push(`${hand.side === "Left" ? "왼손" : "오른손"} ${getGestureLabel(hand.gesture)} ${Math.round(hand.confidence * 100)}%`));
+  } else if (metrics.hand) {
     details.push(`손 ${getGestureLabel(metrics.hand.gesture).replace(/ 행동$/, "")} ${Math.round(metrics.hand.confidence * 100)}%`);
   } else if (metrics.handDetected) {
     details.push("손 모양 미분류");

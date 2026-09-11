@@ -37,8 +37,8 @@ export const imageAssets = {
 
 export const initialLayers: EditorLayer[] = [
   { id: "text", label: "텍스트", description: "말풍선과 자막", visible: true, locked: false },
-  { id: "accent-effects", label: "부가 이펙트", description: "별·스티커·강조", visible: true, locked: false },
   { id: "character", label: "캐릭터", description: "표정과 모션", visible: true, locked: false },
+  { id: "accent-effects", label: "부가 이펙트", description: "별·스티커·강조", visible: true, locked: false },
   { id: "background-effects", label: "배경 이펙트", description: "감정별 고정 효과", visible: true, locked: true },
 ];
 

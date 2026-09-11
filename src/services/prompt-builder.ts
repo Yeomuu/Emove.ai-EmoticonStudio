@@ -28,7 +28,7 @@ export function buildCharacterPrompt(token: CharacterToken): string {
   const styleMode = token.styleMode ?? (token.stylePreset.includes("2D") ? "2D" : "3D");
   return [
     "[Instruction]",
-    `Create one ${token.stylePreset} character on a flat solid chroma-key green background (#00FF00).`,
+    `Create one ${token.stylePreset} character on a fully transparent background with real alpha.`,
     `[Style contract] The character token is explicitly ${styleMode}. Keep the image ${styleMode}; do not blend 2D and 3D visual language.`,
     "[Context]",
     `Selected style: ${token.styleDescription}.`,
@@ -41,7 +41,7 @@ export function buildCharacterPrompt(token: CharacterToken): string {
     `Do not change: ${token.doNotChange.join(", ")}.`,
     "Centered full-body neutral pose, generous margins, no text, no props, no scenery, no floor, no cast shadow.",
     "Character only: no emotional background, no core effect, no accent particles, no motion trails, no sticker decorations, no speech bubble.",
-    "Do not use chroma green inside the character or accessories because the green background will be removed as transparency.",
+    "Preserve the selected character colors. No colored backdrop, checkerboard pattern, white matte, or opaque border.",
     "[Output] A clean reusable character token image only.",
   ].join("\n");
 }
@@ -86,12 +86,12 @@ export function buildFramePrompts(brief: MotionBrief, token: CharacterToken): st
     "### Constraints ###",
     `- Keep fixed: ${token.fixedTraits.join(", ")}`,
     `- Never change: ${token.doNotChange.join(", ")}`,
-    "- Flat solid chroma-key green background (#00FF00). Do NOT use chroma green inside the character.",
+    "- Fully transparent background with real alpha. No colored backdrop, checkerboard pattern, white matte, or opaque border.",
     "- No text, no speech bubble, no sticker, no scenery, no floor shadow.",
     "- Maintain identical framing, camera angle, body scale, materials, lighting, and palette across every frame.",
     "",
     "### Output ###",
-    "One character-only animation frame on chroma-key green.",
+    "One character-only animation frame on a transparent background.",
   ].join("\n"));
 }
 
