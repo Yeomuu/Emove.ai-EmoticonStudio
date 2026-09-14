@@ -13,7 +13,7 @@ import { waitForImageAssets } from "../services/asset-readiness";
 
 import { AudioCapture, CameraCapture, synchronizedCaptureIssue } from "../services/media";
 import { analyzeEmotionPriority } from "../services/emotion-analysis";
-import { getGestureLabel } from "../services/gesture-analysis";
+import { describeGestureMotion as describePose, getGestureLabel } from "../services/gesture-analysis";
 import { generationProgressFromEvent } from "../services/generation-progress";
 import { createLiveVisionAnalyzer } from "../services/vision";
 import { audioPeak, audioRms, behaviorCapture, blockingSurfaceOpen, characters, emotion, exaggerationTierOverride, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, selectedCharacterId, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
@@ -1014,15 +1014,6 @@ function waitForCompletionHold(milliseconds: number, signal: AbortSignal): Promi
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
-}
-
-function describePose(metrics: VisionMetrics): string {
-  if (metrics.source !== "mediapipe") return "행동 미분석";
-  const primary = getGestureLabel(metrics.gesture);
-  const bodyGesture = metrics.pose?.bodyGesture;
-  const parts = [primary];
-  if (bodyGesture && bodyGesture !== "Natural" && bodyGesture !== metrics.gesture) parts.push(getGestureLabel(bodyGesture));
-  return parts.join(" · ");
 }
 
 function describePoseDetail(metrics: VisionMetrics): string {

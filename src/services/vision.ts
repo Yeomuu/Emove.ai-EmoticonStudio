@@ -88,6 +88,7 @@ async function analyzeVideoStream(video: HTMLVideoElement, durationMs: number, o
   const samples: VisionMetrics[] = [];
   let lastError: Error | undefined;
   let lastAnalyzedAt = -Infinity;
+  let lastVideoTime = -1;
   const startedAt = performance.now();
   const minIntervalMs = 80;
 
@@ -97,12 +98,14 @@ async function analyzeVideoStream(video: HTMLVideoElement, durationMs: number, o
       const elapsed = now - startedAt;
       onProgress?.(Math.min(1, elapsed / durationMs));
 
-      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && elapsed - lastAnalyzedAt >= minIntervalMs) {
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.currentTime !== lastVideoTime && elapsed - lastAnalyzedAt >= minIntervalMs) {
         lastAnalyzedAt = elapsed;
+        lastVideoTime = video.currentTime;
         try {
           samples.push(detectCurrentVideoFrame(video, now));
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
+          samples.push({ source: "unavailable" });
         }
       }
 
@@ -266,7 +269,7 @@ function summarizeVideoSamples(samples: VisionMetrics[], lastError: Error | unde
     mediapipeSamples.flatMap((sample) => sample.hand ? [sample.hand] : []),
     mediapipeSamples.length,
   );
-  const dominantBody = selectDominantBodyGesture(mediapipeSamples);
+  const dominantBody = selectDominantBodyGesture(samples);
   const handDetectedFrames = mediapipeSamples.filter((sample) => sample.handDetected).length;
   const handDetected = handDetectedFrames >= Math.max(2, Math.ceil(mediapipeSamples.length * .14));
 
@@ -304,7 +307,8 @@ function summarizeVideoSamples(samples: VisionMetrics[], lastError: Error | unde
     face: bestFace,
     hand: combinedHand,
     hands,
-    observedMotion: summarizeObservedMotion(poseSamples),
+    observedMotion: summarizeObservedMotion(samples),
+    motionSummary: summarizeObservedMotion(samples, true),
     handDetected,
     gesture: primaryGesture,
     diagnostics: `5초 영상에서 ${mediapipeSamples.length}회 손가락을, ${poseSamples.length}회 상체 관절과 이동 궤적을 추적했습니다. MediaPipe pose=${poseDelegate ?? "unknown"}, gesture=${gestureDelegate ?? "off"}${dominantHand ? `, hand=${dominantHand.gesture} ${Math.round(dominantHand.confidence * 100)}%` : handDetected ? ", hand=unclassified" : ""}${dominantBody ? `, body=${dominantBody.gesture} ${Math.round(dominantBody.confidence * 100)}%` : ""}${faceDelegate ? `, face=${faceDelegate}` : ""}.`,

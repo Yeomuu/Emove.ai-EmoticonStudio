@@ -214,6 +214,7 @@ export interface VisionMetrics {
   hand?: { gesture: string; confidence: number };
   hands?: Array<{ side: string; gesture: string; confidence: number; palm?: { x: number; y: number; raised: boolean } }>;
   observedMotion?: string;
+  motionSummary?: string;
   handDetected?: boolean;
   gesture?: string;
   source: "mediapipe" | "unavailable";

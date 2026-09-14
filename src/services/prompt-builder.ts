@@ -68,6 +68,8 @@ export function buildFramePrompts(brief: MotionBrief, token: CharacterToken): st
     "### Input Facts ###",
     `- Captured expression: ${brief.expressionEmotion}`,
     `- Captured gesture/action: ${brief.pose}`,
+    "Measured joint movement and repeated motion are the action evidence, even without a recognized gesture class. Preserve their direction and repetition across the five frames.",
+    "A static hand shape or location (for example, hands near the head) is context, not a replacement for the observed movement. Do not turn a recorded moving action into a stationary pose.",
     `- Text bubble phrase (handled separately): "${brief.shortText}"`,
     "",
     "### User-confirmed Generation Controls ###",

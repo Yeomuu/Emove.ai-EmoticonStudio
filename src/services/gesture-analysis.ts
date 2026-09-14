@@ -85,7 +85,7 @@ const GESTURE_LABELS: Record<string, string> = {
   Arms_Spread: "양팔을 펼친 행동",
   Arms_Crossed: "팔짱을 낀 행동",
   Hands_Together: "두 손을 모은 행동",
-  Hands_Near_Head: "두 손을 머리 가까이 댄 행동",
+  Hands_Near_Head: "양손이 머리 근처에 있는 자세",
   Hands_On_Hips: "양손을 허리에 댄 행동",
   Clapping: "박수 치는 행동",
   Waving_Left: "왼손을 흔드는 행동",
@@ -94,7 +94,7 @@ const GESTURE_LABELS: Record<string, string> = {
   Leaning_Left: "상체를 왼쪽으로 기울인 행동",
   Leaning_Right: "상체를 오른쪽으로 기울인 행동",
   Hand_Shape_Unclassified: "손 모양이 감지된 미분류 행동",
-  Other_Movement: "분류 범위 밖의 상체 움직임",
+  Other_Movement: "이름이 분류되지 않은 움직임",
   Natural: "상체 중심의 자연스러운 행동",
   Pose_Not_Detected: "행동 미분석",
   Not_Detected: "행동 미분석",
@@ -105,6 +105,14 @@ const GESTURE_LABELS: Record<string, string> = {
 export function getGestureLabel(gesture: string | undefined): string {
   if (!gesture) return "행동 미분석";
   return GESTURE_LABELS[gesture] ?? `${gesture.replaceAll("_", " ")} 동작`;
+}
+
+export function describeGestureMotion(metrics: VisionMetrics): string {
+  if (metrics.source !== "mediapipe") return "행동 미분석";
+  if (metrics.motionSummary) return metrics.motionSummary;
+  const primary = getGestureLabel(metrics.gesture);
+  const body = metrics.pose?.bodyGesture;
+  return body && body !== "Natural" && body !== metrics.gesture ? `${primary} · ${getGestureLabel(body)}` : primary;
 }
 
 export function classifyPoseFrame(points: PosePoint[]): PoseMetrics {
@@ -324,8 +332,10 @@ export function selectDominantBodyGesture(samples: VisionMetrics[]): GestureDeci
   const clap = selectClapGesture(poseSamples);
   if (clap) return clap;
 
-  const wave = selectWaveGesture(poseSamples);
+  const wave = selectWaveGesture(samples);
   if (wave) return wave;
+
+  if (summarizeObservedMotion(samples, true)) return { gesture: "Other_Movement", confidence: .6 };
 
   const groups = new Map<string, { count: number; confidenceTotal: number }>();
   poseSamples.forEach((sample) => {
@@ -350,8 +360,8 @@ export function selectDominantBodyGesture(samples: VisionMetrics[]): GestureDeci
     .sort((left, right) => right.score - left.score)[0];
   if (strongest) return { gesture: strongest.gesture, confidence: strongest.confidence };
 
-  const leftMotion = wristMotion(poseSamples, "left");
-  const rightMotion = wristMotion(poseSamples, "right");
+  const leftMotion = wristMotion(samples, "left");
+  const rightMotion = wristMotion(samples, "right");
   if (Math.max(leftMotion.path, rightMotion.path) > .28) {
     return {
       gesture: "Other_Movement",
@@ -366,7 +376,7 @@ export function resolvePrimaryGesture(
   body: GestureDecision | undefined,
   handDetected: boolean,
 ): string {
-  if (body && ["Waving_Left", "Waving_Right", "Waving_Both", "Clapping"].includes(body.gesture)) return body.gesture;
+  if (body && ["Waving_Left", "Waving_Right", "Waving_Both", "Clapping", "Other_Movement"].includes(body.gesture)) return body.gesture;
   const specificHandGesture = hand && !["Open_Palm", "Closed_Fist"].includes(hand.gesture);
   if (specificHandGesture) return hand.gesture;
   if (body && body.gesture !== "Natural") return body.gesture;
@@ -558,59 +568,56 @@ function selectClapGesture(samples: VisionMetrics[]): GestureDecision | undefine
 
 function wristMotion(samples: VisionMetrics[], side: "left" | "right"): {
   path: number;
-  xRange: number;
-  directionChanges: number;
-  raisedRatio: number;
+  repeatedRange: number;
   score: number;
 } {
   const palms = samples
-    .map((sample) => sample.hands?.find((hand) => hand.side.toLowerCase() === side)?.palm)
-    .filter((point): point is NonNullable<PoseMetrics["leftWrist"]> => Boolean(point));
+    .map((sample, index) => ({ point: sample.hands?.find((hand) => hand.side.toLowerCase() === side)?.palm, index }))
+    .filter((entry): entry is { point: NonNullable<PoseMetrics["leftWrist"]>; index: number } => Boolean(entry.point));
   const wrists = samples
-    .map((sample) => side === "left" ? sample.pose?.leftWrist : sample.pose?.rightWrist)
-    .filter((point): point is NonNullable<PoseMetrics["leftWrist"]> => Boolean(point));
+    .map((sample, index) => ({ point: side === "left" ? sample.pose?.leftWrist : sample.pose?.rightWrist, index }))
+    .filter((entry): entry is { point: NonNullable<PoseMetrics["leftWrist"]>; index: number } => Boolean(entry.point));
   // Do not mix palm centers with wrist coordinates when one tracker drops a frame.
-  const points = palms.length >= Math.max(5, samples.length * .5) || wrists.length < 5 ? palms : wrists;
-  if (points.length < 5) return { path: 0, xRange: 0, directionChanges: 0, raisedRatio: 0, score: 0 };
-
-  let path = 0;
-  let directionChanges = 0;
-  let previousDirection = 0;
-  let turnPoint = points[0].x;
+  const tracked = palms.length >= Math.max(5, samples.length * .5) || wrists.length < 5 ? palms : wrists;
+  if (tracked.length < 5) return { path: 0, repeatedRange: 0, score: 0 };
   const shoulderWidths = samples.map((sample) => sample.pose?.shoulderWidth).filter((value): value is number => Boolean(value));
   const scale = shoulderWidths.length ? shoulderWidths.reduce((sum, value) => sum + value, 0) / shoulderWidths.length : .3;
-  const reversalThreshold = Math.max(.008, scale * .06);
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1];
-    const current = points[index];
-    path += Math.hypot(current.x - previous.x, current.y - previous.y);
-    // Accumulate motion from each turning point so slow waves are not discarded per frame.
-    const deltaX = current.x - turnPoint;
-    if (!previousDirection && Math.abs(deltaX) >= reversalThreshold) {
-      previousDirection = Math.sign(deltaX);
-      turnPoint = current.x;
-    } else if (previousDirection && Math.sign(deltaX) === previousDirection) {
-      turnPoint = current.x;
-    } else if (previousDirection && Math.abs(deltaX) >= reversalThreshold) {
-      directionChanges += 1;
-      previousDirection = Math.sign(deltaX);
-      turnPoint = current.x;
-    }
-  }
-
-  const xValues = points.map((point) => point.x);
-  const xRange = (Math.max(...xValues) - Math.min(...xValues)) * .3 / scale;
-  path *= .3 / scale;
-  const raisedRatio = points.filter((point) => point.raised).length / points.length;
-  const score = clamp01(xRange * 3.5 + path * .55 + directionChanges * .08 + raisedRatio * .12);
-  return { path, xRange, directionChanges, raisedRatio, score };
+  const centered = tracked.map(({ point, index }) => {
+    const landmarks = samples[index].pose?.landmarks;
+    const center = midpoint(visiblePoint(landmarks?.[11]), visiblePoint(landmarks?.[12]));
+    return { point, index, center };
+  });
+  const useBodyCoordinates = centered.filter((entry) => entry.center).length >= Math.max(5, tracked.length * .5);
+  const points = centered.flatMap(({ point, index, center }) => {
+    if (useBodyCoordinates && !center) return [];
+    return [{ index, x: (point.x - (useBodyCoordinates ? center!.x : 0)) * .3 / scale, y: (point.y - (useBodyCoordinates ? center!.y : 0)) * .3 / scale }];
+  });
+  const x = axisMotion(points.map((point) => ({ index: point.index, value: point.x })), .018);
+  const y = axisMotion(points.map((point) => ({ index: point.index, value: point.y })), .018);
+  const repeatedRange = Math.max(x.turns >= 2 ? x.range : 0, y.turns >= 2 ? y.range : 0);
+  const path = Math.hypot(x.path, y.path);
+  return { path, repeatedRange, score: clamp01(repeatedRange * 3.5 + path * .55 + Math.max(x.turns, y.turns) * .08) };
 }
 
 function isWave(motion: ReturnType<typeof wristMotion>): boolean {
-  return motion.xRange >= .045
-    && motion.path >= .18
-    && motion.directionChanges >= 2
-    && motion.raisedRatio >= .18;
+  return motion.repeatedRange >= .045 && motion.path >= .18;
+}
+
+function axisMotion(points: Array<{ value: number; index: number }>, threshold: number) {
+  const sorted = points.map((point) => point.value).sort((a, b) => a - b);
+  const range = sorted.length ? sorted[Math.floor((sorted.length - 1) * .9)] - sorted[Math.floor((sorted.length - 1) * .1)] : 0;
+  let path = 0; let turns = 0; let direction = 0; let turningPoint = points[0]?.value ?? 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const current = points[index]; const previous = points[index - 1];
+    // Long tracking gaps are not evidence of travel or a direction reversal.
+    if (current.index - previous.index > 2) { direction = 0; turningPoint = current.value; continue; }
+    path += Math.abs(current.value - previous.value);
+    const delta = current.value - turningPoint;
+    if (!direction && Math.abs(delta) >= threshold) { direction = Math.sign(delta); turningPoint = current.value; }
+    else if (direction && Math.sign(delta) === direction) turningPoint = current.value;
+    else if (direction && Math.abs(delta) >= threshold) { turns += 1; direction = Math.sign(delta); turningPoint = current.value; }
+  }
+  return { range, path, turns };
 }
 
 export function preferReliableHandGesture(model: HandGesture | undefined, geometry: HandGesture | undefined): HandGesture | undefined {
@@ -619,28 +626,38 @@ export function preferReliableHandGesture(model: HandGesture | undefined, geomet
   return geometry.confidence > model.confidence ? geometry : model;
 }
 
-export function summarizeObservedMotion(samples: VisionMetrics[]): string {
-  const joints = [[0, "머리"], [13, "왼팔꿈치"], [14, "오른팔꿈치"], [15, "왼손"], [16, "오른손"], [25, "왼무릎"], [26, "오른무릎"], [27, "왼발"], [28, "오른발"]] as const;
-  return joints.flatMap(([index, label]) => {
-    const tracked = samples.flatMap((sample) => {
+export function summarizeObservedMotion(samples: VisionMetrics[], motionOnly = false): string {
+  const joints = [[-1, "화면 속 상체"], [0, "머리"], [13, "왼팔꿈치"], [14, "오른팔꿈치"], [15, "왼손"], [16, "오른손"], [23, "왼골반"], [24, "오른골반"], [25, "왼무릎"], [26, "오른무릎"], [27, "왼발"], [28, "오른발"]] as const;
+  const widths = samples.flatMap((sample) => {
+    const points = sample.pose?.landmarks;
+    const width = distance(visiblePoint(points?.[11]), visiblePoint(points?.[12]));
+    return width ? [width] : [];
+  });
+  const torsoScale = Math.max(.08, widths.reduce((sum, width) => sum + width, 0) / (widths.length || 1));
+  const observations = joints.flatMap(([index, label]) => {
+    const tracked = samples.flatMap((sample, frameIndex) => {
       const points = sample.pose?.landmarks;
-      const joint = visiblePoint(points?.[index]);
       const left = visiblePoint(points?.[11]);
       const right = visiblePoint(points?.[12]);
+      const joint = index === -1 ? midpoint(left, right) : visiblePoint(points?.[index]);
       if (!joint || !left || !right || (joint.visibility ?? 1) < .5) return [];
+      if (index === -1) return [{ index: frameIndex, x: joint.x / torsoScale, y: joint.y / torsoScale }];
       const scale = Math.max(.08, Math.hypot(left.x - right.x, left.y - right.y));
-      return [{ x: (joint.x - (left.x + right.x) / 2) / scale, y: (joint.y - (left.y + right.y) / 2) / scale }];
+      return [{ index: frameIndex, x: (joint.x - (left.x + right.x) / 2) / scale, y: (joint.y - (left.y + right.y) / 2) / scale }];
     });
     if (tracked.length < Math.max(5, samples.length * .3)) return [];
-    const xs = tracked.map((point) => point.x).sort((a, b) => a - b);
     const ys = tracked.map((point) => point.y).sort((a, b) => a - b);
-    const range = (values: number[]) => values[Math.floor((values.length - 1) * .9)] - values[Math.floor((values.length - 1) * .1)];
-    const horizontal = range(xs);
-    const vertical = range(ys);
-    const motion = [horizontal >= .12 ? `좌우 이동 ${horizontal.toFixed(1)} 어깨너비` : "", vertical >= .12 ? `상하 이동 ${vertical.toFixed(1)} 어깨너비` : ""].filter(Boolean);
-    if (index === 15 || index === 16) motion.unshift(ys[Math.floor(ys.length / 2)] < 0 ? "어깨 위" : "어깨 아래");
-    return motion.length ? [`${label}: ${motion.join(", ")}`] : [];
-  }).join("; ");
+    const horizontal = axisMotion(tracked.map((point) => ({ index: point.index, value: point.x })), .06);
+    const vertical = axisMotion(tracked.map((point) => ({ index: point.index, value: point.y })), .06);
+    const motion = ([[horizontal, "좌우"], [vertical, "상하"]] as const).flatMap(([measured, direction]) => {
+      if (measured.range < .12 || measured.path < .12) return [];
+      const action = measured.turns >= 2 ? "반복 흔들기" : "이동";
+      return [`${direction} ${action}${motionOnly ? "" : ` ${measured.range.toFixed(1)} 어깨너비`}`];
+    });
+    if (!motionOnly && (index === 15 || index === 16)) motion.unshift(ys[Math.floor(ys.length / 2)] < 0 ? "어깨 위" : "어깨 아래");
+    return motion.length ? [{ text: `${label}: ${motion.join(", ")}`, range: Math.max(horizontal.range, vertical.range) }] : [];
+  });
+  return (motionOnly ? observations.sort((a, b) => b.range - a.range).slice(0, 2) : observations).map((entry) => entry.text).join("; ");
 }
 
 function armExtension(shoulder?: PosePoint, elbow?: PosePoint, wrist?: PosePoint): number {
