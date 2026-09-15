@@ -1,4 +1,5 @@
 import type { AudioFeatures } from "../types";
+import { CAMERA_FRAME_WIDTH, CAMERA_FRAME_HEIGHT, cameraFrameCrop } from "./camera-framing";
 
 export interface AudioCaptureResult { blob: Blob; durationMs: number; features: AudioFeatures }
 export interface CameraCaptureResult { blob: Blob; durationMs: number; dataUrl: string }
@@ -109,13 +110,14 @@ export class CameraCapture {
   private stream?: MediaStream;
   private video?: HTMLVideoElement;
   private requestVersion = 0;
+  private cancelRecording?: () => void;
 
   async attach(video: HTMLVideoElement, onEnded?: () => void): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("이 브라우저는 카메라 입력을 지원하지 않습니다.");
     this.release();
     const requestVersion = this.requestVersion;
     const mediaRequest = navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: 960 }, height: { ideal: 720 } },
+      video: { facingMode: "user", width: { ideal: CAMERA_FRAME_WIDTH }, height: { ideal: CAMERA_FRAME_HEIGHT }, aspectRatio: { ideal: 4 / 3 } },
       audio: false,
     });
     const stream = await withTimeout(
@@ -188,54 +190,80 @@ export class CameraCapture {
     }
     if (video.paused) await video.play();
 
-    const videoStream = new MediaStream(this.stream.getVideoTracks());
+    if (this.cancelRecording) throw new Error("카메라 녹화가 이미 진행 중입니다.");
+    const canvas = document.createElement("canvas");
+    canvas.width = CAMERA_FRAME_WIDTH;
+    canvas.height = CAMERA_FRAME_HEIGHT;
+    const context = canvas.getContext("2d");
+    if (!context || typeof canvas.captureStream !== "function") {
+      throw new Error("이 브라우저는 카메라 영역 녹화를 지원하지 않습니다.");
+    }
+    const drawFrame = () => {
+      const crop = cameraFrameCrop(video.videoWidth, video.videoHeight);
+      context.drawImage(video, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
+    };
+    drawFrame();
+    // Store unmirrored pixels; both live and recorded video are mirrored only in the UI.
+    const videoStream = canvas.captureStream(30);
     const mimeType = supportedRecorderMimeType([
       "video/webm;codecs=vp9",
       "video/webm;codecs=vp8",
       "video/webm",
       "video/mp4",
     ]);
-    const recorder = mimeType
-      ? new MediaRecorder(videoStream, { mimeType })
-      : new MediaRecorder(videoStream);
-    const chunks: Blob[] = [];
-    recorder.ondataavailable = (event) => event.data.size && chunks.push(event.data);
-    const startedAt = performance.now();
-    recorder.start(100);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let frames: ReturnType<typeof setInterval> | undefined;
+    let recorder: MediaRecorder | undefined;
     try {
-      onRecordingStart?.();
-    } catch (error) {
-      const stopped = new Promise<void>((resolve) => { recorder.onstop = () => resolve(); });
-      recorder.stop();
-      await stopped;
-      throw error;
-    }
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
-    await new Promise<void>((resolve) => {
-      const tick = () => {
-        const elapsed = performance.now() - startedAt;
-        onProgress?.(Math.min(1, elapsed / durationMs));
-        if (elapsed < durationMs) requestAnimationFrame(tick);
-        else resolve();
+      const activeRecorder = mimeType ? new MediaRecorder(videoStream, { mimeType }) : new MediaRecorder(videoStream);
+      recorder = activeRecorder;
+      const chunks: Blob[] = [];
+      activeRecorder.ondataavailable = (event) => event.data.size && chunks.push(event.data);
+      const startedAt = performance.now();
+      let stoppedAt = startedAt;
+      await new Promise<void>((resolve, reject) => {
+        const fail = (error: unknown) => reject(error);
+        this.cancelRecording = () => fail(new DOMException("카메라 녹화가 취소되었습니다.", "AbortError"));
+        activeRecorder.onerror = () => fail(new Error("카메라 녹화에 실패했습니다. 다시 촬영해 주세요."));
+        activeRecorder.onstop = () => resolve();
+        activeRecorder.start(100);
+        onRecordingStart?.();
+        frames = setInterval(() => {
+          try {
+            if (!this.isReady(video)) throw new Error("카메라 연결이 중단되었습니다. 다시 촬영해 주세요.");
+            drawFrame();
+            onProgress?.(Math.min(1, (performance.now() - startedAt) / durationMs));
+          } catch (error) { fail(error); }
+        }, 1000 / 30);
+        timer = setTimeout(() => {
+          try {
+            drawFrame();
+            stoppedAt = performance.now();
+            onProgress?.(1);
+            activeRecorder.stop();
+          } catch (error) { fail(error); }
+        }, durationMs);
+      });
+      return {
+        blob: new Blob(chunks, { type: activeRecorder.mimeType || mimeType || "video/webm" }),
+        durationMs: stoppedAt - startedAt,
+        dataUrl: canvas.toDataURL("image/jpeg", .88),
       };
-      tick();
-    });
-    const stopped = new Promise<void>((resolve) => { recorder.onstop = () => resolve(); });
-    recorder.stop();
-    await stopped;
-    context?.drawImage(video, 0, 0);
-    return {
-      blob: new Blob(chunks, { type: recorder.mimeType || mimeType || "video/webm" }),
-      durationMs: performance.now() - startedAt,
-      dataUrl: canvas.toDataURL("image/jpeg", .88),
-    };
+    } finally {
+      clearTimeout(timer);
+      clearInterval(frames);
+      this.cancelRecording = undefined;
+      try {
+        if (recorder && recorder.state !== "inactive") recorder.stop();
+      } finally {
+        videoStream.getTracks().forEach((track) => track.stop());
+      }
+    }
   }
 
   release(): void {
     this.requestVersion += 1;
+    this.cancelRecording?.();
     const stream = this.stream;
     const video = this.video;
     stream?.getTracks().forEach((track) => track.stop());

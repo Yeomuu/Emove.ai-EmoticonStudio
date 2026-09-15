@@ -155,6 +155,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Browser microphone capture may remain WebM for OpenAI transcription, but convert the short clip to mono WAV before Imentiv because its direct file upload accepts MP3, WAV, AAC, and M4A rather than WebM.
 - Camera initialization failures must remain recoverable: distinguish permission denial, unavailable devices, interrupted tracks, and delayed initialization; show a manual reconnect action instead of leaving capture permanently disabled.
 - Input camera media frames, including the `is-awaiting-person` state, fill their monitor media row at 100% width and height so the preview remains large.
+- Input live preview, recorded clip, and result playback share a landscape 4:3 centered crop. Live and result videos are mirrored in the UI only. The webcam fills the outer monitor, capture starts from an overlay button that disappears while capturing, and the guidance sits absolutely below the monitor with reserved spacing.
 
 ## Firebase Remote Data Model
 

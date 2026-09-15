@@ -550,26 +550,22 @@ export function InputPage() {
                       : "입력 장치가 준비되면 5초 촬영이 자동으로 시작됩니다."
                     : "상반신과 양손이 화면에 모두 들어오도록 카메라 앞에 서 주세요."}
                 </p>
-                <button
+                {!capturing && <button
                   type="button"
                   className="btn-start-capture"
                   onClick={startCaptureFlow}
-                  disabled={cameraStatus === "connecting" || capturing || analyzing}
-                  aria-busy={cameraStatus === "connecting" || capturing}
+                  disabled={cameraStatus === "connecting" || analyzing}
+                  aria-busy={cameraStatus === "connecting"}
                 >
                   <Icon name="camera" />
                   <span>
-                    {capturing
-                      ? capturePhase === "recording"
-                        ? `${Math.max(1, Math.ceil((1 - captureProgress) * 5))}초 촬영 중`
-                        : "촬영 준비 중"
-                      : cameraStatus === "connecting"
+                    {cameraStatus === "connecting"
                         ? "카메라 연결 중"
                         : cameraReady
                           ? "촬영 시작하기"
                           : "카메라 다시 연결하기"}
                   </span>
-                </button>
+                </button>}
               </Panel>
             </div>
             <div className="input-right-column">
@@ -737,18 +733,22 @@ export function InputPage() {
   return (
     <div className="workspace-page input-page">
       <div className="input-workflow-underlay" inert={generationBusy ? true : undefined} aria-hidden={generationBusy ? true : undefined}>
-        <header className="screen-brief input-brief">
-          <span>02</span>
-          <h1>
-            {currentStep === 0 ? <>캐릭터 생성에 필요한<br />목소리와 포즈를 촬영해 주세요.</> : null}
-            {currentStep === 1 ? <>포즈 분석이<br />완료되었습니다.</> : null}
-            {currentStep === 2 ? <>음성 분석이<br />완료되었습니다.</> : null}
-          </h1>
-          <p>{currentStep === 0 ? "카메라와 마이크를 5초 동안 동시에 기록합니다." : "촬영한 입력을 단계별로 확인해 주세요."}</p>
-        </header>
-
         <ScrollSlideContainer
-          steps={steps}
+          steps={steps.map((step, index) => ({
+            ...step,
+            content: <>
+              <header className="screen-brief input-brief">
+                <span>02</span>
+                <h1>
+                  {index === 0 ? <>캐릭터 생성에 필요한<br />목소리와 포즈를 촬영해 주세요.</> : null}
+                  {index === 1 ? <>포즈 분석이<br />완료되었습니다.</> : null}
+                  {index === 2 ? <>음성 분석이<br />완료되었습니다.</> : null}
+                </h1>
+                <p>{index === 0 ? "카메라와 마이크를 5초 동안 동시에 기록합니다." : "촬영한 입력을 단계별로 확인해 주세요."}</p>
+              </header>
+              {step.content}
+            </>,
+          }))}
           currentStep={currentStep}
           onStepChange={(index) => setCurrentStep(index)}
           onComplete={proceed}
@@ -877,17 +877,19 @@ function CapturedVideoPreview({ blob }: { blob?: Blob }) {
   const togglePlayback = () => {
     const video = videoRef.current;
     if (!video || !url) return;
-    if (video.paused) void video.play();
+    if (video.paused) void video.play().catch(() => notify("촬영 영상을 재생하지 못했습니다. 재생 버튼을 다시 눌러 주세요."));
     else video.pause();
   };
 
   return (
     <div className="captured-video-preview">
-      {url ? (
-        <video ref={videoRef} src={url} muted playsInline onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
-      ) : (
-        <div className="captured-video-empty"><Icon name="image" size={40} /><span>5s Capture completed</span></div>
-      )}
+      <div className="captured-video-media">
+        {url ? (
+          <video ref={videoRef} src={url} muted playsInline onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
+        ) : (
+          <div className="captured-video-empty"><Icon name="image" size={40} /><span>5s Capture completed</span></div>
+        )}
+      </div>
       <div className="captured-video-controls">
         <button type="button" onClick={togglePlayback} disabled={!url} aria-label={playing ? "촬영 영상 일시정지" : "촬영 영상 재생"}>
           <Icon name={playing ? "pause" : "play"} size={15} />
