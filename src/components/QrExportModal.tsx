@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
 import type { QrExportPayload } from "../types";
 import { generateQrDataUrl } from "../services/qr-export";
@@ -8,6 +9,37 @@ type QrState = { status: "loading" | "error" } | { status: "ready"; image: strin
 export function QrExportModal({ payload, onClose }: { payload: QrExportPayload; onClose: () => void }) {
   const [attempt, setAttempt] = useState(0);
   const [qr, setQr] = useState<QrState>({ status: "loading" });
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLButtonElement>("button")?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeRef.current();
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>("button:not(:disabled), a[href]"));
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,9 +56,9 @@ export function QrExportModal({ payload, onClose }: { payload: QrExportPayload; 
     setAttempt((value) => value + 1);
   };
 
-  return (
-    <div className="modal-backdrop" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="export-modal glass-panel" role="dialog" aria-modal="true" aria-label="QR 내보내기">
+  return createPortal(
+    <div className="modal-backdrop qr-export-backdrop" onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <section ref={dialogRef} className="export-modal glass-panel" role="dialog" aria-modal="true" aria-label="QR 내보내기">
         <header>
           <div>
             <span className="eyebrow">EXPORT COMPLETE</span>
@@ -58,6 +90,7 @@ export function QrExportModal({ payload, onClose }: { payload: QrExportPayload; 
           </a>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

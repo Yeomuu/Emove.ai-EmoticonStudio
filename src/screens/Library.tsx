@@ -446,6 +446,7 @@ export function LibraryPage() {
                 <Icon name="search" />
                 <input
                   type="search"
+                  aria-label="문장이나 감정 검색"
                   placeholder="문장이나 감정 검색"
                   value={query}
                   onChange={(event) => setQuery(event.currentTarget.value)}
