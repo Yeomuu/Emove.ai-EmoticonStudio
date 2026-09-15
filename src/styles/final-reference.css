@@ -1532,6 +1532,7 @@ html[data-theme="light"] .qr-export-backdrop .export-modal > p { color: var(--mu
   .editor-page .timeline-body,
   .editor-page .timeline-controls {
     width: 100% !important;
+    min-width: 0 !important;
   }
 
   .editor-page .timeline-body {
@@ -1572,6 +1573,23 @@ html[data-theme="light"] .qr-export-backdrop .export-modal > p { color: var(--mu
 
   .editor-page .timeline-save-group {
     min-width: 0 !important;
+    width: 100%;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .editor-page .timeline-save-group label,
+  .editor-page .timeline-save-group input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .editor-page .timeline-save-group button {
+    white-space: nowrap;
+    min-height: 42px;
+    padding: 0 16px;
   }
 
 }
