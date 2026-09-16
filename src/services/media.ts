@@ -117,7 +117,7 @@ export class CameraCapture {
     this.release();
     const requestVersion = this.requestVersion;
     const mediaRequest = navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: CAMERA_FRAME_WIDTH }, height: { ideal: CAMERA_FRAME_HEIGHT }, aspectRatio: { ideal: 4 / 3 } },
+      video: { facingMode: "user", width: { ideal: CAMERA_FRAME_WIDTH }, height: { ideal: CAMERA_FRAME_HEIGHT }, aspectRatio: { ideal: CAMERA_FRAME_WIDTH / CAMERA_FRAME_HEIGHT } },
       audio: false,
     });
     const stream = await withTimeout(

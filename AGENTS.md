@@ -155,9 +155,18 @@ When implementing from a selected generated mock, treat that image as the source
 - Browser microphone capture may remain WebM for OpenAI transcription, but convert the short clip to mono WAV before Imentiv because its direct file upload accepts MP3, WAV, AAC, and M4A rather than WebM.
 - Camera initialization failures must remain recoverable: distinguish permission denial, unavailable devices, interrupted tracks, and delayed initialization; show a manual reconnect action instead of leaving capture permanently disabled.
 - Input camera media frames, including the `is-awaiting-person` state, fill their monitor media row at 100% width and height so the preview remains large.
-- Input live preview, recorded clip, and result playback share a landscape 4:3 centered crop. Live and result videos are mirrored in the UI only. The webcam fills the outer monitor, capture starts from an overlay button that disappears while capturing, and the guidance sits absolutely below the monitor with reserved spacing.
+- Input live preview, recorded clip, and result playback share a landscape 16:9 centered crop (960x540 recording). Live and result videos are mirrored in the UI only. The webcam fills the outer monitor, capture starts from an overlay button that disappears while capturing, and the guidance sits absolutely below the monitor with reserved spacing.
+- Input is a viewport-height, overflow-hidden page, overriding the global 760px minimum height. Preserve capture/pose/voice step navigation and wheel-driven step changes. Size capture and result panels against the available viewport; long result details may scroll inside their own panel, never the document.
 
 ## Firebase Remote Data Model
+
+### 2026-09-16 interaction updates
+
+- The waiting catch game uses the selected base character on flipping cards. Three wrong clicks end a round; every five consecutive hits shortens the target window from 2s to 1.5s, 1s, then a 0.6s floor. Keep current score plus five session-only completed scores isolated from generation and remote assets.
+- Character Step3 prepopulates the appearance prompt from the current type, subtype, dimension, and detail style. Provide explicit side navigation between creation steps.
+- Existing character edits use the original image plus up to two supplemental references. Name/personality-only edits save metadata without an image API call; visual edits reuse the completion screen and overwrite the original character id while preserving creation time and favorite state.
+- Persist character personality, style, color, and identity details in Storage JSON. Saving an emoticon may create a missing base-character record, but must never overwrite an existing revised base character with an older project snapshot.
+- Loading progress is driven by completed work stages. After two seconds, a labeled estimate may advance only within the current stage; elapsed time must never complete that stage or show 100 percent before success.
 
 Firebase Admin 서비스 계정 정보나 `FIREBASE_STORAGE_BUCKET`이 없으면 저장은 실패합니다. 생성 결과는 현재 화면에 유지하고 사용자가 설정을 고친 뒤 저장 버튼을 직접 다시 누르도록 안내합니다.
 

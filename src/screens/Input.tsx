@@ -14,7 +14,9 @@ import { waitForImageAssets } from "../services/asset-readiness";
 import { AudioCapture, CameraCapture, synchronizedCaptureIssue } from "../services/media";
 import { analyzeEmotionPriority } from "../services/emotion-analysis";
 import { describeGestureMotion as describePose, getGestureLabel } from "../services/gesture-analysis";
-import { generationProgressFromEvent } from "../services/generation-progress";
+import { GENERATION_BOUNDARIES, generationProgressFromEvent } from "../services/generation-progress";
+import { useStageProgress } from "../components/useStageProgress";
+import { nextStageBoundary } from "../services/stage-progress";
 import { createLiveVisionAnalyzer } from "../services/vision";
 import { audioPeak, audioRms, behaviorCapture, blockingSurfaceOpen, characters, emotion, exaggerationTierOverride, expressionEmotion, frameImages, motionBrief, motionIntensity, notify, sanitizeAssetUrl, selectCharacter, selectedCharacter, selectedCharacterId, setEmotion, sourceTranscript, startNewEmoticonProject, transcript, visionMetrics } from "../store";
 import type { AudioFeatures, BehaviorCapture, CharacterToken, Emotion, ExaggerationTier, FrameGenerationEvent, VisionMetrics } from "../types";
@@ -909,12 +911,13 @@ function levelsFromCapture(features?: AudioFeatures): number[] {
 function WorkProcessScreen({
   title,
   label,
-  percent,
+  percent: completed,
   kind = "analysis",
   completedFrames = 0,
   previewFrames = [],
   fallbackImage,
 }: ProcessState & { previewFrames?: string[]; fallbackImage: string }) {
+  const { percent, estimated } = useStageProgress(completed, nextStageBoundary(completed, kind === "generation" ? GENERATION_BOUNDARIES : [64, 78, 80, 82, 90, 100]));
   const screenRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (kind !== "generation") return;
@@ -939,7 +942,7 @@ function WorkProcessScreen({
               <span>5 FRAME EMOTION LOOP · 단계 기준 진행률</span>
               <p aria-live="polite" aria-atomic="true">{label}</p>
             </div>
-            <strong aria-hidden="true">{percent}<small>%</small></strong>
+            <strong aria-hidden="true">{estimated ? "약 " : ""}{percent}<small>%</small></strong>
           </div>
           <div
             className="work-process-meter generation-process-meter"
@@ -948,7 +951,7 @@ function WorkProcessScreen({
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={percent}
-            aria-valuetext={`${label}. 실제 완성 프레임 ${completedFrames}/${FRAME_COUNT}, 단계 기준 진행률 ${percent}%`}
+            aria-valuetext={`${label}. 실제 완성 프레임 ${completedFrames}/${FRAME_COUNT}, ${estimated ? "단계 내 예상" : "완료 단계 기준"} 진행률 ${percent}%`}
           >
             <span style={{ transform: `scaleX(${percent / 100})` }} />
           </div>
@@ -963,7 +966,7 @@ function WorkProcessScreen({
         <div className="work-process-meter" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
           <span style={{ width: `${percent}%` }} />
         </div>
-        <p><span>{label}</span><strong>{percent}%</strong></p>
+        <p><span>{label}</span><strong>{estimated ? "약 " : ""}{percent}%</strong></p>
       </div>
     </section>
   );
@@ -981,7 +984,7 @@ function GenerationPlayground({ frames, fallbackImage, completedFrames }: { fram
         <span>WAITING ARCADE</span>
         <h2>캐릭터 캐치</h2>
       </div>
-      <WaitingGame image={displayedImage} />
+      <WaitingGame image={fallbackImage} />
       <div className="generation-frame-picker" aria-label={`완료 프레임 ${completedFrames}개`}>
         {Array.from({ length: FRAME_COUNT }, (_, index) => (
           <button key={index} type="button" className={activeIndex === index && frames[index] ? "active" : ""}
@@ -991,6 +994,7 @@ function GenerationPlayground({ frames, fallbackImage, completedFrames }: { fram
           </button>
         ))}
       </div>
+      {frames[activeIndex] ? <img className="generation-completed-preview" src={displayedImage} alt={`${activeIndex + 1}번째 완성 프레임`} /> : null}
     </div>
   );
 }

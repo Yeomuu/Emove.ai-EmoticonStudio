@@ -37,7 +37,7 @@ export class ServerOpenAIProvider implements OpenAIProvider {
 
   async generateCharacter(token: CharacterToken): Promise<GeneratedCharacterResult> {
     const prompt = buildCharacterPrompt(token);
-    const referenceImages = await compactReferenceImagesForOpenAI(token.referenceImages.slice(0, 1));
+    const referenceImages = await compactReferenceImagesForOpenAI(token.referenceImages.slice(0, 3));
     const results: GeneratedCharacterResult[] = [];
     for (let variationIndex = 0; variationIndex < CHARACTER_VARIATION_REQUESTS; variationIndex += 1) {
       results.push(await requestJson<GeneratedCharacterResult>(openAIEndpoint("character"), {
@@ -46,6 +46,7 @@ export class ServerOpenAIProvider implements OpenAIProvider {
         referenceImages,
         variationCount: 1,
         variationIndex,
+        editExisting: token.version > 1,
       }));
     }
     const rawImages = results.flatMap((result) => result.imageUrls?.length ? result.imageUrls : result.imageUrl ? [result.imageUrl] : []);

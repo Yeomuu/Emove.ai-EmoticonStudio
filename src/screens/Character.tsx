@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ColorPickerDropdown } from "../components/ColorPickerDropdown";
 import { Icon } from "../components/Icon";
 import { ScrollSlideContainer } from "../components/ScrollSlideContainer";
@@ -11,6 +11,10 @@ import { characterPalettes, defaultMainColorForPalette, getCharacterPalette, nor
 import { buildPaletteSwatches } from "../services/color-picker";
 import { syncCharacterToRemote } from "../services/remote-store";
 import { characterName, characterPrompt, characters, characterStyle, characterTone, notify, selectCharacter } from "../store";
+import { editingCharacter } from "../store";
+import { appearancePrompt, replaceCharacterRecord, reviseCharacter } from "../services/character-editing";
+import { useStageProgress } from "../components/useStageProgress";
+import { nextStageBoundary } from "../services/stage-progress";
 import type { CharacterToken, GeneratedCharacterResult } from "../types";
 
 import style3dGlossy from "../assets/images/character-style/character-style-3d-glossy.png";
@@ -42,21 +46,25 @@ type ProcessState = { title: string; label: string; percent: number };
 type CharacterDropdownId = "type" | "subType";
 
 export function CharacterPage() {
-  const restoredTone = normalizeHexColor(characterTone.value);
-  const shouldRestoreCharacter = Boolean(characterName.value.trim() || characterPrompt.value.trim());
+  const [editing] = useState(() => editingCharacter.value);
+  useEffect(() => { editingCharacter.value = null; }, []);
+  const restoredTone = normalizeHexColor(editing?.colors.body ?? "");
+  const shouldRestoreCharacter = Boolean(editing);
   const restoredPalette = shouldRestoreCharacter && restoredTone
     ? characterPalettes.find((palette) => paletteIncludesColor(palette, restoredTone))
     : undefined;
   const initialPalette = restoredPalette ?? characterPalettes[0];
   const initialTone = shouldRestoreCharacter && restoredTone ? restoredTone : initialPalette.colors[0];
   const [currentStep, setCurrentStep] = useState(0);
-  const [name, setName] = useState("");
-  const [prompt, setPrompt] = useState(characterPrompt.value);
-  const [selectedTraits, setSelectedTraits] = useState<string[]>(["밝은", "엉뚱한", "듬직한"]);
+  const [name, setName] = useState(editing?.name ?? "");
+  const [customPrompt, setPrompt] = useState<string | null>(null);
+  const [revisionPrompt, setRevisionPrompt] = useState("");
+  const [revisionReferences, setRevisionReferences] = useState<string[]>([]);
+  const [selectedTraits, setSelectedTraits] = useState<string[]>(editing?.personalityTags ?? ["밝은", "엉뚱한", "듬직한"]);
   const [type, setType] = useState("동물");
   const [subType, setSubType] = useState("펭귄");
   const [openDropdown, setOpenDropdown] = useState<CharacterDropdownId | null>(null);
-  const [style, setStyle] = useState<"2D" | "3D">(characterStyle.value || "2D");
+  const [style, setStyle] = useState<"2D" | "3D">(editing?.styleMode ?? "2D");
   const [detailStyle, setDetailStyle] = useState("미니멀");
   const [paletteId, setPaletteId] = useState<CharacterPaletteId>(initialPalette.id);
   const [tone, setTone] = useState(initialTone);
@@ -74,6 +82,7 @@ export function CharacterPage() {
   const storedSelectionRef = useRef<{ source: string; url: string } | null>(null);
 
   const selectedPalette = getCharacterPalette(paletteId);
+  const prompt = customPrompt ?? appearancePrompt(type, subType, style, detailStyle);
   const variationImages = generated?.imageUrls?.length ? generated.imageUrls : generated ? [generated.imageUrl] : [];
 
   const handleTypeChange = (nextType: string) => {
@@ -94,6 +103,10 @@ export function CharacterPage() {
 
   const buildToken = (imageUrl = "", id?: string): CharacterToken => {
     const now = new Date().toISOString();
+    if (editing) {
+      const revised = reviseCharacter(editing, { name, traits: selectedTraits, instruction: revisionPrompt, image: imageUrl || undefined, now });
+      return imageUrl ? revised : { ...revised, referenceImages: [editing.sourceAsset, ...revisionReferences].filter(Boolean) };
+    }
     const fallbackName = `${selectedTraits.join(" ")} ${subType} 캐릭터`;
     const finalPrompt = `${prompt.trim() || `${selectedTraits.join(", ")} 인상의 ${subType} 캐릭터`} ${selectedPalette.label} 팔레트, 메인톤 ${tone}, ${style === "3D" ? "Soft 3D 피규어" : "Soft 2D 플랫"} 스타일 (${detailStyle})`.trim();
     return {
@@ -132,7 +145,12 @@ export function CharacterPage() {
   const createCharacter = async () => {
     if (generationLockRef.current || saveLockRef.current) return;
     generationLockRef.current = true;
-    if (!prompt.trim()) {
+    if (editing && !revisionPrompt.trim()) {
+      generationLockRef.current = false;
+      notify("변경할 외형을 입력해 주세요. 성격만 바꿀 때는 이미지 생성 없이 저장할 수 있어요.");
+      return;
+    }
+    if (!editing && !prompt.trim()) {
       const proceed = window.confirm("구체적인 세부 특징 설명(외형 묘사)을 입력하지 않았습니다. 이대로 캐릭터 생성을 계속하시겠습니까?");
       if (!proceed) {
         generationLockRef.current = false;
@@ -195,7 +213,7 @@ export function CharacterPage() {
         throw new Error(`${sync.storageWarning ?? "Firebase Storage 캐릭터 메타데이터 저장에 실패했습니다."} 결과는 유지됩니다. 저장 버튼을 다시 눌러 주세요.`);
       }
       if (sync.ownerId) saved = { ...saved, ownerId: sync.ownerId };
-      characters.value = [saved, ...characters.value.filter((item) => item.id !== saved.id)];
+      characters.value = replaceCharacterRecord(characters.value, saved);
       characterName.value = saved.name;
       characterPrompt.value = saved.prompt;
       characterTone.value = tone;
@@ -215,6 +233,43 @@ export function CharacterPage() {
 
   const saveAndContinue = () => saveGeneratedCharacter("/library");
   const saveAndCreateEmoticon = () => saveGeneratedCharacter("/input");
+
+  const savePersonality = async () => {
+    if (!editing || saveLockRef.current || generationLockRef.current) return;
+    saveLockRef.current = true;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const saved = reviseCharacter(editing, { name, traits: selectedTraits, now: new Date().toISOString() });
+      const sync = await syncCharacterToRemote(saved);
+      if (!sync.enabled) throw new Error(sync.storageWarning ?? "저장하지 못했습니다. 저장 버튼을 다시 눌러 주세요.");
+      characters.value = replaceCharacterRecord(characters.value, saved);
+      selectCharacter(saved.id);
+      notify("이미지 생성 없이 캐릭터 정보를 저장했습니다.");
+      navigate("/library");
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "저장에 실패했습니다. 다시 저장해 주세요.");
+    } finally {
+      saveLockRef.current = false;
+      setSaving(false);
+    }
+  };
+
+  const chooseRevisionReferences = async (files: FileList | null) => {
+    if (!files) return;
+    const remaining = 2 - revisionReferences.length;
+    if (files.length > remaining) { notify("추가 참조 이미지는 최대 2장까지 선택해 주세요."); return; }
+    try {
+      const images = await Promise.all(Array.from(files).map((file) => new Promise<string>((resolve, reject) => {
+        if (!/^image\/(png|jpeg|webp|avif)$/.test(file.type) || file.size > 10_000_000) { reject(new Error("10MB 이하의 PNG, JPEG, WebP, AVIF 이미지를 선택해 주세요.")); return; }
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("이미지를 읽지 못했습니다."));
+        reader.onerror = () => reject(new Error("이미지를 읽지 못했습니다."));
+        reader.readAsDataURL(file);
+      })));
+      setRevisionReferences((current) => [...current, ...images].slice(0, 2));
+    } catch (error) { notify(error instanceof Error ? error.message : "이미지를 읽지 못했습니다."); }
+  };
 
   const chooseTone = (value: string) => {
     const normalized = normalizeHexColor(value);
@@ -276,14 +331,6 @@ const previewImage =
   stylePreviewImages[style]?.[
     detailStyle as keyof typeof stylePreviewImages[typeof style]
   ];
-
-  console.log({
-  style,
-  detailStyle,
-  previewImage,
-  style3dGlossy,
-  style3dJelly,
-});
 
   const steps = [
     {
@@ -533,6 +580,7 @@ const previewImage =
             <span className="character-field-label">외형 프롬프트 입력</span>
             <label className="character-prompt-box">
               <textarea
+                aria-label="외형 프롬프트 입력"
                 value={prompt}
                 onChange={(event) => setPrompt(event.currentTarget.value)}
                 placeholder="캐릭터의 외형, 색상, 의상, 특징 등을 자유롭게 입력해 주세요. 예) 갈색 단발머리, 둥근 얼굴, 큰 눈, 노란 후드티"
@@ -565,8 +613,29 @@ const previewImage =
 
   return (
     <div className="workspace-page character-page">
-    <div className="character-canvas">
-      {!generated ? (
+    <div className={`character-canvas${editing && !generated ? " is-revising" : ""}`}>
+      {!generated && editing ? (
+        <section className="character-revision" aria-label="기존 캐릭터 수정">
+          <header><h1>어느 부분을 어떻게 수정할까요?</h1><p>{editing.name} · {editing.styleMode}</p></header>
+          <div className="character-revision-grid">
+            <img className="character-revision-preview" src={editing.sourceAsset} alt={`${editing.name} 원본`} />
+            <div className="character-revision-fields">
+              <label>캐릭터 이름<input value={name} onChange={(event) => setName(event.target.value)} maxLength={60} disabled={generating || saving} /></label>
+              <fieldset disabled={generating || saving}><legend>성격</legend><div className="character-revision-traits">{Array.from(new Set([...traits, ...selectedTraits])).map((trait) => <button key={trait} type="button" aria-pressed={selectedTraits.includes(trait)} onClick={() => toggleTrait(trait)}>{trait}</button>)}</div></fieldset>
+              <label>외형 수정 요청<textarea value={revisionPrompt} onChange={(event) => setRevisionPrompt(event.target.value)} maxLength={1000} placeholder="예: 머리 모양만 단발로 바꾸고 얼굴과 그림체는 유지해 주세요." disabled={generating || saving} /></label>
+              <div className="character-revision-references">
+                {revisionReferences.map((image, index) => <figure key={image}><img src={image} alt={`추가 참조 ${index + 1}`} /><button type="button" aria-label={`참조 이미지 ${index + 1} 삭제`} disabled={generating || saving} onClick={() => setRevisionReferences((current) => current.filter((_, i) => i !== index))}><Icon name="close" /></button></figure>)}
+                <label>추가 참조 이미지 ({revisionReferences.length}/2)<input type="file" multiple accept="image/png,image/jpeg,image/webp,image/avif" disabled={revisionReferences.length >= 2 || generating || saving} onChange={(event) => { void chooseRevisionReferences(event.target.files); event.target.value = ""; }} /></label>
+              </div>
+              {saveError ? <p role="alert">{saveError}</p> : null}
+              <div className="character-revision-actions">
+                <button className="button secondary" type="button" disabled={generating || saving || Boolean(revisionPrompt.trim()) || revisionReferences.length > 0} onClick={savePersonality}>{saving ? "저장 중" : "이름·성격만 저장"}</button>
+                <button className="button primary" type="button" disabled={generating || saving || !revisionPrompt.trim()} onClick={createCharacter}>{generating ? "수정 중" : "이미지 수정하기"}</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : !generated ? (
         <>
           <ScrollSlideContainer
             steps={steps}
@@ -578,6 +647,10 @@ const previewImage =
             busyLabel="캐릭터 생성 중"
             className="character-scroll-slider"
           />
+          <nav className="character-step-arrows" aria-label="캐릭터 제작 단계 이동">
+            <button type="button" disabled={currentStep === 0 || generating || saving} onClick={() => setCurrentStep((step) => Math.max(0, step - 1))} aria-label="이전 제작 단계" title="이전 제작 단계"><Icon name="previous" /></button>
+            <button type="button" disabled={currentStep === 2 || generating || saving} onClick={() => setCurrentStep((step) => Math.min(2, step + 1))} aria-label="다음 제작 단계" title="다음 제작 단계"><Icon name="next" /></button>
+          </nav>
         </>
       ) : (
         <div className="character-result-layout">
@@ -607,8 +680,7 @@ const previewImage =
               {selectedTraits.map((t) => (
                 <span key={t}>#{t}</span>
               ))}
-              <span>#{type}</span>
-              <span>#{subType}</span>
+              {!editing ? <><span>#{type}</span><span>#{subType}</span></> : null}
               <span>#{style}</span>
             </div>
           </section>
@@ -617,10 +689,10 @@ const previewImage =
             <span className="character-field-label">캐릭터 정보</span>
             <div>
               <p>
-                이 캐릭터는 <strong>{selectedTraits.join(", ")}</strong> 성격의 <strong>{subType}</strong> 캐릭터입니다.
+                이 캐릭터는 <strong>{selectedTraits.join(", ")}</strong> 성격의 <strong>{editing ? name : subType}</strong> 캐릭터입니다.
               </p>
               <p>
-                전체적으로 부드러운 <strong>{tone}</strong> 색상과 <strong>{style === "3D" ? "Soft 3D 피규어" : "Soft 2D 플랫"} ({detailStyle})</strong> 그림체 스타일을 적용하여 이모티콘 5프레임 동작 프레임 생성에 적합하게 튜닝된 토큰입니다.
+                {editing ? `${editing.styleMode} · ${editing.styleDescription}` : `메인 색상 ${tone} · ${style} (${detailStyle})`}
               </p>
             </div>
           </section>
@@ -660,17 +732,18 @@ const previewImage =
   );
 }
 
-function WorkProcessScreen({ title, label, percent }: ProcessState) {
+function WorkProcessScreen({ title, label, percent: completed }: ProcessState) {
+  const { percent, estimated } = useStageProgress(completed, nextStageBoundary(completed, [8, 21, 54, 85, 100]));
   return (
     <section className="work-process-screen character-generation-process" role="status" aria-live="polite">
       <div className="work-process-inner">
         <h2>{title}</h2>
-        <div className="work-process-meter" aria-label={`진행률 ${percent}%`}>
+        <div className="work-process-meter" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={`${estimated ? "단계 내 예상" : "단계 완료 기준"} 진행률`}>
           <span style={{ width: `${percent}%` }} />
         </div>
         <p>
           <span>{label}</span>
-          <strong>{percent}%</strong>
+          <strong>{estimated ? "약 " : ""}{percent}%</strong>
         </p>
       </div>
     </section>

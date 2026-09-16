@@ -1,5 +1,5 @@
 export const CAMERA_FRAME_WIDTH = 960;
-export const CAMERA_FRAME_HEIGHT = 720;
+export const CAMERA_FRAME_HEIGHT = 540;
 
 // Match the live preview's centered object-fit: cover without stretching pixels.
 export function cameraFrameCrop(width: number, height: number) {

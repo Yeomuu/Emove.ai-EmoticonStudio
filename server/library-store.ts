@@ -10,6 +10,7 @@ type LibraryRecord = {
   id: string;
   kind: string;
   payload: unknown;
+  createOnly?: boolean;
 };
 
 type StoredLibraryRecord = LibraryRecord & {
@@ -31,6 +32,7 @@ export async function saveLibraryRecord(record: LibraryRecord): Promise<{ enable
   const now = new Date().toISOString();
   try {
     const existing = await readFirebaseJson<StoredLibraryRecord>(objectName);
+    if (record.createOnly && existing) return { enabled: true, syncedAt: existing.value.updatedAt, ownerId: "public" };
     const stored: StoredLibraryRecord = {
       id: record.id,
       kind: record.kind,
@@ -38,7 +40,7 @@ export async function saveLibraryRecord(record: LibraryRecord): Promise<{ enable
       createdAt: existing?.value.createdAt || now,
       updatedAt: now,
     };
-    const result = await writeFirebaseJson(objectName, stored);
+    const result = await writeFirebaseJson(objectName, stored, record.createOnly);
     return {
       enabled: true,
       syncedAt: now,
@@ -46,6 +48,8 @@ export async function saveLibraryRecord(record: LibraryRecord): Promise<{ enable
       ownerId: "public",
     };
   } catch (error) {
+    // Another request may create the canonical character between read and write.
+    if (record.createOnly && Number((error as { code?: unknown })?.code) === 412) return { enabled: true, ownerId: "public" };
     return { enabled: false, error: storageError("Firebase Storage 메타데이터 저장", error) };
   }
 }

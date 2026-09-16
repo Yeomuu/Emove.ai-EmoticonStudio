@@ -17,6 +17,8 @@ import { publishAnimationForQr } from "../services/share";
 import { accentColor, accentEffect, accentEffectBlur, accentEffectOpacity, activeLayer, backgroundEffectBlur, backgroundEffectOpacity, behaviorCapture, blockingSurfaceOpen, editingProject, effectColor, emotion, emoticonTitle, exportAnimationFormat, frameDelayMs, frameImages, frameLayerTransforms, lastSaved, layers, layerTransforms, motionBrief, moveLayer, notify, pendingQrExport, previewLayerOrder, sanitizeAssetUrl, selectedCharacter, selectedFrame, stickers, textBackgroundColor, textBoxShape, textColor, textFont, toggleLayer, transcript, updateLayerTransform } from "../store";
 import type { AccentEffect, EditorLayer, EmoticonProject, LayerKind, LayerTransform, StickerItem, TextBoxShape, TextFont } from "../types";
 import characterMain from "../assets/images/character-main.webp";
+import { useStageProgress } from "../components/useStageProgress";
+import { nextStageBoundary } from "../services/stage-progress";
 
 const layerIcons: Record<LayerKind, "image" | "star" | "layers" | "edit"> = { "background-effects": "image", character: "layers", "accent-effects": "star", text: "edit" };
 const accentOptions: Array<{ value: AccentEffect; label: string }> = [
@@ -42,6 +44,8 @@ const textShapeOptions = [
 export function EditPage() {
   const [exporting, setExporting] = useState(false); const [density, setDensity] = useState(64);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveProgress, setSaveProgress] = useState(0);
+  const saveDisplay = useStageProgress(saveProgress, nextStageBoundary(saveProgress, [5, 35, 80, 100]), exporting);
   const [previewing, setPreviewing] = useState(false);
   const exportLockRef = useRef(false);
   const mountedRef = useRef(false);
@@ -163,6 +167,7 @@ export function EditPage() {
       height: EXPORT_SIZE,
     };
     const [animation, thumbnailSource] = await Promise.all([exportAnimation(renderOptions, "GIF"), renderFrameDataUrl(renderOptions, 0)]);
+    setSaveProgress(35);
     const now = new Date().toISOString(); const id = original?.id ?? `emove-${Date.now()}`;
     emoticonTitle.value = title;
     exportAnimationFormat.value = animation.format;
@@ -182,6 +187,7 @@ export function EditPage() {
       throw new Error(failedFrame?.error || storedFrames.warning || "5개 캐릭터 행동 프레임을 Firebase Storage에 저장하지 못했습니다.");
     }
     const storedFrameUrls = storedFrames.assets.map((asset) => asset.url);
+    setSaveProgress(80);
     const thumbnail = thumbnailAsset.url;
     const sticker: StickerItem = {
       id: originalSticker?.id ?? id,
@@ -213,6 +219,7 @@ export function EditPage() {
       throw new Error(sync.storageWarning || "프로젝트 메타데이터를 Firebase Storage에 저장하지 못했습니다.");
     }
     if (!mountedRef.current) return project;
+    setSaveProgress(100);
     const currentIndex = stickers.value.findIndex((item) => item.id === project.sticker.id);
     stickers.value = currentIndex >= 0
       ? stickers.value.map((item, index) => (index === currentIndex ? project.sticker : item))
@@ -236,6 +243,7 @@ export function EditPage() {
     exportLockRef.current = true;
     const runId = ++saveRunRef.current;
     setExporting(true);
+    setSaveProgress(5);
     setSaveError(null);
     try {
       await buildAndSave();
@@ -798,6 +806,8 @@ export function EditPage() {
         <div className="edit-save-status-overlay" role="status" aria-live="polite" aria-atomic="true">
           <Icon name="reload" className="spin" />
           <span>이모티콘 파일과 편집 정보를 안전하게 저장하는 중입니다.</span>
+          <div className="work-process-meter" role="progressbar" aria-label={`${saveDisplay.estimated ? "단계 내 예상" : "완료 단계 기준"} 저장 진행률`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={saveDisplay.percent}><span style={{ width: `${saveDisplay.percent}%` }} /></div>
+          <strong>{saveDisplay.estimated ? "약 " : ""}{saveDisplay.percent}%</strong>
         </div>
       ) : null}
     </>

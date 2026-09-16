@@ -178,7 +178,7 @@ html[data-theme="light"] .route-quick-nav .dock-library-glyph {
   position: relative;
   height: auto !important;
   min-height: 0 !important;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
   padding: 0 !important;
   display: block !important;
   overflow: visible !important;
@@ -753,7 +753,7 @@ html[data-theme="light"] :where(.voice-transcription-warning, .timeline-save-err
   position: relative;
   width: 100%;
   min-width: 0;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
 }
 
@@ -1668,4 +1668,64 @@ html[data-theme="light"] .qr-export-backdrop .export-modal > p { color: var(--mu
     min-height: 0 !important;
     max-height: none !important;
   }
+}
+
+/* Input remains a stepped flow; only document/slide overflow is locked. */
+html:has(.app-shell.route-input),
+body:has(.app-shell.route-input) { height: 100svh !important; min-height: 0 !important; overflow: hidden !important; }
+.app-shell.route-input { position: fixed; inset: 0; height: 100vh !important; height: 100svh !important; min-height: 0 !important; overflow: hidden !important; }
+.app-shell.route-input > main,
+.app-shell.route-input .route-slide-frame,
+.workspace-page.input-page,
+.input-page .input-scroll-slider,
+.input-page .input-scroll-slider .scroll-slide {
+  height: 100% !important; min-height: 0 !important; max-height: 100% !important; overflow: hidden !important;
+}
+.input-page {
+  --input-top: clamp(180px, 32svh, 320px);
+  --input-media-width: min(774px, calc(100svw - 440px), calc((100svh - var(--input-top) - 104px) * 16 / 9));
+  --input-panel-height: calc(var(--input-media-width) * 9 / 16);
+}
+.input-page .input-brief { top: clamp(32px, 8svh, 90px) !important; }
+.input-page .input-brief h1 { font-size: 32px !important; line-height: 1.35 !important; }
+.input-page .input-composer,
+.input-page .input-result-layout {
+  top: var(--input-top) !important;
+  width: calc(var(--input-media-width) + 312px) !important;
+  grid-template-columns: minmax(0, 1fr) 280px !important;
+  gap: 32px !important;
+}
+.input-page .input-capture-notes {
+  top: calc(var(--input-top) - 46px) !important;
+  left: calc(50% - (var(--input-media-width) + 312px) / 2) !important;
+  width: var(--input-media-width) !important;
+}
+.input-page .input-scroll-slider .scroll-slide[data-step="0"] .input-composer .camera-monitor-panel,
+.input-page .input-result-main .result-media-panel,
+.input-page .input-result-main .voice-result-panel {
+  height: var(--input-panel-height) !important;
+  min-height: 0 !important; max-height: none !important;
+  aspect-ratio: auto !important;
+}
+.input-page .input-result-main { grid-template-rows: var(--input-panel-height) 44px !important; gap: 12px !important; }
+.input-page .input-result-layout > .input-stage-panel { margin-top: 0; align-self: start !important; }
+.input-page .input-scroll-slider .scroll-slide[data-step="0"] .input-composer > .input-right-column { padding-bottom: 0; align-items: flex-start !important; }
+.input-page .input-result-main .result-media-panel { align-items: center; }
+.input-page .input-result-main .voice-result-panel,
+.input-page .input-result-facts { overflow-y: auto !important; min-height: 0; max-height: 100%; overscroll-behavior: contain; }
+.input-page .captured-video-preview { align-self: center; min-width: 0; }
+.input-page .captured-video-media { aspect-ratio: 16 / 9; }
+.input-page .input-capture-error { position: fixed; top: auto; bottom: 76px; left: 50%; transform: translateX(-50%); width: min(640px, calc(100% - 32px)); max-height: 140px; overflow-y: auto; }
+@media (max-width: 760px) {
+  .input-page { --input-top: 156px; --input-media-width: calc(100svw - 32px); --input-panel-height: min(420px, calc(100svh - 248px)); }
+  .input-page .input-brief { top: 20px !important; }
+  .input-page .input-brief h1 { font-size: 24px !important; }
+  .input-page .input-scroll-slider .scroll-slide-nav { top: 112px !important; }
+  .input-page .input-composer,
+  .input-page .input-result-layout { width: auto !important; grid-template-columns: minmax(0, 1fr) !important; }
+  .input-page .input-scroll-slider .scroll-slide[data-step="0"] .input-composer .camera-monitor-panel { height: auto !important; aspect-ratio: 16 / 9 !important; }
+  .input-page .input-result-main .result-media-panel { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto minmax(0, 1fr); gap: 12px !important; padding: 12px !important; }
+  .input-page .captured-video-preview { width: min(100%, calc((var(--input-panel-height) - 130px) * 16 / 9)); justify-self: center; }
+  .input-page .captured-video-controls { height: 36px; }
+  .input-page .captured-video-preview { grid-template-rows: auto 36px; }
 }

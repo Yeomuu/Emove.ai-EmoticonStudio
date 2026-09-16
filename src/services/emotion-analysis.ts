@@ -63,12 +63,12 @@ async function analyzeVoiceWithImentiv(
   const startedAt = Date.now();
   while (Date.now() - startedAt < ANALYSIS_TIMEOUT_MS) {
     await delay(POLL_INTERVAL_MS);
-    const elapsedRatio = Math.min(1, (Date.now() - startedAt) / ANALYSIS_TIMEOUT_MS);
-    onStage?.("Imentiv가 목소리 감정을 분석하는 중...", 82 + Math.round(elapsedRatio * 8));
+    onStage?.("Imentiv가 목소리 감정을 분석하는 중...", 82);
     const response = await fetch(`/api/emotion/audio?id=${encodeURIComponent(accepted.id)}`, { cache: "no-store" });
     const payload = (await response.json().catch(() => undefined)) as (RemoteEmotionResult & { error?: string }) | undefined;
     if (!response.ok) throw new Error(payload?.error || "Imentiv 목소리 감정 분석 결과를 읽지 못했습니다.");
     if (payload?.status === "complete" && payload.emotion && payload.scores) {
+      onStage?.("목소리 감정 분석 결과를 확인했어요.", 90);
       return {
         emotion: payload.emotion,
         confidence: clamp01(payload.confidence ?? payload.scores[payload.emotion] ?? 0),

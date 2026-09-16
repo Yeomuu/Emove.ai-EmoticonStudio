@@ -9,6 +9,7 @@ import { characters } from "./store";
 import { useSignalSnapshot } from "./lib/signals";
 import { imageAssets } from "./data";
 import type { RoutePath } from "./types";
+import { useStageProgress } from "./components/useStageProgress";
 
 const loadCharacterPage = () => import("./screens/Character").then((module) => ({ default: module.CharacterPage }));
 const loadInputPage = () => import("./screens/Input").then((module) => ({ default: module.InputPage }));
@@ -40,6 +41,8 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
   const [activeRoute, setActiveRoute] = useState<RoutePath>(() => initialPath ?? route.value);
   const [routePhase, setRoutePhase] = useState<"idle" | "covering" | "revealing">("idle");
   const [routeProgress, setRouteProgress] = useState(0);
+  const bootDisplay = useStageProgress(bootProgress, Math.min(100, bootProgress + 100 / (BOOT_ASSETS.length + 1)), booting);
+  const routeDisplay = useStageProgress(routeProgress, 100, routePhase !== "idle");
 
   // Asset preloading on boot
   useEffect(() => {
@@ -80,8 +83,12 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
     loadRemoteCharacters().then((remote) => {
       if (!remote.enabled) return;
       const saved = remote.characters;
+      const remoteById = new Map(saved.map((item) => [item.id, item]));
       const known = new Set(characters.value.map((item) => item.id));
-      characters.value = [...saved.filter((item) => !known.has(item.id)), ...characters.value];
+      characters.value = [...saved.filter((item) => !known.has(item.id)), ...characters.value.map((item) => {
+        const remoteItem = remoteById.get(item.id);
+        return remoteItem && Date.parse(remoteItem.updatedAt) >= Date.parse(item.updatedAt) ? remoteItem : item;
+      })];
     }).catch(() => undefined);
   }, []);
 
@@ -108,9 +115,6 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
 
     setRoutePhase("covering");
     setRouteProgress(12);
-
-    const progressTimer = window.setTimeout(() => setRouteProgress(56), 180);
-    timersRef.current = [progressTimer];
 
     Promise.all([
       preloadRoute(nextRoute),
@@ -155,9 +159,9 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
           <small>Loading assets: {bootLabel}</small>
         </div>
         <div className="loader-track">
-          <span style={{ transform: `scaleX(${bootProgress / 100})`, transition: "transform 0.2s ease" }} />
+          <span style={{ transform: `scaleX(${bootDisplay.percent / 100})`, transition: "transform 0.2s ease" }} />
         </div>
-        <strong>{bootProgress}</strong>
+        <strong>{bootDisplay.estimated ? "약 " : ""}{bootDisplay.percent}</strong>
       </div>
 
       {/* Page transition curtain */}
@@ -169,7 +173,7 @@ export function App({ initialPath }: { initialPath?: RoutePath }) {
             <small>Preparing layout...</small>
           </div>
           <div className="route-loader-line">
-            <span style={{ transform: `scaleX(${routeProgress / 100})`, transition: "transform 0.2s ease" }} />
+            <span style={{ transform: `scaleX(${routeDisplay.percent / 100})`, transition: "transform 0.2s ease" }} />
           </div>
         </div>
       </div>

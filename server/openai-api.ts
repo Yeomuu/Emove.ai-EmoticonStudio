@@ -69,17 +69,20 @@ async function transcribe(request: Request, key: string, env: ServerEnv) {
 }
 
 async function generateCharacter(request: Request, key: string, env: ServerEnv) {
-  const body = await request.json() as { prompt: string; token: unknown; referenceImages?: string[]; variationCount?: number; variationIndex?: number };
+  const body = await request.json() as { prompt: string; token: unknown; referenceImages?: string[]; variationCount?: number; variationIndex?: number; editExisting?: boolean };
+  if (body.referenceImages && (!Array.isArray(body.referenceImages) || body.referenceImages.length > 3 || body.referenceImages.some((value) => typeof value !== "string"))) return json(400, { error: "원본과 추가 참조 2장까지만 사용할 수 있습니다." });
   const count = 1;
   const offset = Math.max(0, Math.floor(Number(body.variationIndex || 0)));
   const drafts = Array.from({ length: count }, (_, index) => [
     body.prompt,
-    `[Variation ${offset + index + 1}] Keep the same character identity, palette, style mode and neutral reusable full-body framing. Change only small design exploration details such as pose attitude, silhouette charm, accessory-free facial nuance, or body proportion emphasis.`,
+    body.editExisting
+      ? "[Revision] Edit the character in the FIRST image. Other images are supplemental references, not replacement characters. Apply only the latest requested appearance changes; they override earlier descriptions only where explicitly requested. Preserve everything else, especially identity and 2D/3D style. Do not introduce variation exploration."
+      : `[Variation ${offset + index + 1}] Keep the same character identity, palette, style mode and neutral reusable full-body framing. Change only small design exploration details such as pose attitude, silhouette charm, accessory-free facial nuance, or body proportion emphasis.`,
   ].join("\n"));
-  const reference = body.referenceImages?.[0];
+  const references = body.referenceImages ?? [];
   const prompts = await refineImagePrompts("character", drafts, promptPlanningContext(body), key, env);
   const imageUrls = await mapWithConcurrency(prompts, Number(env.OPENAI_IMAGE_CONCURRENCY || 2), (prompt) => (
-    reference ? editImage(`${prompt}\nUse the supplied image only as visual reference for shape, material, color mood, or rendering style. Produce the requested EMOVE character alone on a transparent background with real alpha.`, reference, key, env) : generateImage(prompt, key, env)
+    references.length ? editImage(`${prompt}\nProduce the requested EMOVE character alone on a transparent background with real alpha.`, references, key, env) : generateImage(prompt, key, env)
   ));
   return json(200, { imageUrl: imageUrls[0], imageUrls, token: body.token, revisedPrompt: prompts[0], revisedPrompts: prompts });
 }
@@ -109,21 +112,24 @@ async function generateImage(prompt: string, key: string, env: ServerEnv): Promi
   return imagePayload(openai, options.output_format);
 }
 
-async function editImage(prompt: string, referenceUrl: string, key: string, env: ServerEnv): Promise<string> {
-  if (referenceUrl.length > 4_000_000 || !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(referenceUrl)) {
+async function editImage(prompt: string, reference: string | string[], key: string, env: ServerEnv): Promise<string> {
+  const references = typeof reference === "string" ? [reference] : reference;
+  if (!references.length || references.length > 3 || references.some((referenceUrl) => referenceUrl.length > 4_000_000 || !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(referenceUrl))) {
     throw new Error("참조 이미지는 브라우저에서 준비한 PNG/WebP/JPEG 데이터여야 합니다. 이미지를 다시 선택해 주세요.");
   }
-  const source = await fetch(referenceUrl);
-  if (!source.ok) throw new Error("캐릭터 참조 이미지를 불러오지 못했습니다.");
   const form = new FormData();
   const options = imageOutputOptions(env);
   Object.entries(options).forEach(([name, value]) => {
     if (value !== undefined) form.append(name, String(value));
   });
   form.append("prompt", prompt);
-  const blob = await source.blob();
-  const type = blob.type || "image/png";
-  form.append("image", new File([blob], `character.${extensionForMimeType(type)}`, { type }));
+  for (const [index, referenceUrl] of references.entries()) {
+    const source = await fetch(referenceUrl);
+    if (!source.ok) throw new Error("캐릭터 참조 이미지를 불러오지 못했습니다.");
+    const blob = await source.blob();
+    const type = blob.type || "image/png";
+    form.append(references.length === 1 ? "image" : "image[]", new File([blob], `character-${index}.${extensionForMimeType(type)}`, { type }));
+  }
   const openai = await fetch("https://api.openai.com/v1/images/edits", { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form });
   return imagePayload(openai, options.output_format);
 }

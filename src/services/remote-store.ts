@@ -34,6 +34,7 @@ type RemoteStickerDoc = {
 };
 
 type RemoteCharacterDoc = {
+  details?: unknown;
   id?: unknown;
   ownerId?: unknown;
   name?: unknown;
@@ -80,7 +81,7 @@ export async function syncProjectToRemote(project: EmoticonProject): Promise<Rem
   const syncResults = await Promise.all([
     postRemoteRecord("projects", payload, project.id),
     postRemoteRecord("stickers", payload.sticker, sticker.id),
-    postRemoteRecord("characters", payload.character, characterToken.id),
+    postRemoteRecord("characters", payload.character, characterToken.id, true),
     postRemoteRecord("captures", payload.capture, capture.id),
   ]);
   const [result] = syncResults;
@@ -142,12 +143,12 @@ export async function deleteRemoteLibraryItem(kind: "emoticon" | "character", id
   return failure ?? { enabled: true, syncedAt: new Date().toISOString(), ownerId: PUBLIC_LIBRARY_OWNER_ID };
 }
 
-async function postRemoteRecord(kind: RemoteKind, payload: unknown, id = recordId(payload)): Promise<RemoteSyncResult> {
+async function postRemoteRecord(kind: RemoteKind, payload: unknown, id = recordId(payload), createOnly = false): Promise<RemoteSyncResult> {
   try {
     const response = await fetch(remoteEndpoint(kind), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, kind, payload }),
+      body: JSON.stringify({ id, kind, payload, ...(createOnly ? { createOnly: true } : {}) }),
       signal: AbortSignal.timeout(REMOTE_REQUEST_TIMEOUT_MS),
     });
     const body = await response.json().catch(() => ({})) as Partial<RemoteSyncResult> & { error?: string };
@@ -222,6 +223,11 @@ function libraryGroupFromRemoteDoc(value: unknown, createdAt?: string, updatedAt
 
 function createCharacterDoc(item: CharacterToken, ownerId: string) {
   return {
+    details: {
+      version: item.version, stylePreset: item.stylePreset, styleDescription: item.styleDescription,
+      observableTraits: item.observableTraits, personalityTags: item.personalityTags,
+      colors: item.colors, fixedTraits: item.fixedTraits, doNotChange: item.doNotChange,
+    },
     id: item.id,
     ownerId,
     name: item.name,
@@ -617,9 +623,12 @@ function characterFromRemoteDoc(value: unknown, updatedAt?: string): CharacterTo
   if (!id || !imageUrl) return null;
   const styleMode = text(doc.styleMode) === "2D" ? "2D" : "3D";
   const createdAt = text(doc.metadata?.generatedAt) || updatedAt || new Date().toISOString();
+  const details = asRecord(doc.details);
+  const strings = (value: unknown): string[] => Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+  const colors = Object.fromEntries(Object.entries(asRecord(details?.colors) ?? {}).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
   return {
     id,
-    version: 1,
+    version: typeof details?.version === "number" && Number.isFinite(details.version) ? Math.max(1, details.version) : 1,
     name: text(doc.name) || "공유 캐릭터",
     ownerId: PUBLIC_LIBRARY_OWNER_ID,
     isDefault: Boolean(doc.isDefault),
@@ -627,14 +636,14 @@ function characterFromRemoteDoc(value: unknown, updatedAt?: string): CharacterTo
     sourceAsset: imageUrl,
     referenceImages: [imageUrl],
     styleMode,
-    stylePreset: styleMode === "2D" ? "Soft 2D" : "Soft 3D",
-    styleDescription: `${styleMode} shared EMOVE character`,
+    stylePreset: text(details?.stylePreset) || (styleMode === "2D" ? "Soft 2D" : "Soft 3D"),
+    styleDescription: text(details?.styleDescription) || `${styleMode} shared EMOVE character`,
     prompt: text(doc.metadata?.prompt) || "",
-    observableTraits: [],
-    personalityTags: [],
-    colors: { body: "#BBB6FF", accent: "#BBB6FF", eyes: "#201E28" },
-    fixedTraits: [],
-    doNotChange: [],
+    observableTraits: strings(details?.observableTraits),
+    personalityTags: strings(details?.personalityTags),
+    colors: Object.keys(colors).length ? colors : { body: "#BBB6FF", accent: "#BBB6FF", eyes: "#201E28" },
+    fixedTraits: strings(details?.fixedTraits),
+    doNotChange: strings(details?.doNotChange),
     createdAt,
     updatedAt: updatedAt || createdAt,
   };

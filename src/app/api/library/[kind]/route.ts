@@ -20,10 +20,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ kin
   if (!isSameOriginRequest(request)) return json(403, { error: "다른 출처에서는 보관함을 수정할 수 없습니다." });
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (Number.isFinite(contentLength) && contentLength > 512 * 1024) return json(413, { error: "보관함 메타데이터가 너무 큽니다." });
-  const body = await request.json().catch(() => undefined) as { id?: string; payload?: unknown } | undefined;
+  const body = await request.json().catch(() => undefined) as { id?: string; payload?: unknown; createOnly?: boolean } | undefined;
   if (!body?.id || body.payload == null) return json(400, { error: "저장할 라이브러리 레코드가 비어 있습니다." });
 
-  const result = await saveLibraryRecord({ id: body.id, kind, payload: body.payload });
+  const result = await saveLibraryRecord({ id: body.id, kind, payload: body.payload, createOnly: kind === "characters" && body.createOnly === true });
   if (!result.enabled) return json(501, { error: result.error ?? libraryStoreConfigurationError() ?? "Firebase Storage 메타데이터 저장을 사용할 수 없습니다." });
   return json(201, result);
 }

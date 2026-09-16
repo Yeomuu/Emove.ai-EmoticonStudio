@@ -26,6 +26,7 @@ const emptyCharacter: CharacterToken = {
 };
 
 export const characterName = signal("");
+export const editingCharacter = signal<CharacterToken | null>(null);
 export const characterPrompt = signal("");
 export const characterTone = signal("#BBB6FF");
 export const characterStyle = signal<"2D" | "3D">("2D");

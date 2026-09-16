@@ -4,14 +4,14 @@ import { CameraCapture } from "../src/services/media";
 
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-describe("shared 4:3 camera framing", () => {
+describe("shared 16:9 camera framing", () => {
   it.each([
-    [960, 720, { x: 0, y: 0, width: 960, height: 720 }],
-    [1920, 1080, { x: 240, y: 0, width: 1440, height: 1080 }],
-    [720, 1280, { x: 0, y: 370, width: 720, height: 540 }],
+    [960, 720, { x: 0, y: 90, width: 960, height: 540 }],
+    [1920, 1080, { x: 0, y: 0, width: 1920, height: 1080 }],
+    [720, 1280, { x: 0, y: 437.5, width: 720, height: 405 }],
   ])("center crops %sx%s without distortion", (width, height, crop) => {
     expect(cameraFrameCrop(width, height)).toEqual(crop);
-    expect(crop.width / crop.height).toBeCloseTo(4 / 3);
+    expect(crop.width / crop.height).toBeCloseTo(16 / 9);
   });
 
   it("rejects unavailable frame dimensions", () => {
@@ -63,12 +63,12 @@ describe("camera recording lifecycle", () => {
     expect(started).toHaveBeenCalledOnce();
     expect(fixture.getRecorder().stream).toBe(fixture.output);
     expect(fixture.canvas.width).toBe(960);
-    expect(fixture.canvas.height).toBe(720);
+    expect(fixture.canvas.height).toBe(540);
     await vi.advanceTimersByTimeAsync(5000);
     const result = await recording;
     expect(result.blob.size).toBeGreaterThan(0);
     expect(result.durationMs).toBe(5000);
-    expect(fixture.drawImage).toHaveBeenLastCalledWith(fixture.video, 240, 0, 1440, 1080, 0, 0, 960, 720);
+    expect(fixture.drawImage).toHaveBeenLastCalledWith(fixture.video, 0, 0, 1920, 1080, 0, 0, 960, 540);
     expect(fixture.outputTrack.stop).toHaveBeenCalledOnce();
     expect(fixture.sourceTrack.stop).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);

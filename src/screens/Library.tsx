@@ -8,6 +8,7 @@ import { downloadBlob } from "../services/renderer";
 import { deleteRemoteLibraryItem, loadRemoteCharacters, loadRemoteLibraryGroups, loadRemoteProjects, loadRemoteStickers, syncCharacterToRemote, syncLibraryGroupToRemote, syncStickerToRemote } from "../services/remote-store";
 import { animationExtension } from "../services/share";
 import { characterName, characterPrompt, characterStyle, characterTone, characters, loadProjectForEditing, notify, pendingQrExport, sanitizeAssetUrl, selectCharacter, stickers } from "../store";
+import { editingCharacter } from "../store";
 import type { AnimationFormat, CharacterToken, EmoticonProject, Emotion, LibraryGroup, StickerItem } from "../types";
 
 type Filter = "all" | "favorite" | Emotion;
@@ -79,6 +80,7 @@ export function LibraryPage() {
   };
 
   const beginEditCharacter = (token: CharacterToken) => {
+    editingCharacter.value = token;
     characterName.value = token.name;
     characterPrompt.value = token.prompt;
     characterTone.value = token.colors.body ?? "#BBB6FF";

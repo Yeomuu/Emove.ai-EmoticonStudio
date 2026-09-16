@@ -88,7 +88,7 @@ export async function downloadFirebaseAsset(objectName: string): Promise<{ data:
   return { data, contentType: metadata.contentType || "application/octet-stream" };
 }
 
-export async function writeFirebaseJson<T>(objectName: string, value: T): Promise<{ path: string; size: number }> {
+export async function writeFirebaseJson<T>(objectName: string, value: T, createOnly = false): Promise<{ path: string; size: number }> {
   const configurationError = firebaseStorageConfigurationError();
   if (configurationError) throw new Error(configurationError);
   assertSafeMetadataObjectName(objectName);
@@ -97,6 +97,7 @@ export async function writeFirebaseJson<T>(objectName: string, value: T): Promis
   if (data.byteLength > MAX_METADATA_BYTES) throw new Error("메타데이터는 최대 1MB까지 저장할 수 있습니다.");
   await storageBucket().file(objectName).save(data, {
     resumable: false,
+    ...(createOnly ? { preconditionOpts: { ifGenerationMatch: 0 } } : {}),
     contentType: "application/json; charset=utf-8",
     metadata: {
       cacheControl: "no-store",

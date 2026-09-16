@@ -8,6 +8,7 @@ export interface GenerationProgressState {
 }
 
 const GENERATION_TITLE = "감정을 다섯 장면으로 이어 붙이고 있어요.";
+export const GENERATION_BOUNDARIES = [1, 3, 8, ...Array.from({ length: 5 }, (_, index) => [ .06, .12, .24, .66, .84, 1 ].map((part) => Math.round(8 + 17 * index + 17 * part))).flat(), 95, 98, 100];
 const FRAME_LABELS = [
   "시작 동작",
   "움직임을 여는 동작",
