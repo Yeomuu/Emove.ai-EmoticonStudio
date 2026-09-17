@@ -191,7 +191,7 @@ function drawTextBubble(context: CanvasRenderingContext2D, options: RenderOption
   const shape = options.textShape ?? "pill";
   context.font = `700 ${Math.max(25, width * (fontFamily === "Paperlogy" ? .048 : .05))}px ${fontFamily}, Pretendard, sans-serif`;
   context.textAlign = "center"; context.textBaseline = "middle";
-  const text = options.brief.shortText; const bubbleWidth = bounds.width; const bubbleHeight = bounds.bubbleHeight; const x = bounds.x; const y = bounds.y;
+  const lines = textBubbleLines(options.brief.shortText); const bubbleWidth = bounds.width; const bubbleHeight = bounds.bubbleHeight; const x = bounds.x; const y = bounds.y;
   const bubbleCenterX = x + bubbleWidth / 2;
   context.beginPath();
   if (shape === "caption") {
@@ -205,18 +205,24 @@ function drawTextBubble(context: CanvasRenderingContext2D, options: RenderOption
   }
   context.fillStyle = normalizePickerHex(options.textBackgroundColor ?? "") ?? DEFAULT_TEXT_BACKGROUND_COLOR; context.fill();
   context.fillStyle = normalizePickerHex(options.textColor ?? "") ?? DEFAULT_TEXT_COLOR;
-  context.fillText(text, bubbleCenterX, y + bubbleHeight / 2 + 1, bubbleWidth - 36 * unit);
+  const lineHeight = Math.max(25, width * (fontFamily === "Paperlogy" ? .048 : .05)) * 1.25;
+  lines.forEach((line, index) => context.fillText(line, bubbleCenterX, y + bubbleHeight / 2 + 1 + (index - (lines.length - 1) / 2) * lineHeight, bubbleWidth - 36 * unit));
+}
+
+export function textBubbleLines(text: string): string[] {
+  return text.replace(/\r\n?/g, "\n").split("\n");
 }
 
 export function measureTextBubble(brief: MotionBrief, shape: TextBoxShape = "pill", textFont: TextFont = "Pretendard", width = DESIGN_SIZE, height = DESIGN_SIZE): TextBubbleBounds {
   const unit = width / DESIGN_SIZE;
   const fontFamily = textFont === "Paperlogy" ? "Paperlogy" : "Pretendard";
   const fontSize = Math.max(25, width * (fontFamily === "Paperlogy" ? .048 : .05));
-  const textWidth = measureTextWidth(brief.shortText, `700 ${fontSize}px ${fontFamily}, Pretendard, sans-serif`);
+  const lines = textBubbleLines(brief.shortText);
+  const textWidth = Math.max(...lines.map(line => measureTextWidth(line, `700 ${fontSize}px ${fontFamily}, Pretendard, sans-serif`)));
   const bubbleWidth = Math.min(width * .84, textWidth + 64 * unit);
-  const bubbleHeight = Math.max(54 * unit, width * .098);
+  const bubbleHeight = Math.max(54 * unit, width * .098) + (lines.length - 1) * fontSize * 1.25;
   const tail = shape === "caption" ? 14 * unit : 0;
-  return { x: width / 2 - bubbleWidth / 2, y: height * .73, width: bubbleWidth, height: bubbleHeight + tail, bubbleHeight };
+  return { x: width / 2 - bubbleWidth / 2, y: Math.max(0, Math.min(height * .73, height - bubbleHeight - tail)), width: bubbleWidth, height: bubbleHeight + tail, bubbleHeight };
 }
 
 function measureTextWidth(text: string, font: string): number {

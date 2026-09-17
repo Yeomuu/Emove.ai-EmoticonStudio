@@ -14,6 +14,7 @@ import libraryImage04 from "./assets/images/library-04.webp";
 import libraryImage05 from "./assets/images/library-05.webp";
 import logoImage from "./assets/images/logo-mark.png";
 import poseImage from "./assets/images/pose-reference.webp";
+import tinoImage from "./assets/images/tino.png";
 
 const assetSrc = (asset: { src: string }) => asset.src;
 
@@ -84,6 +85,16 @@ export const defaultCharacterTokens: CharacterToken[] = [
     prompt: "짧은 꿀빛 단발과 노란 원피스를 입고 인사하는 3D 미니 캐릭터", observableTraits: ["짧은 단발", "노란 원피스", "둥근 얼굴", "한 손 인사"],
     personalityTags: ["차분한", "따뜻한", "친근한"], colors: { hair: "#E8B86A", skin: "#FFE2C3", outfit: "#FFD36E", eyes: "#201E28" },
     fixedTraits: ["짧은 단발", "노란 원피스", "둥근 얼굴"], doNotChange: ["헤어스타일", "의상 색", "얼굴 비율"], createdAt, updatedAt: createdAt,
+  },
+  {
+    id: "default-tino-2d", version: 1, name: "티노", category: "기타", subType: "공룡", ownerId: null, isDefault: true,
+    sourceAsset: assetSrc(tinoImage), referenceImages: [assetSrc(tinoImage)], styleMode: "2D", stylePreset: "2D 마스코트",
+    styleDescription: "flat 2D dinosaur mascot, thick black outlines, white body and blue accents; preserve the supplied character design",
+    prompt: "기타 - 공룡. 티노: 흰 몸과 파란 타원형 배, 파란 볼과 등 돌기, 작은 검은 눈, 앞니 두 개, 짧은 팔다리와 꼬리를 가진 2D 공룡. 검은 윤곽선과 눈·입은 유지하고, 캐릭터 외에는 아무것도 없는 실제 투명 배경으로 표현한다.",
+    observableTraits: ["기타", "공룡", "흰 몸", "파란 배와 볼", "파란 등 돌기", "앞니 두 개", "굵은 검은 윤곽선"],
+    personalityTags: [], colors: { body: "#FFFFFF", accent: "#0565B9", outline: "#000000" },
+    fixedTraits: ["공룡 실루엣", "파란 타원형 배", "파란 볼", "한쪽에 보이는 파란 등 돌기 네 개", "살짝 오른쪽에 위치한 앞니 두 개"],
+    doNotChange: ["2D 그림체", "몸 비율", "주요 색상", "얼굴 특징"], createdAt: "2026-09-16T00:00:00.000Z", updatedAt: "2026-09-16T00:00:00.000Z",
   },
 ];
 

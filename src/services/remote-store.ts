@@ -224,6 +224,7 @@ function libraryGroupFromRemoteDoc(value: unknown, createdAt?: string, updatedAt
 function createCharacterDoc(item: CharacterToken, ownerId: string) {
   return {
     details: {
+      category: item.category, subType: item.subType,
       version: item.version, stylePreset: item.stylePreset, styleDescription: item.styleDescription,
       observableTraits: item.observableTraits, personalityTags: item.personalityTags,
       colors: item.colors, fixedTraits: item.fixedTraits, doNotChange: item.doNotChange,
@@ -629,6 +630,8 @@ function characterFromRemoteDoc(value: unknown, updatedAt?: string): CharacterTo
   return {
     id,
     version: typeof details?.version === "number" && Number.isFinite(details.version) ? Math.max(1, details.version) : 1,
+    category: text(details?.category) || undefined,
+    subType: text(details?.subType) || undefined,
     name: text(doc.name) || "공유 캐릭터",
     ownerId: PUBLIC_LIBRARY_OWNER_ID,
     isDefault: Boolean(doc.isDefault),

@@ -72,6 +72,8 @@ export interface EffectLayerStyle {
 }
 
 export interface CharacterToken {
+  category?: string;
+  subType?: string;
   id: string;
   version: number;
   name: string;

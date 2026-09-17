@@ -33,7 +33,7 @@ import style2dWatercolor from "../assets/images/character-style/character-style-
 
 const ai = getAIProvider();
 const traits = ["밝은", "엉뚱한", "듬직한", "용감한", "차분한", "신중한", "장난스러운", "활발한", "예민한"];
-const characterTypes = ["인물", "사물", "동물", "식물", "음식"];
+const characterTypes = ["인물", "사물", "동물", "식물", "음식", "기타"];
 const subCharacterPresets: Record<string, string[]> = {
   "인물": ["소년", "소녀", "직장인", "학생", "탐험가"],
   "식물": ["선인장", "꽃", "버섯", "새싹", "나무"],
@@ -112,6 +112,8 @@ export function CharacterPage() {
     return {
       id: id ?? generated?.token.id ?? `character-${Date.now()}`,
       version: 1,
+      category: type,
+      subType: subType.trim(),
       name: name.trim() || fallbackName,
       ownerId: "public",
       isDefault: false,
@@ -145,6 +147,12 @@ export function CharacterPage() {
   const createCharacter = async () => {
     if (generationLockRef.current || saveLockRef.current) return;
     generationLockRef.current = true;
+    if (!editing && type === "기타" && !subType.trim()) {
+      generationLockRef.current = false;
+      setCurrentStep(0);
+      notify("만들고 싶은 캐릭터의 종류와 특징을 입력해 주세요.");
+      return;
+    }
     if (editing && !revisionPrompt.trim()) {
       generationLockRef.current = false;
       notify("변경할 외형을 입력해 주세요. 성격만 바꿀 때는 이미지 생성 없이 저장할 수 있어요.");
@@ -358,7 +366,10 @@ const previewImage =
               <div className="character-dropdown-arrows" aria-hidden="true">
                 <Icon name="next" size={14} />
               </div>
-              <CharacterDropdown
+              {type === "기타" ? <label className="character-custom-type">
+                <span>캐릭터 종류와 특징</span>
+                <input value={subType} maxLength={120} placeholder="예: 공룡, 파란 배와 작은 날개" onChange={(event) => setSubType(event.currentTarget.value)} />
+              </label> : <CharacterDropdown
                 id="subType"
                 label="세부 캐릭터 선택"
                 value={subType}
@@ -369,7 +380,7 @@ const previewImage =
                   setSubType(value);
                   setOpenDropdown(null);
                 }}
-              />
+              />}
             </div>
             <div className="character-mini-preview">
               <span>캐릭터 미리보기</span>
@@ -616,7 +627,7 @@ const previewImage =
     <div className={`character-canvas${editing && !generated ? " is-revising" : ""}`}>
       {!generated && editing ? (
         <section className="character-revision" aria-label="기존 캐릭터 수정">
-          <header><h1>어느 부분을 어떻게 수정할까요?</h1><p>{editing.name} · {editing.styleMode}</p></header>
+          <header><h1>어느 부분을 어떻게 수정할까요?</h1><p>{editing.name} · {editing.styleMode}{editing.category ? ` · ${editing.category} > ${editing.subType ?? ""}` : ""}</p></header>
           <div className="character-revision-grid">
             <img className="character-revision-preview" src={editing.sourceAsset} alt={`${editing.name} 원본`} />
             <div className="character-revision-fields">

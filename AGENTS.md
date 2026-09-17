@@ -162,6 +162,9 @@ When implementing from a selected generated mock, treat that image as the source
 
 ### 2026-09-16 interaction updates
 
+- The user-supplied `ChatGPT Image 2026년 9월 17일 오전 10_18_19.png` supersedes the earlier Tino cutout. Use its original transparent pixels unchanged as `src/assets/images/tino.png`, including for generation references; preserve four blue dorsal spikes and the slightly right-offset two teeth.
+- Character creation includes a `기타` category with a freeform subtype/features input. Preserve category/subtype in character metadata. Tino is a supplied 2D character classified as `기타 > 공룡`; its final bundled asset must be a genuinely transparent PNG with the black character outlines preserved.
+- Edit speech-bubble text preserves explicit line breaks, including blank lines. Preview, export, and selection bounds share the same multiline layout.
 - The waiting catch game uses the selected base character on flipping cards. Three wrong clicks end a round; every five consecutive hits shortens the target window from 2s to 1.5s, 1s, then a 0.6s floor. Keep current score plus five session-only completed scores isolated from generation and remote assets.
 - Character Step3 prepopulates the appearance prompt from the current type, subtype, dimension, and detail style. Provide explicit side navigation between creation steps.
 - Existing character edits use the original image plus up to two supplemental references. Name/personality-only edits save metadata without an image API call; visual edits reuse the completion screen and overwrite the original character id while preserving creation time and favorite state.

@@ -875,6 +875,8 @@ margin-bottom: 36px;
   font-size: 12px;
 }
 .character-step-arrows { position: absolute; top: 50svh; left: 50%; width: calc(100svw - 24px); transform: translate(-50%, -50%); z-index: 70; display: flex; justify-content: space-between; pointer-events: none; }
+.character-custom-type { display: grid; gap: 12px; min-width: 0; width: 100%; font-size: 14px; }
+.character-custom-type input { width: 100%; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--line-purple); border-radius: 8px; background: var(--bg-soft); color: var(--text); }
 .character-canvas.is-revising { width: 100% !important; min-width: 0 !important; height: 100% !important; min-height: 0 !important; }
 .character-step-arrows button { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line-purple); border-radius: 50%; background: var(--surface-strong); backdrop-filter: blur(12px); pointer-events: auto; }
 .character-step-arrows button:disabled { visibility: hidden; pointer-events: none; }

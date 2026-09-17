@@ -52,14 +52,14 @@ describe("character revisions", () => {
     expect(reviseCharacter(original, { name: original.name, traits: [], image: "/new.webp", now: edited.updatedAt }).referenceImages).toEqual(["/new.webp"]);
   });
   it("round trips character settings through public metadata", async () => {
-    const original = reviseCharacter(defaultCharacterTokens[0], { name: "시험", traits: ["차분한"], now: "2026-09-16T00:00:00Z" });
+    const original = reviseCharacter({ ...defaultCharacterTokens[0], category: "기타", subType: "공룡" }, { name: "시험", traits: ["차분한"], now: "2026-09-16T00:00:00Z" });
     const mock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ enabled: true })));
     vi.stubGlobal("fetch", mock);
     await syncCharacterToRemote(original);
     const record = JSON.parse(mock.mock.calls[0][1].body);
     mock.mockResolvedValue(new Response(JSON.stringify({ records: [{ ...record, updatedAt: original.updatedAt }] })));
     const result = await loadRemoteCharacters();
-    expect(result.characters[0]).toMatchObject({ id: original.id, personalityTags: original.personalityTags, colors: original.colors, styleMode: original.styleMode, version: original.version });
+    expect(result.characters[0]).toMatchObject({ id: original.id, category: "기타", subType: "공룡", personalityTags: original.personalityTags, colors: original.colors, styleMode: original.styleMode, version: original.version });
   });
   it("sends the original and two extra references as multipart images", async () => {
     const mock = vi.fn().mockImplementation(async (url) => String(url).startsWith("data:")
