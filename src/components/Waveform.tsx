@@ -1,3 +1,4 @@
+import { roundedRect } from "../services/canvas-path";
 import { useEffect, useMemo, useRef } from "react";
 
 export function Waveform({ levels, active = false }: { levels?: number[]; active?: boolean }) {
@@ -25,7 +26,7 @@ export function Waveform({ levels, active = false }: { levels?: number[]; active
       gradient.addColorStop(1, idle ? "rgba(123,109,255,.5)" : "#7b6dff");
       context.fillStyle = gradient;
       context.beginPath();
-      context.roundRect(index * step + (step - width) / 2, rect.height / 2 - height / 2, width, height, 6);
+      roundedRect(context, index * step + (step - width) / 2, rect.height / 2 - height / 2, width, height, 6);
       context.fill();
     });
   }, [values, active, idle]);

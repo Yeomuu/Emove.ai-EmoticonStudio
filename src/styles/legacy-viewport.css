@@ -1,0 +1,19 @@
+/* Chrome 103 understands vh/vw. Newer mobile browsers retain their small and
+   dynamic viewport behavior. Variables also work in custom-property values. */
+:root {
+  --emove-svh: 1vh;
+  --emove-svw: 1vw;
+  --emove-dvh: 1vh;
+  --emove-dvw: 1vw;
+  --emove-lvh: 1vh;
+  --emove-lvw: 1vw;
+}
+@supports (height: 1svh) {
+  :root { --emove-svh: 1svh; --emove-svw: 1svw; }
+}
+@supports (height: 1dvh) {
+  :root { --emove-dvh: 1dvh; --emove-dvw: 1dvw; }
+}
+@supports (height: 1lvh) {
+  :root { --emove-lvh: 1lvh; --emove-lvw: 1lvw; }
+}

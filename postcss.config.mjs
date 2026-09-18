@@ -1,6 +1,10 @@
+import path from "node:path";
 const config = {
   plugins: {
-    "@tailwindcss/postcss": {},
+    "postcss-import": {},
+    tailwindcss: {},
+    [path.resolve("scripts/postcss-sierra.cjs")]: {},
+    autoprefixer: {},
   },
 };
 

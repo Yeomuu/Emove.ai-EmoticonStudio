@@ -5,7 +5,7 @@ EMOVE is a Next.js-based emoticon creation prototype. It lets users create a cha
 ## Stack
 
 - Next.js App Router, React, TypeScript
-- Tailwind CSS v4 foundation with shadcn/ui-style local components
+- Tailwind CSS v3.4 foundation with shadcn/ui-style local components
 - Custom CSS design system for the current dark liquid-glass visual language
 - Vercel Route Handlers for OpenAI, Firebase asset, download, and library metadata APIs
 - Firebase Storage for generated character, frame, thumbnail, animation, and shared JSON metadata files
@@ -95,3 +95,9 @@ src/styles/       Design tokens and current liquid-glass CSS
 server/           Shared server-only API helpers
 public/models/    MediaPipe model and WASM files
 ```
+
+## Sierra compatibility branch
+
+`codex/sub` targets Chrome 103 on macOS Sierra 10.12.6. Chrome 104 dropped Sierra support ([Google release notes](https://support.google.com/chrome/a/answer/12239814?hl=en)). Use HTTPS for camera and microphone access. This is browser compatibility work; the Next.js server still runs on modern Node.js on Vercel, not on the old iMac.
+
+This target is below the Next.js default Chrome 111 baseline. The branch adds Chrome 103 CSS targeting, viewport-unit fallbacks, Canvas rounded paths and inert support. Full support still requires an end-to-end test on the Sierra machine, including actual camera/microphone capture, MediaPipe, generation, Firebase save and QR download. A modern browser preview alone does not establish that compatibility.

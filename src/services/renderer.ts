@@ -1,3 +1,4 @@
+import { roundedRect } from "./canvas-path";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { DESIGN_SIZE, EXPORT_SIZE, FRAME_COUNT } from "../constants";
 import { emotionMeta } from "../emotion-taxonomy";
@@ -195,13 +196,13 @@ function drawTextBubble(context: CanvasRenderingContext2D, options: RenderOption
   const bubbleCenterX = x + bubbleWidth / 2;
   context.beginPath();
   if (shape === "caption") {
-    context.roundRect(x, y, bubbleWidth, bubbleHeight, 14 * unit);
+    roundedRect(context, x, y, bubbleWidth, bubbleHeight, 14 * unit);
     context.moveTo(bubbleCenterX - 12 * unit, y + bubbleHeight - 1);
     context.lineTo(bubbleCenterX, y + bubbleHeight + 14 * unit);
     context.lineTo(bubbleCenterX + 12 * unit, y + bubbleHeight - 1);
     context.closePath();
   } else {
-    context.roundRect(x, y, bubbleWidth, bubbleHeight, shape === "pill" ? bubbleHeight / 2 : 16 * unit);
+    roundedRect(context, x, y, bubbleWidth, bubbleHeight, shape === "pill" ? bubbleHeight / 2 : 16 * unit);
   }
   context.fillStyle = normalizePickerHex(options.textBackgroundColor ?? "") ?? DEFAULT_TEXT_BACKGROUND_COLOR; context.fill();
   context.fillStyle = normalizePickerHex(options.textColor ?? "") ?? DEFAULT_TEXT_COLOR;
@@ -389,7 +390,7 @@ async function drawAccentEffect(context: CanvasRenderingContext2D, brief: Motion
       const bubbleHeight = 17 * unit;
       context.globalAlpha = .48 + (index % 3) * .12;
       context.beginPath();
-      context.roundRect(x - bubbleWidth / 2, y - bubbleHeight / 2, bubbleWidth, bubbleHeight, 7 * unit);
+      roundedRect(context, x - bubbleWidth / 2, y - bubbleHeight / 2, bubbleWidth, bubbleHeight, 7 * unit);
       context.stroke();
       context.beginPath();
       context.moveTo(x + bubbleWidth * .18, y + bubbleHeight / 2);

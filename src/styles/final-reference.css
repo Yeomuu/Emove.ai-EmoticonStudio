@@ -836,7 +836,7 @@ html[data-theme="light"] :where(.voice-transcription-warning, .timeline-save-err
   max-height: 100% !important;
 }
 
-.library-content:has(.library-list-view) {
+.library-content.is-list-layout {
   overflow: hidden !important;
 }
 
@@ -1671,8 +1671,8 @@ html[data-theme="light"] .qr-export-backdrop .export-modal > p { color: var(--mu
 }
 
 /* Input remains a stepped flow; only document/slide overflow is locked. */
-html:has(.app-shell.route-input),
-body:has(.app-shell.route-input) { height: 100svh !important; min-height: 0 !important; overflow: hidden !important; }
+html[data-emove-route="/input"],
+html[data-emove-route="/input"] body { height: 100svh !important; min-height: 0 !important; overflow: hidden !important; }
 .app-shell.route-input { position: fixed; inset: 0; height: 100vh !important; height: 100svh !important; min-height: 0 !important; overflow: hidden !important; }
 .app-shell.route-input > main,
 .app-shell.route-input .route-slide-frame,

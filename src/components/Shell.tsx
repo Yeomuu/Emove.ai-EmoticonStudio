@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import { imageAssets } from "../data";
 import { navigate, route } from "../router";
@@ -10,6 +10,20 @@ export function Shell({ children, immersive = false, currentRoute }: { children:
   const current = currentRoute ?? route.value;
   const dockBlocked = blockingSurfaceOpen.value;
   const dockDestinations = dockDestinationsForRoute(current);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.emoveRoute = current;
+    const resize = () => {
+      root.style.setProperty("--emove-stage-scale", String(Math.min(1, innerWidth / 1920, innerHeight / 1080)));
+      root.style.setProperty("--emove-editor-scale", String(Math.min(1, innerWidth / 1920, Math.max(760, innerHeight) / 1080)));
+    };
+    resize();
+    window.addEventListener("resize", resize);
+    return () => {
+      delete root.dataset.emoveRoute;
+      window.removeEventListener("resize", resize);
+    };
+  }, [current]);
 
   return (
     <div
@@ -32,8 +46,10 @@ export function Shell({ children, immersive = false, currentRoute }: { children:
             data-route
             className={`dock-route-link is-${destination.icon}`}
             aria-label={destination.ariaLabel}
+            tabIndex={dockBlocked ? -1 : undefined}
             onClick={(event) => {
               event.preventDefault();
+              if (dockBlocked) return;
               navigate(destination.path);
             }}
           >

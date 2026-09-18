@@ -533,7 +533,7 @@ export function LibraryPage() {
               </nav>
             </aside>
 
-            <section className="library-content">
+            <section className={`library-content ${layoutMode === "list" ? "is-list-layout" : ""}`}>
               <header className="library-content-header">
                 <div>
                   <span>

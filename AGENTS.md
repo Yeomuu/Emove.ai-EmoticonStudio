@@ -8,6 +8,8 @@ When implementing from a selected generated mock, treat that image as the source
 
 ## Durable EMOVE decisions
 
+- Sierra 10.12.6 compatibility work belongs to `codex/sub`; keep production on `main`. The user accepts Chrome on Sierra, so target Chrome 103 without removing creation, capture/analysis, editing, export, or remote-save features. Do not claim full Sierra support until the complete workflow has been exercised on that machine.
+
 - The latest user-provided screen reference set is the visual source of truth.
 - Use clean History API paths such as `/home`, `/character`, `/input`, `/edit`, and `/library`.
 - Keep route boundaries for Home, Character, Input, Edit, and Library so browser back/forward preserves the intended workflow model; make route changes feel like vertical one-page slide transitions instead of converting the app to a single scroll-only page.

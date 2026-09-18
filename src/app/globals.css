@@ -1,4 +1,7 @@
-@import "tailwindcss";
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+@import "../styles/legacy-viewport.css";
 
 @import "../styles/theme-light.css";
 @import "../styles/tokens.css";

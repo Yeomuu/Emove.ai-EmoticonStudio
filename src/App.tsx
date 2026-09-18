@@ -1,5 +1,7 @@
 "use client";
 
+import "wicg-inert";
+
 import { lazy, Suspense, useEffect, useState, useRef } from "react";
 import { Shell } from "./components/Shell";
 import { HomePage } from "./screens/Home";
